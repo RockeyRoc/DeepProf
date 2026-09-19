@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "example_echo",
+      "version": "0.1.0",
+      "sha256": "eb7891cd6befc08df6714cb7907f92503304b4aa6c0b86a07de083901931c1e8",
+      "approved_by": "刘俊鹏",
+      "approved_at": "2026-09-17T11:20:19.688116+00:00",
+      "note": "项目自带示例插件，随 Runtime 一并审核"
+    }
+  ]
+}

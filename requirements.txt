@@ -1,0 +1,34 @@
+# ============================================================
+# DeeepProf 依赖清单（DESIGNv0.4 §8 技术栈）
+# 安装：pip install -r requirements.txt
+# ============================================================
+
+# ---------- 核心运行时 ----------
+# Python>=3.11
+openai>=1.40.0            # DeepSeek/OpenAI/Qwen 均走 OpenAI 兼容 SDK
+pydantic>=2.7.0
+pydantic-settings>=2.3.0
+python-dotenv>=1.0.0
+
+# ---------- 教学策略图（LangGraph） ----------
+langgraph>=0.2.0
+
+# ---------- API 与流式 ----------
+fastapi>=0.110.0
+uvicorn[standard]>=0.30.0
+websockets>=12.0
+
+# ---------- RAG（按需启用，先注释） ----------
+# PyMuPDF>=1.24.0
+# chromadb>=0.5.0
+# sentence-transformers>=3.0.0
+# FlagEmbedding>=1.2.10  # BGE-M3
+
+# ---------- 语音（按需启用） ----------
+# edge-tts>=6.1.0
+# openai-whisper>=20231117
+
+# ---------- 开发与测试 ----------
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+httpx>=0.27.0              # FastAPI TestClient 依赖

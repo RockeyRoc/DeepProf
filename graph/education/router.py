@@ -1,0 +1,192 @@
+"""条件路由与教学动作决策（DESIGNv0.4 §6.2 / §7.3 / §16.3）。
+
+本模块是"教师此刻应该怎么教"的唯一判定处，分两层：
+
+1. `decide_action(state)` —— 纯函数决策，Assess 节点调用它并把结果写入
+   `next_action` 与 `last_assessment`。判定依据全部来自状态字段与 policies 常量，
+   优先级与理由见函数 docstring（这也是教师评审与实验复盘的对照口径）。
+2. `route_from_*` —— LangGraph 条件边函数，把状态映射到下一个节点名或 END。
+   它们只做"安全兜底"（停止、超轮次、未知动作），不重复业务判断，
+   保证即使状态被外部写坏也不会走出非法分支。
+
+覆盖的分支（§6.2 六类教学动作 + 退出）：
+    Assess → Teach / Ask / Hint / Correct / Test / Reflect / END
+"""
+from __future__ import annotations
+
+from langgraph.graph import END
+
+from .policies import (
+    ACTION_ASK,
+    ACTION_CORRECT,
+    ACTION_END,
+    ACTION_HINT,
+    ACTION_NODES,
+    ACTION_REFLECT,
+    ACTION_TEST,
+    ACTION_TEACH,
+    CORRECT_WRONG_STREAK,
+    END_ACTIONS,
+    HINT_MAX_LEVEL,
+    MAX_TURNS_DEFAULT,
+    MISCONCEPTION_LIMIT,
+    QUIZ_AFTER_ATTEMPTS,
+    requests_explanation,
+)
+from .state import PedagogyState
+
+
+# ======================================================================
+# 一、教学动作决策（Assess 节点使用）
+# ======================================================================
+def decide_action(state: PedagogyState) -> tuple[str, str]:
+    """决定本轮教学动作，返回 (action, reason)。
+
+    优先级与依据（§6.2 触发条件）：
+
+    1. 学生主动停止（student_stopped）→ end
+       不产出任何教学动作，直接收束（§16.3 验收："学生停止时退出"）。
+    2. 达到最大轮次（turn_count ≥ max_turns）→ reflect
+       交由 Reflect 选择回退、换策略或求助教师，避免无限追问（§7.3）。
+    3. 稳定错误 / 概念混淆 → correct
+       概念混淆：误解条目 ≥ MISCONCEPTION_LIMIT 即可纠错；
+       稳定错误：wrong_streak ≥ CORRECT_WRONG_STREAK **且提示阶梯已用尽**
+       （hint_level ≥ HINT_MAX_LEVEL）。两者都表示继续追问只会强化错误
+       （§6.2 Correct："出现稳定错误或概念混淆"）。
+    4. 尝试受阻 → hint
+       wrong_streak ≥ 1 时给提示，从轻到重，每次升一级直至 HINT_MAX_LEVEL。
+       第 3 条的 hint_level 条件保证这条阶梯不会被纠错提前打断，
+       因此 1—3 级会依次真实出现，不存在"定义了却走不到"的档位。
+       每一级（含最高级）都不给出最终答案：第 3 级起开始给脚手架，
+       因此显式声明"不给出最终答案"，避免单次答错就纠错、剥夺学生自己推理的机会。
+    5. 需要验证理解 → test
+       attempt_count ≥ QUIZ_AFTER_ATTEMPTS 且本轮没有未处理的错误
+       （有错时先走 Hint/Correct，测验留到状态干净之后，避免边讲边测）。
+    6. 主动求讲解 / 概念缺失 → teach
+       命中讲解意图且没有任何作答尝试（attempt_count == 0）：
+       学生还没开始推理，此时直接分层讲解比追问更有效（§16.3"主动求讲解"样例）。
+    7. 默认 → ask
+       最保守也最不泄露答案的苏格拉底追问（§6.3 Socratic）。
+
+    注意：证据不足**不**改变动作选择，只改变输出方式——Teach / Correct 在
+    evidence_sufficient=False 时必须给出"证据不足"表述且不带任何来源（§7.3）。
+    """
+    if state.get("student_stopped"):
+        return ACTION_END, "学生主动停止，本轮不再产出教学动作（§16.3）"
+
+    turn_count = int(state.get("turn_count") or 0)
+    max_turns = int(state.get("max_turns") or MAX_TURNS_DEFAULT)
+    if turn_count >= max_turns:
+        return (
+            ACTION_REFLECT,
+            f"达到最大轮次 {turn_count}/{max_turns}，转 Reflect 换策略或求助教师（§7.3）",
+        )
+
+    wrong_streak = int(state.get("wrong_streak") or 0)
+    hint_level = int(state.get("hint_level") or 0)
+    attempt_count = int(state.get("attempt_count") or 0)
+    misconceptions = list(state.get("misconceptions") or [])
+
+    # 稳定错误：连续答错达到阈值，**且提示阶梯已用尽**。
+    # 加 hint_level 这一重条件，是为了让"从轻到重给提示"这条教学路径真正走得完：
+    # 否则连错到阈值就会打断提示、直接纠错，高等级提示模板永远轮不到（等于死代码）。
+    # CORRECT_WRONG_STREAK 仍表示"这已是稳定错误"，只是纠错要等提示脚手架用尽后再执行。
+    if wrong_streak >= CORRECT_WRONG_STREAK and hint_level >= HINT_MAX_LEVEL:
+        return (
+            ACTION_CORRECT,
+            f"连续答错 {wrong_streak} 次（阈值 {CORRECT_WRONG_STREAK}）"
+            f"且提示已用尽 {hint_level}/{HINT_MAX_LEVEL}，判定为稳定错误，需直接纠错",
+        )
+    if len(misconceptions) >= MISCONCEPTION_LIMIT:
+        return (
+            ACTION_CORRECT,
+            f"累积误解 {len(misconceptions)} 条（阈值 {MISCONCEPTION_LIMIT}），判定为概念混淆，需指出冲突",
+        )
+    if wrong_streak >= 1:
+        if hint_level < HINT_MAX_LEVEL:
+            return (
+                ACTION_HINT,
+                f"尝试受阻（连续答错 {wrong_streak} 次）且提示级别 {hint_level}/{HINT_MAX_LEVEL} 未用尽，从轻到重给提示",
+            )
+        # 提示已到最高级别：继续复用最高一级提示（仍不给出最终答案），
+        # 只有连续答错累计到 CORRECT_WRONG_STREAK 才转 Correct（见 docstring 第 3/4 条）
+        return (
+            ACTION_HINT,
+            f"提示已达最高级别 {hint_level}/{HINT_MAX_LEVEL} 且本轮再次受阻，"
+            f"复用第 {HINT_MAX_LEVEL} 级提示（不给出最终答案）；"
+            f"连续答错累计 {CORRECT_WRONG_STREAK} 次再判定为稳定错误转纠错",
+        )
+    if attempt_count >= QUIZ_AFTER_ATTEMPTS:
+        return (
+            ACTION_TEST,
+            f"累计尝试 {attempt_count} 次（阈值 {QUIZ_AFTER_ATTEMPTS}）且本轮无未处理错误，转测验验证理解",
+        )
+    if attempt_count == 0 and requests_explanation(str(state.get("user_input") or "")):
+        return ACTION_TEACH, "学生主动求讲解且尚无作答尝试，概念缺失，适合分层讲解并给出来源"
+    return ACTION_ASK, "学生具备推理基础且无错误轨迹，用苏格拉底追问推进（不泄露答案）"
+
+
+# ======================================================================
+# 二、条件边
+# ======================================================================
+def route_from_assess(state: PedagogyState) -> str:
+    """Assess 出口：六类教学动作 + reflect + END（§6.2）。"""
+    if state.get("student_stopped"):
+        return END
+    action = str(state.get("next_action") or "")
+    if action in END_ACTIONS:
+        return END
+    if _at_turn_limit(state):
+        # 安全兜底：即使 next_action 被外部写坏或决策未执行，也不会继续追问
+        return ACTION_REFLECT
+    return action if action in ACTION_NODES else ACTION_ASK
+
+
+def route_from_teaching(state: PedagogyState) -> str:
+    """教学动作节点（teach/ask/hint/correct）出口：仍需写回学情（§6.2 UpdateProfile）。
+
+    条件边的意义：学生在节点执行期间停止时直接 END，不再生成学情增量。
+    """
+    if state.get("student_stopped"):
+        return END
+    return "update_profile"
+
+
+def route_from_test(state: PedagogyState) -> str:
+    """Test 出口：答错且提示未用尽、未超轮次 → 回退一次重新 Assess（补提示）。
+
+    这是本图唯一的回退边，由三重限界保证收敛（§7.3 防无限追问）：
+        hint_level < HINT_MAX_LEVEL、turn_count < max_turns、LangGraph recursion_limit。
+    """
+    if state.get("student_stopped"):
+        return "update_profile"
+    if (
+        state.get("last_answer_correct") is False
+        and int(state.get("hint_level") or 0) < HINT_MAX_LEVEL
+        and not _at_turn_limit(state)
+    ):
+        return "assess"
+    return "update_profile"
+
+
+def route_from_reflect(state: PedagogyState) -> str:  # noqa: ARG001 - 条件边需保持统一签名
+    """Reflect 出口：无论换策略还是求助教师，都要先落一次学情增量。"""
+    return "update_profile"
+
+
+# ======================================================================
+# 三、内部工具
+# ======================================================================
+def _at_turn_limit(state: PedagogyState) -> bool:
+    turn_count = int(state.get("turn_count") or 0)
+    max_turns = int(state.get("max_turns") or MAX_TURNS_DEFAULT)
+    return turn_count >= max_turns
+
+
+__all__ = [
+    "decide_action",
+    "route_from_assess",
+    "route_from_reflect",
+    "route_from_teaching",
+    "route_from_test",
+]
