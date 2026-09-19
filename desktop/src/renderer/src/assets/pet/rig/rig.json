@@ -1,0 +1,26 @@
+{
+  "canvas_w": 642,
+  "canvas_h": 1216,
+  "hem_y": 773,
+  "hip_y": 718,
+  "inset": 14,
+  "leg_left": {
+    "x": 247.0,
+    "y": 718
+  },
+  "leg_right": {
+    "x": 361.5,
+    "y": 718
+  },
+  "leg_left_px": 33434,
+  "leg_right_px": 33735,
+  "source": "idle.png",
+  "source_path": "desktop/src/renderer/src/assets/pet/expressions/idle.png",
+  "source_crop": [
+    446,
+    205,
+    1088,
+    1421
+  ],
+  "_说明": "leg_left / leg_right = 该腿的旋转中心（髋点），坐标相对 canvas_w × canvas_h 画布；hem_y = 裙摆线（身体层与腿层的分界）；hip_y = 髋点线；inset = 身体层保留的大腿顶部像素数（用来盖住旋转缝）。改这里没用，要重跑 拆腿.py。"
+}

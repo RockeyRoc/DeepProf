@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>DeepProf 桌宠</title>
+    <!--
+      注意：CSP 不写在这里。
+      写在 <meta> 里会连开发模式的 Vite HMR（内联脚本 + WebSocket）一起拦掉，
+      导致渲染进程白屏。CSP 改由主进程按环境注入，见 src/main/index.js。
+    -->
+  </head>
+  <body>
+    <div id="root"></div>
+    <!--
+      ⚠️ Live2D Cubism Core 运行时（live2dcubismcore.min.js）已于 2026-09-19 移出。
+      **不要再往这里加回 <script src="./live2dcubismcore.min.js">。**
+
+      为什么之前不能删：`App.jsx` 曾经**静态** import `Live2DPet` → 它 import
+      `pixi-live2d-display/cubism4` → 这个库在**模块求值阶段**（不是调用阶段）就检查：
+          if (!window.Live2DCubismCore) throw new Error('Could not find Cubism 4 runtime...')
+      整条 import 链是同步的，异常会让 React 根本挂不上 —— 表现是
+      **窗口在、里面全白**（实测 `rootLen: 0`）。
+
+      现在为什么能删：`App.jsx` 已把 `Live2DPet` 改成 `React.lazy(() => import(...))`，
+      静态 import 链被打断。而 Live2D 入口本来就是停用的（`mode` 只能停在 'png'），
+      这段动态加载**永远不会被触发** → 运行时脚本没必要存在。
+
+      ⚠️ 如果以后要恢复 Live2D 链路验证：把运行时放回 `public/`、并在下面加回那行
+      `<script>`（注意它必须是**普通 script**、排在 main.jsx 的 module script 之前，
+      因为 `window.Live2DCubismCore` 要在 pixi 模块求值前就位）。
+      步骤见 `_素材工作区/_第三方样例模型/README.md`。
+    -->
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
