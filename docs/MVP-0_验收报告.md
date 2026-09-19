@@ -4,7 +4,7 @@
 | --- | --- |
 | 项目 | DeepProf（大创） |
 | 里程碑 | MVP-0 最小 Runtime |
-| 验收依据 | [DESIGNv0.4.md](DESIGNv0.4.md) §10 里程碑表、§12 测试范围、§16.1 负责人验收 |
+| 验收依据 | [DESIGNv0.4.1.md](DESIGNv0.4.1.md) §10 里程碑表、§12 测试范围、§16.1 负责人验收 |
 | 验收日期 | 2026-09-17 |
 | 验收环境 | Windows · Python 3.14 · provider=deepseek · model=deepseek-flash · LLM_MAX_TOKENS=4096 |
 | 结论 | **通过**（6 项验收全部达成；2 项非阻塞观察项见 §6） |

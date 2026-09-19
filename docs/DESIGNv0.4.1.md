@@ -616,7 +616,7 @@ DeepProf/
 │   ├── integration/
 │   └── test_architecture_boundaries.py   # 三条架构守卫（依赖 / 词汇 / 端口）
 └── docs/
-    ├── DESIGNv0.4.md
+    ├── DESIGNv0.4.1.md
     └── deepprof_framework_v0.4.html
 ```
 
@@ -781,7 +781,7 @@ D-7 于 2026-09-19 确认（v0.4.1 接口修订）。
 
 ## 十六、团队任务与学习路线
 
-成员与组级职责依据用户提供的分工表：6 名学生、1 名指导教师。两名教育组成员、两名数据组成员的个人主责是本版建议拆分，组内共同负责原分工；姓名按图片转录，正式发布前可在网站数据区修正。
+成员与组级职责依据用户提供的分工表：7 名学生、1 名指导教师。刘雨烟于 2026-09-19 加入，创业学院人工智能专业，负责计划书商业部分编写与人工智能框架设计。教育组成员与两名数据组成员的个人主责是本版建议拆分，组内共同负责原分工；姓名按图片转录，正式发布前可在网站数据区修正。
 
 ### 16.1 刘俊鹏｜项目负责人
 
@@ -898,7 +898,28 @@ D-7 于 2026-09-19 确认（v0.4.1 接口修订）。
 2. [py-irt](https://github.com/nd-ball/py-irt)：从 1PL/Rasch 开始，理解能力与题目难度。
 3. [pyKT](https://github.com/pykt-team/pykt-toolkit)：学习知识追踪数据格式与基准；数据充足后比较扩展模型。
 
-### 16.7 唐欢容｜指导教师
+### 16.7 刘雨烟｜商业与框架设计
+
+创业学院人工智能专业，2026-09-19 加入，负责计划书商业部分编写与人工智能框架设计。
+
+- **模块**：`DESIGNv0.4.1.md · docs/（计划书第 4、7 章）`
+- **第一轮任务**：
+  1. 完成计划书商业部分：商业模式与运营规划、目标客户与获客路径、成本与预算口径，与第 2 章市场分析使用同一数据口径。
+  2. 参与人工智能框架设计评审：分层架构、`RuntimePort`（窄面）与 `RuntimeHost`（宽面）、
+     动作—能力绑定表与解耦边界，确认守卫条件可机械检查。
+  3. 对齐 `DESIGNv0.4.1.md` 与计划书：成员分工、里程碑与预算条目在两份文档中保持一致。
+- **验收**：商业章节的每个数字都有口径与来源标注；框架设计与设计文档一致，接口改动同步落到
+  文档与门户；两份文档不出现互相矛盾的分工与预算。
+- **交接**：给刘俊鹏：商业章节初稿与框架评审意见。给唐欢容：待审核的商业与经费口径。
+  给教育组与数据组：成本与资源假设的核对清单。
+
+学习顺序：
+
+1. [FastAPI 教程](https://fastapi.tiangolo.com/tutorial/)：理解后端接口形态，便于与 Runtime 端口对齐。
+2. [LangGraph 概览](https://docs.langchain.com/oss/python/langgraph/overview)：对照教学策略图与执行层的接缝，理解框架设计的边界。
+3. [Pi Core 参考](https://github.com/earendil-works/pi)：理解 Agent、Session、Event 的职责边界，便于评审框架分层。
+
+### 16.8 唐欢容｜指导教师
 
 教学法与学术指导、试点课程审核、项目评审把关。
 
@@ -920,7 +941,7 @@ D-7 于 2026-09-19 确认（v0.4.1 接口修订）。
 3. [LangGraph 概览](https://docs.langchain.com/oss/python/langgraph/overview)：对照教学流程检查节点条件与回退是否合理。
 
 
-### 16.8 四阶段联合交付
+### 16.9 四阶段联合交付
 
 阶段是相对执行顺序，不代表已完成或承诺日期。
 
@@ -938,7 +959,7 @@ D-7 于 2026-09-19 确认（v0.4.1 接口修订）。
 本次交付的**团队门户**是可部署的共享资料与架构站点。DeepProf 教育产品的 Electron、FastAPI Runtime、SQLite 与模型服务属于本文设计的后续实现，不能把门户发布误称为教育产品已经上线。
 
 ```text
-成员浏览器 → 团队服务器 Nginx → 门户 HTML + DESIGNv0.4.md
+成员浏览器 → 团队服务器 Nginx → 门户 HTML + DESIGNv0.4.1.md
                                （本次交付）
 
 学生 Electron + React → HTTPS/WebSocket → FastAPI Session 接入
@@ -1002,7 +1023,7 @@ BKT、IRT 与其他知识追踪模型采用统一 `LearnerModel` 接口，但负
 
 新版 `deepprof_framework_v0.4.html` 同时是架构图与团队门户，可直接打开。首页包含七位成员任务入口，架构页显示教学层与 Runtime 服务的依赖关系，资料页可按成员查看学习路径，决策页列出 D-1—D-7。
 
-可部署副本位于 `docs/team-site/dist/index.html`，设计文档下载副本位于 `docs/team-site/dist/DESIGNv0.4.md`。统一修改根目录的 HTML 与 Markdown 后，**从项目根目录**执行构建，把源同步进 dist：
+可部署副本位于 `docs/team-site/dist/index.html`，设计文档下载副本位于 `docs/team-site/dist/DESIGNv0.4.1.md`。统一修改根目录的 HTML 与 Markdown 后，**从项目根目录**执行构建，把源同步进 dist：
 
 ```sh
 node docs/team-site/build.mjs
