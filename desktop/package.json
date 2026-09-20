@@ -1,6 +1,6 @@
 {
   "name": "deepprof-desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "DeepProf 桌宠前端 —— Electron + React（MVP-3 第一个模块）",
   "author": "张钧翔",
@@ -33,11 +33,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },

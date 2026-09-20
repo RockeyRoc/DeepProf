@@ -82,7 +82,7 @@ import walk3Url from './assets/pet/frames/walk/walk_3.png'
 //    ⚠️ blink_1（闭眼）**不是**组长那张原生闭眼图，而是拿 blink_0 改眼睛合成出来的
 //    —— 两张原图是【两次独立生成】，全身 21.5% 像素不同、脚底还差 9px，
 //    整图硬切会全身抖。合成后 blink_1 的身体像素与 blink_0 完全一致，抖动为零。
-//    合成脚本：`_素材工作区/_眨眼对位.py`（可重跑）。
+//    合成脚本：`desktop/tools/素材流水线/眨眼合成.py`（随交付走，可重跑）。
 import blinkGeo from './assets/pet/frames/blink/geometry.json'
 import blink0Url from './assets/pet/frames/blink/blink_0.png'
 import blink1Url from './assets/pet/frames/blink/blink_1.png'
