@@ -3,10 +3,15 @@
 设计要点：
 - execute() 始终返回结构化 ToolResult，不把业务失败变成异常：
   教学图据此选择重试、替代工具或解释限制（§7.3）。
+- 执行有超时上限（§7.3 防挂起）：工具可能做网络/磁盘 IO，挂起会把
+  Agent 的"模型—工具"循环无限拖住；超时即中止该调用并转**结构化失败**，
+  与 Provider 的 llm_timeout_seconds 是同一类护栏——两者都不许静默等待。
+  上限取值：工具 timeout_seconds 优先，否则 settings.tool_timeout_seconds。
 - 每次执行都写审计事件：tool.requested / approved / started / completed / failed。
 """
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 from ..core.errors import ToolNotFound
@@ -115,10 +120,23 @@ class ToolRegistry:
                 )
             self._emit(EventType.TOOL_APPROVED, {"tool": name}, context)
 
-        # 4) 执行
+        # 4) 执行（带超时护栏：单个工具挂起不得拖住整轮对话）
         self._emit(EventType.TOOL_STARTED, {"tool": name}, context)
+        timeout = tool.effective_timeout()
         try:
-            result = await tool.execute(parsed, context)
+            result = await asyncio.wait_for(tool.execute(parsed, context), timeout=timeout)
+        except TimeoutError:  # Python 3.11+ 起 asyncio.TimeoutError 即内置 TimeoutError
+            # 结构性失败而非异常：调用方（教学图 / Agent 循环）才能换成替代工具
+            # 或向学生说明该能力暂不可用，而不是整轮无响应（§7.3）。
+            return self._fail(
+                EventType.TOOL_FAILED,
+                context,
+                name,
+                "tool_timeout",
+                f"工具 {name} 执行超过 {timeout}s 未返回，已中止并取消该调用；"
+                "请改用替代工具或说明该能力暂不可用",
+                timeout_seconds=timeout,
+            )
         except Exception as exc:  # 工具内部异常统一转结构化失败
             return self._fail(
                 EventType.TOOL_FAILED,

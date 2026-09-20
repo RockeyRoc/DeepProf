@@ -14,6 +14,8 @@ from typing import Any
 
 from pydantic import BaseModel, ValidationError
 
+from config import settings
+
 from ..core.errors import ToolValidationError
 from ..sandbox.policy import SandboxPolicy
 
@@ -62,6 +64,19 @@ class Tool(ABC):
     input_model: type[BaseModel] = BaseModel
     permissions: frozenset[str] = frozenset()  # 默认最小权限
     requires_approval: bool = False
+    #: 单次执行的超时上限（秒）；None = 用 settings.tool_timeout_seconds。
+    #: 有网络/磁盘 IO 的工具应显式声明自己的合理上限，而不是依赖全局值。
+    timeout_seconds: float | None = None
+
+    def effective_timeout(self) -> float:
+        """解析实际超时：工具自声明优先，否则落到全局默认（§7.3 防挂起）。
+
+        超时是**执行层护栏**，与 llm_timeout_seconds 同一类：挂起的调用会被
+        中止并转成结构化失败，而不是把 Agent 循环无限拖住。
+        """
+        if self.timeout_seconds is not None:
+            return float(self.timeout_seconds)
+        return float(settings.tool_timeout_seconds)
 
     def schema(self) -> dict:
         """OpenAI 兼容的 function 描述。"""
@@ -100,12 +115,14 @@ class FunctionTool(Tool):
         *,
         permissions: frozenset[str] | set[str] = frozenset(),
         requires_approval: bool = False,
+        timeout_seconds: float | None = None,
     ) -> None:
         self.name = name
         self.description = description
         self.input_model = input_model
         self.permissions = frozenset(permissions)
         self.requires_approval = requires_approval
+        self.timeout_seconds = timeout_seconds
         self._handler = handler
 
     async def execute(self, arguments: BaseModel, ctx: ToolContext) -> ToolResult:

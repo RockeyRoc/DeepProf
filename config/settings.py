@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # ========== Runtime ==========
     runtime_source: str = "deepprof.runtime"  # 事件默认 source，便于轨迹溯源
     agent_max_turns: int = 8  # 单次 run 的模型—工具循环上限，防止无限循环
+    # 单次工具执行的超时上限（秒）。工具可能有网络/磁盘 IO，挂起会把 Agent 循环
+    # 无限拖住（与 llm_timeout_seconds 同一类防护）；工具可用 timeout_seconds 覆盖
+    tool_timeout_seconds: float = Field(default=30.0, gt=0)
     session_compact_keep: int = 12  # compact 时保留最近 N 条消息
     trace_id_header: str = "x-trace-id"  # API 侧透传 trace_id 的请求头
 
