@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     # 对话参数
     llm_temperature: float = 0.7
     llm_max_tokens: int = 4096
+    # 单次模型调用的连接/读空闲超时（秒）。SDK 默认 600s 曾导致流式挂起
+    # 10 分钟才失败；调小以便快速失败并进入降级文案
+    llm_timeout_seconds: float = 120.0
 
     # ========== 记忆与存储（DESIGNv0.4 D-3：抽象接口 + 本地 SQLite） ==========
     sqlite_path: str = "data/deepprof.db"

@@ -27,8 +27,10 @@ from ..policies import (
     MEMORY_DISCLAIMER,
     MISCONCEPTION_LABEL_FIELD,
     RULE_MODEL_VERSION,
+    STUDENT_CONTEXT_MAX_CHARS,
     memory_confidence,
     misconception_key,
+    student_context_key,
 )
 from ..state import PedagogyState
 from . import dispatch, emit_decision, emit_entered, emit_exited
@@ -227,6 +229,28 @@ def _build_records(
                 "model_version": RULE_MODEL_VERSION,
                 # 标签字段名与 Assess 读取时共用同一常量（改一处即可，见 policies）
                 "metadata": {MISCONCEPTION_LABEL_FIELD: label, "concept": concept, **metadata},
+            }
+        )
+
+    # 学生自述背景：有界摘录本轮输入（如"之前学过/没学过什么、用什么方法做过题"）。
+    # 跨轮记忆探针实验证实：不写这类记录，下一轮的生成上下文就无从个性化（§6.2）。
+    # 摘录有界（STUDENT_CONTEXT_MAX_CHARS）、revocable=True，学生可随时查看/更正/删除。
+    user_input = str(state.get("user_input") or "").strip()
+    if user_input:
+        records.append(
+            {
+                "learner_id": learner_id,
+                "memory_type": "long_term",
+                "key": student_context_key(concept),
+                "content": (
+                    f"学生自述背景（原文摘录，可撤回）：{user_input[:STUDENT_CONTEXT_MAX_CHARS]}"
+                ),
+                "source": source,
+                "confidence": 0.9,  # 学生直接自述，事实置信度高
+                "expires_at": "",
+                "revocable": True,
+                "model_version": RULE_MODEL_VERSION,
+                "metadata": {"graph_source": "deepprof.graph.education", "turn_count": turn_count},
             }
         )
     return records

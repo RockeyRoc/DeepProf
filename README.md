@@ -6,7 +6,7 @@
 
 *把"Agent 能做什么"与"教师此刻应该怎么教"彻底拆开——上层策略图只产出声明式决策，下层运行时按注入的绑定表执行。*
 
-[![Milestone](https://img.shields.io/badge/Milestone-MVP--0%20passed-4c6ef5)](docs/MVP-0_验收报告.md) [![Tests](https://img.shields.io/badge/tests-221%20passed-2ea44f)](tests/) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/) [![Runtime](https://img.shields.io/badge/Runtime-self--built%2C%20no%20LangChain%20in%20core-8b5cf6)](runtime/) [![Design](https://img.shields.io/badge/Design-DESIGNv0.4.1-0ea5e9)](docs/DESIGNv0.4.1.md) [![Compliance](https://img.shields.io/badge/License%20audit-11%20projects-f59e0b)](docs/license_audit.md)
+[![Milestone](https://img.shields.io/badge/Milestone-MVP--0%20passed-4c6ef5)](docs/MVP-0_验收报告.md) [![Tests](https://img.shields.io/badge/tests-246%20passed-2ea44f)](tests/) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/) [![Runtime](https://img.shields.io/badge/Runtime-self--built%2C%20no%20LangChain%20in%20core-8b5cf6)](runtime/) [![Design](https://img.shields.io/badge/Design-DESIGNv0.4.1-0ea5e9)](docs/DESIGNv0.4.1.md) [![Compliance](https://img.shields.io/badge/License%20audit-11%20projects-f59e0b)](docs/license_audit.md)
 
 > 📖 **架构决策、接口契约、依赖规则与验收口径都在版本化设计文档里，请从 [DESIGNv0.4.1](docs/DESIGNv0.4.1.md) 开始。** MVP-0 的验收判据、实测证据与复现命令见 [MVP-0 验收报告](docs/MVP-0_验收报告.md)；参考开源项目的协议核查结果见 [License 核查台账](docs/license_audit.md)。
 
@@ -14,6 +14,9 @@
 
 ## News 🔥🔥🔥
 
+- **[2026-09-20]** 🧠 **跨轮学情记忆接进生成上下文。** 此前 `memory.read` / `memory.write` 每轮都在发生，但召回记录的 `content` 从未进入生成提示词——跨轮个性化是空转。现由 `policies.memory_note` 压缩（有界、声明非教材依据）、Assess 写入状态、Teach/Ask/Correct 经 `params` 透传、绑定表拼进提示词；学生自述背景以可撤回的有界摘录落盘（§13.2）。新增 `tests/graph/test_memory_note.py` 锁住全链路。
+- **[2026-09-20]** ⏱️ **Provider 超时与 usage 采集修复。** SDK 默认 600s 读超时曾让流式调用挂起 603 秒；现显式配置 `LLM_TIMEOUT_SECONDS`（默认 120s）并在 `finally` 中关闭底层流。流式 `usage` 恒为 0 的问题经 `stream_options={"include_usage": True}` 与收尾帧采集解决，成本核算恢复可用。
+- **[2026-09-20]** 🔬 **真实实验设施落地。** `tests/experiment/` 新增三项可复现实验：错误分类冒烟（连通 / 无效密钥 / 超时容错，5/5 通过）、跨轮记忆锚点探针（**3/3 命中**，每轮召回 4 条记录）、实验报告图表生成（延迟箱线图 + 判据通过率）；配套实验版教材检索装置（真实语料 + 关键词检索，证据不足如实返回）。
 - **[2026-09-19]** 🎉 **仓库建立，MVP-0 全部源码入库。** Runtime、Pedagogical Graph、API 与 221 项测试一并推送。
 - **[2026-09-19]** 🔌 **D-7 接口修订落地（v0.4.1）。** `RuntimePort` 收窄为 `execute + emit` 两个方法，能力面拆为 `RuntimeHost`；图节点不再持有任何正文与执行细节，六类教学动作全部改为"只产出 `PedagogicalDecision`"。新增三条架构守卫测试（依赖方向 / 教学词汇 / 端口分面），违反即失败。
 - **[2026-09-17]** ✅ **MVP-0 验收通过。** 6 项判据（终端对话闭环、事件可回放、重启可恢复、Provider 可替换、模型→工具→事件闭环、失败与取消可观测）全部达成，验收以本机实际运行输出为准。
@@ -103,7 +106,7 @@ cp .env.example .env          # Windows: copy .env.example .env
 #   也可以完全不配密钥：把 LLM_PROVIDER 设为 fake，用确定性 FakeProvider 离线跑通链路
 
 # 3. 跑测试（无需网络与密钥）
-py -m pytest -q                       # 221 passed
+py -m pytest -q                       # 246 passed
 
 # 4. 离线冒烟：验证"模型 → 工具 → 事件"闭环
 py scripts/smoke_test_mvp0.py --fake  # 7/7，17 条事件
@@ -151,6 +154,34 @@ curl "localhost:8000/sessions/$SID/events?from_sequence=0"
 
 ---
 
+## 真实实验（可复现）
+
+`tests/experiment/` 是教育层与 Runtime 层的实测装置：**全部走生产链路**（真实 `RuntimeService` + 教学图 + SQLite 记忆），不使用裸调模型或伪造的替身。教材检索为实验装置（本地微型真实语料 + 关键词匹配），因为它才是生产占位工具所缺、而"带可定位引用"这条验收路径所必需的一环。
+
+```bash
+# 1. 错误分类冒烟：连通 + usage 采集 + 无效密钥 + 超时容错（5 项检查）
+py tests/experiment/smoke_test.py
+
+# 2. 教学场景真实实验：8 个场景 × N 次重复，逐轮核对路由与行为判据
+py tests/experiment/education_scenario.py --reps 20
+
+# 3. 跨轮记忆探针：T0 植入锚点 → T1 正常教学 → T2 要求复述
+py tests/experiment/memory_probe.py --reps 3
+
+# 4. 由实验结果生成报告图表（延迟箱线图 + 判据通过率）
+py tests/experiment/make_report.py
+```
+
+产物写入 `tests/experiment/output/`：逐轮明细 CSV、汇总 CSV、报告 Markdown 与 `charts/` 图表。实验中发现的问题按"Provider / 配置层"与"教学图层"分别归口，不把执行层缺陷记成教学策略缺陷。
+
+跨轮记忆探针的实测记录（`deepseek-flash`，3 次重复）：T0 植入锚点后，T1/T2 每轮召回 2 / 4 条记忆，T2 要求复述锚点 **3/3 命中**——证明召回内容确实进入了生成上下文，而非只发生读写却空转。
+
+> 💡 探针设计本身经历过两轮修正，记录在此以免重犯：① 问"它叫什么"会路由到 Ask，而 Socratic 的 `avoid_answer` 约束禁止模型说出"答案"，锚点名恰好就是被问的答案；② 只改用求讲解措辞会路由到 Teach，但探针问句没有教材关键词 → RAG 无命中 → `require_evidence` 门直接给确定性"证据不足"文本、**不调用模型**（延迟 ~6ms 即为证据）。两处都是**实验设计与教学约束/证据纪律的冲突**，不是记忆链路缺陷——把教材可覆盖的知识点与复述请求合并后即稳定命中。
+
+> ⚠️ 实验需要 `.env` 中的真实 Provider 密钥；密钥只在进程内使用，报告与 CSV 均不含密钥（控制台只打印掩码）。
+
+---
+
 ## 项目结构
 
 ```text
@@ -176,6 +207,7 @@ DeepProf/
 ├── models/learner/               # 学情模型（attempt / estimate）
 ├── api/                          # FastAPI 组合根与路由（SSE）
 ├── config/                       # settings 与路径
+├── tests/experiment/             # 真实链路实验装置（冒烟 / 教学场景 / 记忆探针 / 报告图表）
 ├── migrations/ · scripts/ · tests/ · docs/ · media/
 └── plugins/example_echo/         # 示例插件
 ```
@@ -198,9 +230,9 @@ UI / API → Pedagogical Graph → RuntimePort（窄面：execute / emit）→ A
 | 阶段 | 目标 | 状态 |
 | --- | --- | --- |
 | **MVP-0** | 最小 Runtime：Agent + Session + Event + Provider 跑通对话；事件可回放 | ✅ 已验收（2026-09-17） |
-| **MVP-1** | Tool / Storage / Memory：Session 重启恢复、学情记忆可读写 | ⏳ 进行中 |
-| MVP-2 | Pedagogical Graph：Assess → Ask/Teach → Test → UpdateProfile 主链路可测试 | 🔌 接口部分已完成（D-7） |
-| MVP-3 | 教育能力：Socratic、RAG、Quiz、Diagnosis，引用可追踪 | 📋 计划 |
+| **MVP-1** | Tool / Storage / Memory：Session 重启恢复、学情记忆可读写 | 🔶 记忆读写闭环已实测（含召回进生成上下文）；Session 恢复已验收 |
+| MVP-2 | Pedagogical Graph：Assess → Ask/Teach → Test → UpdateProfile 主链路可测试 | 🔌 接口部分已完成（D-7）；主链路已可整轮跑通 |
+| MVP-3 | 教育能力：Socratic、RAG、Quiz、Diagnosis，引用可追踪 | 📋 计划（教学场景实验已用实验装置预验通路） |
 | MVP-4 | Plugin Runtime / Sandbox：插件安装、危险 Tool 审批与边界测试 | 📋 计划 |
 | MVP-5 | 桌宠与语音：流式文本、情感标签、语音动作联动 | 📋 计划 |
 | v1.0 | 申报演示与研究评测：对照实验、演示脚本、可复现实验记录 | 📋 计划 |
@@ -244,6 +276,8 @@ UI / API → Pedagogical Graph → RuntimePort（窄面：execute / emit）→ A
 | --- | --- |
 | [DESIGNv0.4.1.md](docs/DESIGNv0.4.1.md) | 架构总纲：分层、接口契约、依赖规则、目录树、MVP 路线、团队任务 |
 | [MVP-0_验收报告.md](docs/MVP-0_验收报告.md) | MVP-0 验收判据、实测证据、测试覆盖与复现方式 |
+| [教育层_首轮验收记录.md](docs/教育层_首轮验收记录.md) | 教育层首轮交付的验收口径、逐项核对与遗留项 |
+| [realrun_report.md](tests/experiment/output/realrun_report.md) | 真实实验报告：逐场景路由与行为判据、延迟统计与图表 |
 | [license_audit.md](docs/license_audit.md) | 11 个参考项目的 License 核查台账与风险处置 |
 
 ## 参考项目与合规

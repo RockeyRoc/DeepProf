@@ -36,6 +36,7 @@ from ..policies import (
     MAX_TURNS_DEFAULT,
     MISCONCEPTION_KEEP,
     is_misconception_record,
+    memory_note,
     misconception_label,
     reports_prior_gap,
 )
@@ -89,6 +90,9 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         f"memory://{learner_id or 'anonymous'}/{concept or 'general'}"
     )
     misconceptions = _merge_misconceptions(state.get("misconceptions") or [], records)
+    # 学情记忆摘要：压缩规则（条数/字数上限）在 policies，节点只负责压缩后放进
+    # 状态，供 teach / ask / correct 经 params 透传、由绑定拼进提示词（§6.4）。
+    note = memory_note(records)
     # 先验判定（§16.3 先验不足样例）：只认学生的自述，不从"记忆为空"反推没掌握；
     # 判定口径（关键词与讲解起点）都在 policies，节点不自己写一份。
     prior_gap = reports_prior_gap(str(state.get("user_input") or ""))
@@ -130,6 +134,7 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         "evidence_sufficient": evidence_sufficient,
         "retrieved_evidence_refs": evidence_refs,
         "prior_knowledge_gap": prior_gap,
+        "memory_note": note,
     }
     action, reason = decide_action(decision_state)
     assessment = {
@@ -197,6 +202,7 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         "retrieved_evidence_refs": evidence_refs,
         "evidence_sufficient": evidence_sufficient,
         "prior_knowledge_gap": prior_gap,
+        "memory_note": note,
         "last_assessment": assessment,
         "next_action": action,
         "action": action,

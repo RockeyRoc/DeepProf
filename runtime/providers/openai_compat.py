@@ -7,6 +7,7 @@ DeepSeek、OpenAI、Qwen（DashScope 兼容模式）都提供 OpenAI 兼容接�
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from typing import Any, AsyncIterator
 
@@ -34,6 +35,7 @@ class OpenAICompatProvider(Provider):
         async_client: Any | None = None,
         temperature: float | None = None,
         max_tokens: int | None = None,
+        timeout: float | None = None,
     ) -> None:
         self.name = name
         self._api_key = api_key
@@ -41,6 +43,9 @@ class OpenAICompatProvider(Provider):
         self._model = model
         self._temperature = temperature
         self._max_tokens = max_tokens
+        # None = 用 settings.llm_timeout_seconds；SDK 默认 600s 太长，
+        # 曾导致流式挂起 10 分钟才失败（真实实验发现，见 realrun_report.md）
+        self._timeout = timeout if timeout is not None else settings.llm_timeout_seconds
         self._client = async_client
 
     # ---------- 能力 ----------
@@ -82,8 +87,12 @@ class OpenAICompatProvider(Provider):
 
         buffer: dict[int, dict[str, Any]] = {}
         finish_reason = ""
+        usage: dict[str, Any] = {}
         try:
             async for chunk in stream:
+                # include_usage 模式下 usage 在最后一个 choices 为空的分片下发
+                if getattr(chunk, "usage", None) is not None:
+                    usage = _parse_usage(chunk)
                 if not chunk.choices:
                     continue
                 choice = chunk.choices[0]
@@ -97,11 +106,21 @@ class OpenAICompatProvider(Provider):
                     yield ModelChunk(delta=text)
         except Exception as exc:
             raise ProviderError(f"{self.name} 流式读取失败: {exc}", provider=self.name) from exc
+        finally:
+            # 显式关闭 SDK 流：正常/异常/提前退出（GeneratorExit）都收尾，
+            # 避免底层连接清理时在事件循环里抛 GeneratorExit 噪音。
+            # shield：取消场景下也要把 close 跑完，不被外层取消打断
+            closer = getattr(stream, "close", None)
+            if closer is not None:
+                try:
+                    await asyncio.shield(closer())
+                except Exception:
+                    pass
 
         yield ModelChunk(
             tool_calls=_finalize_tool_calls(buffer),
             finish_reason=finish_reason or "stop",
-            usage={},
+            usage=usage,
         )
 
     # ---------- 内部 ----------
@@ -113,7 +132,9 @@ class OpenAICompatProvider(Provider):
                 )
             from openai import AsyncOpenAI
 
-            self._client = AsyncOpenAI(api_key=self._api_key, base_url=self._base_url)
+            self._client = AsyncOpenAI(
+                api_key=self._api_key, base_url=self._base_url, timeout=self._timeout
+            )
         return self._client
 
     def _build_kwargs(self, request: ModelRequest, *, stream: bool) -> dict:
@@ -132,6 +153,9 @@ class OpenAICompatProvider(Provider):
             ),
             "stream": stream,
         }
+        if stream:
+            # usage 只在最后一个分片下发，需显式开启（否则流式路径 usage 恒为空）
+            kwargs["stream_options"] = {"include_usage": True}
         if request.tools:
             kwargs["tools"] = request.tools
             kwargs["tool_choice"] = "auto"

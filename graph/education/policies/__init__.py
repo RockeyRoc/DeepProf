@@ -386,6 +386,44 @@ def memory_confidence(evidence_sufficient: bool, attempt_count: int) -> float:
     return round(min(value, MEMORY_CONFIDENCE_CAP), 2)
 
 
+# ---- 学情记忆 → 生成上下文（跨轮记忆探针实验发现的缺口） ----
+# 实验（tests/experiment/memory_probe.py）证实：记忆读写都在发生，但召回内容
+# 从未进入生成提示词，跨轮记忆对讲解/追问输出零影响。此处的常量与函数把
+# "召回记录如何压缩成提示词片段"定义为策略，供 Assess 压缩、节点透传、绑定拼装。
+
+#: 进入提示词的最大记录条数与单条截断长度（§6.4 状态不放大文本的提示词版）
+MEMORY_NOTE_MAX_RECORDS = 3
+MEMORY_NOTE_MAX_CHARS = 120
+
+#: UpdateProfile 写入"学生自述背景"时的原文摘录上限（可撤回，§13.2 最小必要）
+STUDENT_CONTEXT_MAX_CHARS = 120
+
+#: 学生自述背景记录的记忆键前缀（召回按 key LIKE 命中 concept 即可带回）
+STUDENT_CONTEXT_KEY_PREFIX = "context:"
+
+
+def student_context_key(concept: str) -> str:
+    """学生自述背景记录的记忆键（形如 ``context:<concept>``）。"""
+    return f"{STUDENT_CONTEXT_KEY_PREFIX}{concept or 'general'}"
+
+
+def memory_note(records: list[dict]) -> str:
+    """把召回的学情记录压缩成生成提示词片段；无可用记录返回空串。
+
+    有界压缩：最多 ``MEMORY_NOTE_MAX_RECORDS`` 条、每条截断到
+    ``MEMORY_NOTE_MAX_CHARS`` 字。标题行显式声明"不是教材依据"，
+    与 §7.3 的引用纪律衔接——记忆只能个性化表达，不能充当结论来源。
+    """
+    entries: list[str] = []
+    for record in list(records or [])[:MEMORY_NOTE_MAX_RECORDS]:
+        content = str(record.get("content") or "").strip()
+        if content:
+            entries.append(f"- {content[:MEMORY_NOTE_MAX_CHARS]}")
+    if not entries:
+        return ""
+    return "学情记忆（个性化参考，不是教材依据，不得作为结论来源）：\n" + "\n".join(entries)
+
+
 # ======================================================================
 # 七、RuntimePort 调用与事件约定
 # ======================================================================

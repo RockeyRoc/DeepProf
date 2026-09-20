@@ -58,6 +58,7 @@ class PedagogyState(TypedDict, total=False):
     last_answer_correct: bool | None  # None = 缺少可靠判分，不得当成答错
     prior_knowledge_gap: bool  # 学生自述缺少先验（前置概念未学）→ 讲解起点前移
     item_id: str  # 本轮作答对应的题目（Attempt 的幂等与来源映射依据；题库未接入时为空）
+    memory_note: str  # 本轮召回的学情记忆摘要（有界、压缩后），供提示词个性化参考
 
     # ---------- 循环控制（§7.3 防无限追问） ----------
     student_stopped: bool
@@ -92,6 +93,7 @@ DEFAULT_STATE: dict[str, Any] = {
     "last_answer_correct": None,
     "prior_knowledge_gap": False,
     "item_id": "",
+    "memory_note": "",
     "student_stopped": False,
     "turn_count": 0,
     "max_turns": MAX_TURNS_DEFAULT,

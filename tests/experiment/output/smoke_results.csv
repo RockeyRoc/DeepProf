@@ -1,0 +1,6 @@
+﻿check,status,detail,latency_ms,error_category,occurred_at
+1-配置加载,PASS,provider=deepseek model=deepseek-flash key=sk-d19***f845,0.0,无,2026-09-20 17:56:40
+2-Runtime连通,PASS,回复='你好'… tokens=75,3401.92,无,2026-09-20 17:56:44
+3-无效key容错,PASS,伪造密钥→ProviderError 根因归类为 '无效密钥(401)',216.37,无效密钥(401),2026-09-20 17:56:44
+4-超时容错,PASS,1ms 超时→1286ms 快速失败，根因归类为 '超时',1286.44,超时,2026-09-20 17:56:45
+5-额度不足分类,PASS,HTTP 402 归类为 '额度不足(402)'（不做真实余额耗尽）,0.0,额度不足(402),2026-09-20 17:56:45

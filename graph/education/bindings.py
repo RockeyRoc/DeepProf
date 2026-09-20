@@ -103,10 +103,13 @@ from .policies import (
 #: Teach 的提示词模板（绑定侧是唯一来源；节点已不再自带一份）。
 #: 起讲点由 `{prior_gap_note}` 决定——它来自 policies.teach_prior_note：
 #: 先验不足时要求先补前置概念，先验正常时精简基础步骤（§16.3 先验不足样例）。
+#: `{memory_note}` 是 Assess 召回并压缩后的学情记忆摘要（policies.memory_note），
+#: 只作个性化参考，明确声明它不是教材依据（§7.3 引用纪律）。
 TEACH_PROMPT_TEMPLATE = (
     "请针对知识点「{concept}」做分层讲解。\n"
     "学习目标：{learning_goal}\n"
     "{prior_gap_note}\n"
+    "{memory_note}\n"
     "学生的问题：{user_input}\n\n"
     "教材片段（唯一允许的依据）：\n"
     "{evidence_block}\n\n"
@@ -120,7 +123,8 @@ TEACH_PROMPT_TEMPLATE = (
 CORRECT_PROMPT_TEMPLATE = (
     "学生在知识点「{concept}」上出现了稳定错误。\n"
     "学生的说法/疑似误解：{conflicts}\n"
-    "学生的原话：{user_input}\n\n"
+    "学生的原话：{user_input}\n"
+    "{memory_note}\n\n"
     "教材片段（唯一允许的依据）：\n"
     "{evidence_block}\n\n"
     "要求：用中文输出三部分，不要引入片段之外的文献或来源：\n"
@@ -239,6 +243,7 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "learner_input": "${params.user_input}",
                 "hint_level": "${level}",
                 "prior_attempts": "${params.attempt_count}",
+                "memory_note": "${params.memory_note}",
                 "avoid_answer": True,
             },
         },
@@ -269,6 +274,7 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "learning_goal": "${params.learning_goal}",
                 "user_input": "${params.user_input}",
                 "prior_gap_note": "${params.prior_gap_note}",
+                "memory_note": "${params.memory_note}",
             },
             "temperature": GENERATE_TEMPERATURE,
             "max_chars": EVIDENCE_MAX_TEXT_CHARS,
@@ -294,6 +300,7 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "concept": "${concept}",
                 "conflicts": "${params.conflicts}",
                 "user_input": "${params.user_input}",
+                "memory_note": "${params.memory_note}",
             },
             "temperature": GENERATE_TEMPERATURE,
             "max_chars": EVIDENCE_MAX_TEXT_CHARS,

@@ -52,6 +52,9 @@ class SocraticSkill(Skill):
         hint_level = int(payload.get("hint_level") or 0)
         prior_attempts = int(payload.get("prior_attempts") or 0)
         avoid_answer = bool(payload.get("avoid_answer", True))
+        # 学情记忆摘要（图侧 Assess 压缩产出，非空才拼接）：只作个性化参考，
+        # 不是教材依据——追问本身不需要引用，因此这里不做证据校验。
+        memory_note = str(payload.get("memory_note") or "").strip()
 
         prompt = (
             f"知识点：{concept}\n"
@@ -59,6 +62,10 @@ class SocraticSkill(Skill):
             f"学生目前的说法：{learner_input or '（学生尚未给出推理）'}\n"
             f"已给出的提示级别：{hint_level}（级别越高越具体）\n"
             f"学生已尝试次数：{prior_attempts}\n"
+        )
+        if memory_note:
+            prompt += f"{memory_note}\n"
+        prompt += (
             f"约束：必须避免过早泄露答案（avoid_answer={avoid_answer}）。\n"
             "请提出下一个问题，让学生自己前进一步。"
         )

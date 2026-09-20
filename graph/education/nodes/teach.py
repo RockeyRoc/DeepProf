@@ -67,6 +67,7 @@ async def teach(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
                 "user_input": str(state.get("user_input") or ""),
                 "query": query,
                 "prior_gap_note": teach_prior_note(prior_gap),
+                "memory_note": str(state.get("memory_note") or ""),
             },
             reason=(
                 "学生自述缺少先验，讲解起点前移到前置概念"

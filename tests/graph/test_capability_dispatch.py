@@ -181,6 +181,7 @@ def ask_decision(evidence_sufficient: bool = False) -> dict:
             "learning_goal": BASE_STATE["learning_goal"],
             "user_input": STUDENT_INPUT,
             "attempt_count": 2,
+            "memory_note": "",
         },
         reason="学生具备推理基础，转入追问",
     ).to_dict()
@@ -199,6 +200,7 @@ def teach_decision(evidence_sufficient: bool = True) -> dict:
             # 起讲点说明：Teach 的提示词按它分层（先验不足 / 先验正常），
             # 由 policies.teach_prior_note 产出（§16.3 先验不足样例）
             "prior_gap_note": teach_prior_note(False),
+            "memory_note": "",
         },
         reason="概念缺失且适合直接解释",
     ).to_dict()
@@ -446,10 +448,11 @@ def test_correct_dispatch_matches_node_and_reports_conflicts():
                 require_evidence=True,
                 evidence_sufficient=True,
                 params={
-                    "conflicts": "把下降方向当成正梯度方向",
-                    "user_input": "我认为梯度下降是沿正梯度方向走",
-                    "query": "我认为梯度下降是沿正梯度方向走",
-                },
+                        "conflicts": "把下降方向当成正梯度方向",
+                        "user_input": "我认为梯度下降是沿正梯度方向走",
+                        "query": "我认为梯度下降是沿正梯度方向走",
+                        "memory_note": "",
+                    },
             ).to_dict(),
             CTX,
         )
@@ -477,10 +480,11 @@ def test_correct_without_evidence_uses_conflict_specific_text():
                 require_evidence=True,
                 evidence_sufficient=False,
                 params={
-                    "conflicts": "把下降方向当成正梯度方向",
-                    "user_input": "我认为方向取正是对的",
-                    "query": "我认为方向取正是对的",
-                },
+                        "conflicts": "把下降方向当成正梯度方向",
+                        "user_input": "我认为方向取正是对的",
+                        "query": "我认为方向取正是对的",
+                        "memory_note": "",
+                    },
             ).to_dict(),
             CTX,
         )

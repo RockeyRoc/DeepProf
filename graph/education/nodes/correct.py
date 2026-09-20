@@ -66,6 +66,7 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
                 "conflicts": conflicts,
                 "user_input": str(state.get("user_input") or ""),
                 "query": query,
+                "memory_note": str(state.get("memory_note") or ""),
             },
             reason="出现稳定错误或概念混淆，转入纠错",
         ),

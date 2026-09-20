@@ -26,11 +26,16 @@ from runtime.providers.openai_compat import OpenAICompatProvider
 class _AsyncChunks:
     """模拟 openai SDK 的流式返回对象（可异步迭代）。
 
-    列表中的 Exception 元素会在迭代到该位置时抛出，用于验证"读流中断"。
+    列表中的 Exception 元素会在迭代到该位置时抛出，用于验证"读流中断"；
+    close() 记录关闭状态，用于验证 Provider 显式收尾。
     """
 
     def __init__(self, items: list[Any]) -> None:
         self._items = list(items)
+        self.closed = False
+
+    async def close(self) -> None:
+        self.closed = True
 
     async def _iter(self):
         for item in self._items:
@@ -56,13 +61,16 @@ class _StubCompletions:
         self._chunks = list(chunks or [])
         self._error = error
         self.calls: list[dict] = []
+        self.streams: list[_AsyncChunks] = []
 
     async def create(self, **kwargs):
         self.calls.append(kwargs)
         if self._error is not None:  # 模拟建连失败（await create 阶段）
             raise self._error
         if kwargs.get("stream"):
-            return _AsyncChunks(self._chunks)
+            stream = _AsyncChunks(self._chunks)
+            self.streams.append(stream)
+            return stream
         return self._response
 
 
@@ -246,6 +254,40 @@ async def test_stream_wraps_read_failure_as_provider_error():
     assert received == ["先说一半"]
 
 
+async def test_stream_requests_usage_and_collects_final_usage_frame():
+    """include_usage 开启后，usage 在 choices 为空的收尾分片下发，必须被采集。
+
+    背景：真实实验发现流式路径 usage 恒为 0（model.completed 无法核算成本）。
+    """
+    usage_frame = SimpleNamespace(
+        usage=SimpleNamespace(prompt_tokens=12, completion_tokens=34),
+        choices=[],
+    )
+    completions = _StubCompletions(
+        chunks=[_chunk(content="递归"), _chunk(finish_reason="stop"), usage_frame]
+    )
+    provider = _provider(completions)
+
+    chunks = [chunk async for chunk in provider.stream(ModelRequest(messages=[Message.user("q")]))]
+
+    assert completions.calls[0]["stream_options"] == {"include_usage": True}
+    assert chunks[-1].usage == {"prompt_tokens": 12, "completion_tokens": 34}
+    # 中间分片不带 usage，只有收尾分片带
+    assert chunks[0].usage == {}
+
+
+async def test_stream_closes_underlying_stream_on_early_exit():
+    """调用方提前退出（GeneratorExit）时必须显式关闭 SDK 流，避免清理噪音。"""
+    completions = _StubCompletions(chunks=[_chunk(content="a"), _chunk(content="b")])
+    provider = _provider(completions)
+
+    agen = provider.stream(ModelRequest(messages=[Message.user("q")]))
+    await agen.__anext__()  # 取到第一个增量后提前退出
+    await agen.aclose()
+
+    assert completions.streams[-1].closed is True
+
+
 # ---------- 请求参数下发 ----------
 async def test_request_kwargs_carry_model_budget_and_tools():
     completions = _StubCompletions(response=_response(content="ok"))
@@ -282,6 +324,27 @@ async def test_request_kwargs_fall_back_to_config_defaults():
     # 没有工具时不下发 tools / tool_choice，避免模型被诱导发起工具调用
     assert "tools" not in kwargs
     assert "tool_choice" not in kwargs
+
+
+def test_client_built_with_configured_timeout(monkeypatch):
+    """构造真实 client 时必须下发可配置超时；SDK 默认 600s 曾导致 603 秒挂起。"""
+    captured: dict = {}
+
+    class _RecordingAsyncOpenAI:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+    monkeypatch.setattr("openai.AsyncOpenAI", _RecordingAsyncOpenAI)
+    provider = OpenAICompatProvider(
+        api_key="sk-test-not-a-real-key",
+        base_url="https://example.invalid/v1",
+        model="deepseek-flash",
+        name="t",
+    )
+
+    provider._ensure_client()
+
+    assert captured["timeout"] == settings.llm_timeout_seconds
 
 
 # ---------- 工厂 ----------
