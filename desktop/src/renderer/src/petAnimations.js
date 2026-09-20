@@ -14,8 +14,9 @@
  *      渲染端按 `geometry.json` 的 1536 算缩放、贴图却只有 768 的话，
  *      角色会**恒为一半大**：不报错、不崩溃、只是"看着不对"。
  *
- * ⏸ 走路 / 眨眼 / 说话 —— **三批旧帧已停用**（画的是上一个角色，会串味）。
- *    文件还在 `frames/` 下，只是不再 import；接回步骤见文件中部那段注释。
+ * ✅ 走路 4 帧 —— **2026-09-20 解禁**（组长给了新角色的侧视四格图）。
+ * ⏸ 眨眼 / 说话 —— 仍停用（这两张图组长还没给；旧的帧还在 `frames/blink|talk/` 下，
+ *    只是不再 import）。接回步骤见文件中部那段注释。
  * ⏸ 待机 2 帧（`idle_0` / `idle_1`）—— 仍未产出，`idle` 还是单帧。
  *    单帧时靠 FramePet 的 sway 形变滤镜 + 弹跳补一点"活着"的感觉。
  *
@@ -67,11 +68,15 @@ import geometry from './assets/pet/expressions/geometry.json'
  * ⚠️ walk 必须带自己的 geo —— 走路那批角色框比表情批【宽】（侧视伸出去），
  *    共用一份会让缩放算错。
  * ========================================================================= */
-// import walkGeo from './assets/pet/frames/walk/geometry.json'
-// import walk0Url from './assets/pet/frames/walk/walk_0.png'
-// import walk1Url from './assets/pet/frames/walk/walk_1.png'
-// import walk2Url from './assets/pet/frames/walk/walk_2.png'
-// import walk3Url from './assets/pet/frames/walk/walk_3.png'
+// ✅ 走路 4 帧 —— 2026-09-20 解禁：组长给了新角色的四格图
+//    （侧视朝右、纯白底、四格一张；帧间高度差只有 0.5%，比例很稳）
+//    走的是 裁四格.py → 归一化帧.py walk --模式 逐帧 → 预览.py 这条流水线
+import walkGeo from './assets/pet/frames/walk/geometry.json'
+import walk0Url from './assets/pet/frames/walk/walk_0.png'
+import walk1Url from './assets/pet/frames/walk/walk_1.png'
+import walk2Url from './assets/pet/frames/walk/walk_2.png'
+import walk3Url from './assets/pet/frames/walk/walk_3.png'
+// ⏸ 眨眼 / 说话仍停用 —— 这两张图组长还没给（见 _待确认 文档里的「要图清单」）
 // import blink0Url from './assets/pet/frames/blink/blink_0.png'
 // import blink1Url from './assets/pet/frames/blink/blink_1.png'
 // import talk0Url from './assets/pet/frames/talk/talk_0.png'
@@ -83,19 +88,24 @@ import geometry from './assets/pet/expressions/geometry.json'
  * 因为画布是方的（1536×1536）而桌宠窗口是窄高的（220×300），会变成宽度受限。
  */
 export const EXPRESSION_GEOMETRY = geometry
-// WALK_GEOMETRY 已随走路帧一并停用（原先导出但全项目无人引用）。接回走路时恢复：
-//   import walkGeo from './assets/pet/frames/walk/geometry.json'
-//   export const WALK_GEOMETRY = walkGeo
+export const WALK_GEOMETRY = walkGeo
 
 export const ANIMATIONS = {
   // ---- 待机：帧没出，先用 idle 单图 + 形变滤镜做呼吸 ----
   idle: { frames: [idleUrl], fps: 1.5, loop: true, sway: false },
 
-  // ---- 走路：⏸ 已停用（旧帧是上个角色）----
-  // 指向 idle = 漫游时**不换姿势**，用当前表情站在原地。
-  // ⚠️ 漫游位移本身还在（托盘里的「自动溜达」，默认关）。演示时别开它 ——
-  //    开了小人是"站着滑"，因为走路帧停了。要真的走起来，等新角色的侧视 4 帧。
-  walk: { frames: [idleUrl], fps: 6, loop: true, sway: false },
+  // ---- 走路：✅ 2026-09-20 解禁（组长给了新角色的侧视四格）----
+  // ⚠️ 必须带自己的 geo：走路那批角色框比表情批【宽】（侧视时身体/头发前后伸出去），
+  //    共用一份会让缩放算错。两批的脚底和头心是对齐的，所以高度一致。
+  walk: {
+    frames: [walk0Url, walk1Url, walk2Url, walk3Url],
+    // ⚠️ 从 8 降到 6：8fps 下一个循环只有 0.5 秒，配上走路帧本身的
+    //    高度起伏，看起来像在"一胀一缩地赶路"。6fps 稳一些。
+    fps: 6,
+    loop: true,
+    sway: false,
+    geo: walkGeo
+  },
 
   // ---- 说话：⏸ 已停用（旧帧是上个角色）----
   // 注意：真正让「说话」不再抢占表情的是 STATUS_TO_ANIMATION 里删掉了 streaming 那一条
