@@ -56,15 +56,20 @@
 face —— 从角色立绘裁脸（上面那 4 条实测规则都是为它定的）
 logo —— 从项目 logo（鲸鱼 + 书）出图标。**当前 exe / 托盘用的是这个。**
 
-两者只有「怎么得到正方形母图」不同，出 ICO 的容器逻辑（`write_ico` / `to_dib`）
+两者只有「怎么得到每一档的图」不同，出 ICO 的容器逻辑（`write_ico` / `to_dib`）
 完全共用 —— 那部分是实测过的（小档位 BMP、256 走 PNG），别为 logo 另写一份。
 
-logo 模式的三条差异：
+logo 模式的四条差异：
 1. **不描边**。logo 是白底上的实心蓝块，描边只会给正方形加一圈可见边框。
 2. **先裁到「非背景」外接框再补白**。原图 1254×1254 里 logo 只占宽 72.6%、
    高 55.9%，四周留白极大；不裁的话缩到 16px 只剩一小团蓝。
    ⚠️ 不能用 `getbbox()` —— 它按「非 0 像素」算，白底 255 也非 0，会返回整张图。
-3. **保留白底**（不抠透明）。代价是深色任务栏下会看到一个白方块，这是有意接受的：
+3. **从矢量轮廓渲染，不是缩位图**。`load_tracer()` 加载同目录的
+   `矢量化logo.py` 把 logo 描成轮廓，逐档按 even-odd 画（超采样 4 倍再缩回）。
+   同时按「**目标尺寸下的实际像素面积**」丢掉亚像素细节（`MIN_DETAIL_PX2`）：
+   16px 时眼睛只剩 0.73px²，丢掉后明显更干净；24px 起白月牙会保留。
+   ⚠️ 位图缩放做不到这件事 —— 16px 下细缝和眼睛会被像素网格吃掉、糊成一团。
+4. **保留白底**（不抠透明）。代价是深色任务栏下会看到一个白方块，这是有意接受的：
    白底在浅色任务栏 / 桌面 / 开始菜单都最稳。
 """
 
@@ -74,7 +79,7 @@ import sys
 from io import BytesIO
 
 import numpy as np
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageDraw, ImageEnhance
 
 # ⚠️ scipy 只在 face 模式的 add_outline() 里用（binary_dilation）。
 #    放在函数内导入，好让 logo 模式在没装 scipy 的机器上也能跑。
@@ -108,6 +113,12 @@ LOGO_SRC = os.path.join(os.path.dirname(DESKTOP), "media", "DeepProf.jpg")
 LOGO_BG = (255, 255, 255)
 LOGO_BG_TOL = 40  # 与白色的最大通道差超过它才算 logo 像素（JPEG 噪点 ≤2，留足余量）
 LOGO_PAD = 0.06  # 四周留白，占正方形边长的比例
+#: 轮廓在**目标尺寸**下的面积小于它（px²）就丢掉 —— 即「画出来不足 1 个像素的细节」。
+#: 实测效果：16px 时眼睛的白月牙 0.73px²、瞳孔 0.06px² 被丢，只剩鲸鱼+书 3 条轮廓；
+#: 24px 起白月牙（1.64px²）保留，瞳孔（0.14px²）仍丢。不丢的话那点细节只会糊成灰块。
+MIN_DETAIL_PX2 = 1.0
+#: 矢量渲染的超采样倍数：先按 size×4 画再缩回去，得到干净的抗锯齿边。
+SUPERSAMPLE = 4
 
 
 def outline_px(size):
@@ -132,8 +143,10 @@ def square_crop(src, box=HEAD_BOX, pad=PAD):
     return sq
 
 
-def logo_square(src, tol=LOGO_BG_TOL, pad=LOGO_PAD, bg=LOGO_BG):
+def logo_master(src, tol=LOGO_BG_TOL, pad=LOGO_PAD, bg=LOGO_BG):
     """把 logo 裁到「非背景」外接框，再补成白底正方形。
+
+    同时返回**源坐标 → 母图坐标**的平移量，供矢量轮廓跟着一起搬。
 
     ⚠️ 不用 ``getbbox()``：它按「非 0 像素」算，白底 255 也非 0，
        整张图会被当成内容，等于没裁。这里按「与背景色的偏差」判。
@@ -147,12 +160,65 @@ def logo_square(src, tol=LOGO_BG_TOL, pad=LOGO_PAD, bg=LOGO_BG):
     if len(xs) == 0:
         raise ValueError("整张图都是背景色，找不到 logo（tol=%d）" % tol)
 
-    img = rgb.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    x0, y0 = int(xs.min()), int(ys.min())
+    img = rgb.crop((x0, y0, int(xs.max()) + 1, int(ys.max()) + 1))
     w, h = img.size
     side = int(max(w, h) * (1 + pad * 2))
     sq = Image.new("RGB", (side, side), bg)
-    sq.paste(img, ((side - w) // 2, (side - h) // 2))
-    return sq
+    ox, oy = (side - w) // 2, (side - h) // 2
+    sq.paste(img, (ox, oy))
+    return sq, (-x0 + ox, -y0 + oy)
+
+
+def logo_square(src, tol=LOGO_BG_TOL, pad=LOGO_PAD, bg=LOGO_BG):
+    """只要正方形母图（logo_master 的薄包装）。"""
+    return logo_master(src, tol, pad, bg)[0]
+
+
+def load_tracer():
+    """加载同目录的 `矢量化logo.py`。
+
+    文件名含中文，所以按路径用 importlib 加载，不能直接 ``import``。
+    """
+    import importlib.util
+
+    path = os.path.join(HERE, "矢量化logo.py")
+    spec = importlib.util.spec_from_file_location("deepprof_logo_vector", path)
+    if spec is None or spec.loader is None:
+        raise RuntimeError("加载不了矢量化脚本：%s" % path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def render_polys(polys, master_side, size, min_px2=MIN_DETAIL_PX2, ss=SUPERSAMPLE, bg=LOGO_BG, fg=None):
+    """按 even-odd 把矢量轮廓渲染成 size×size 的图。
+
+    - 超采样 ss 倍再缩回，边缘比位图缩放的干净；
+    - 轮廓在目标尺寸下面积 < min_px2 的丢掉（亚像素细节，留着只会糊成灰块）。
+    """
+    if fg is None:
+        fg = (22, 90, 238)  # logo 主色
+    scale = (master_side / size) ** 2  # 母图 1px² 折合目标尺寸多少 px²
+    big = size * ss
+    k = big / master_side
+    acc = np.zeros((big, big), bool)
+    for poly in polys:
+        if _shoelace(poly) / scale < min_px2:
+            continue
+        layer = Image.new("1", (big, big), 0)
+        ImageDraw.Draw(layer).polygon([(x * k, y * k) for x, y in poly], fill=1)
+        acc ^= np.array(layer, dtype=bool)  # 逐条 XOR = even-odd，孔洞自动挖空
+    out = np.full((big, big, 3), bg, np.uint8)
+    out[acc] = fg
+    return Image.fromarray(out).resize((size, size), Image.LANCZOS)
+
+
+def _shoelace(poly):
+    """多边形面积（鞋带公式，取绝对值）。"""
+    pts = np.asarray(poly, dtype=float)
+    x, y = pts[:, 0], pts[:, 1]
+    return abs(np.dot(x, np.roll(y, -1)) - np.dot(y, np.roll(x, -1))) / 2.0
 
 
 def add_outline(img, px, color=OUTLINE_COLOR):
@@ -248,7 +314,11 @@ def write_ico(path, images):
 
 
 def make_sheet(images):
-    """浅底 / 深底对照图，供肉眼验收（棋盘格 = 透明背景）"""
+    """浅底 / 深底对照图，供肉眼验收（棋盘格 = 透明背景）。
+
+    ⚠️ 两个模式的图模式不同：face 是 RGBA（描边靠 alpha），logo 是不透明 RGB。
+       所以只有带 alpha 的图才能当蒙版用，否则 PIL 会抛 bad transparency mask。
+    """
     gap = 10
     cell = 128
     names = sorted(images)
@@ -268,7 +338,8 @@ def make_sheet(images):
                         if (bx // 16 + by // 16) % 2:
                             tile.paste((205, 205, 205), (bx, by, bx + 16, by + 16))
             shown = small.resize((cell, cell), Image.NEAREST)  # NEAREST：看的是真实像素
-            tile.paste(shown, (0, 0), shown)
+            mask = shown if shown.mode in ("RGBA", "LA") else None
+            tile.paste(shown, (0, 0), mask)
             sheet.paste(tile, (gap + col * (cell + gap), gap + row * (cell + gap)))
     return sheet
 
@@ -290,14 +361,24 @@ def build_face(src):
 
 
 def build_logo(src):
-    """logo 模式：裁到外接框 → 补白成正方形 → 逐档缩放（不描边、不动色）"""
-    master = logo_square(src).convert("RGBA")
-    print("外接框 → 母图 %dx%d（白底留白 %.0f%%）" % (master.size[0], master.size[1], LOGO_PAD * 100))
+    """logo 模式：用矢量轮廓逐档渲染（不描边、不动色）。
+
+    ⚠️ 为什么不是直接缩位图：位图缩到 16px 时，书页细缝和眼睛会被像素网格
+       吃掉、糊成一团。改用轮廓渲染 + 丢掉亚像素细节后，16px 明显更清楚，
+       大尺寸边缘也比位图缩放干净。详见文件头「logo 模式」。
+    """
+    master, (dx, dy) = logo_master(src)
+    side = master.size[0]
+    polys = [
+        [(x + dx, y + dy) for x, y in poly] for poly in load_tracer().trace(src)[0]
+    ]
+    print("外接框 → 母图 %dx%d（白底留白 %.0f%%），矢量轮廓 %d 条" % (side, side, LOGO_PAD * 100, len(polys)))
 
     images = {}
     for size in SIZES:
-        images[size] = master.resize((size, size), Image.LANCZOS)
-        print("  %3dpx" % size)
+        kept = sum(1 for p in polys if _shoelace(p) / (side / size) ** 2 >= MIN_DETAIL_PX2)
+        images[size] = render_polys(polys, side, size)
+        print("  %3dpx  轮廓 %d/%d（丢掉 %d 条亚像素细节）" % (size, kept, len(polys), len(polys) - kept))
     return images
 
 
