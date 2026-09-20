@@ -128,8 +128,8 @@
 **把目录挪回去就行**（用移动，别用复制，免得出现两份）：
 
 ```powershell
-$dst = "C:\Users\87092\Desktop\DeepProf\_素材工作区\_第三方样例模型"
-$pub = "C:\Users\87092\Desktop\DeepProf\desktop\src\renderer\public\live2d"
+$dst = "C:\Users\87092\Desktop\deepprof\_素材工作区\_第三方样例模型"
+$pub = "C:\Users\87092\Desktop\deepprof\desktop\src\renderer\public\live2d"
 New-Item -ItemType Directory -Force -Path $pub | Out-Null
 Move-Item "$dst\haru" $pub
 Move-Item "$dst\shizuku" $pub   # 可选：没人用它，只有音效
@@ -140,7 +140,7 @@ Move-Item "$dst\shizuku" $pub   # 可选：没人用它，只有音效
 0. **先把运行时也放回去**（否则一切照旧会白屏）：
    ```powershell
    Move-Item "$dst\live2dcubismcore.min.js" `
-             "C:\Users\87092\Desktop\DeepProf\desktop\src\renderer\public\"
+             "C:\Users\87092\Desktop\deepprof\desktop\src\renderer\public\"
    ```
    然后**在 `src/renderer/index.html` 里把下面这行加回来**，
    位置必须在 `<script type="module" src="/src/main.jsx">` **之前**
