@@ -56,6 +56,17 @@ const IDEAL_H = 230
  */
 const SCREEN_FACTOR = 1
 
+/**
+ * 换动作时那次交叉淡入的时长（毫秒）。
+ *
+ * 定 220ms 的依据：要**明显长于一帧**才有"化过去"的感觉，又要**明显短于**
+ * 一次教学节点的停留（Mock 里节点之间 dwell 800~900ms），否则会显得拖沓。
+ * ⚠️ 它同时必须**短于眨眼的整个 overlay**（90+110=200ms）—— 否则一个淡入还没走完，
+ *    眨眼那两帧已经开始切了。220 比 200 略长，但眨眼只在 `animName === 'idle'` 时挂，
+ *    而淡入只在换动作时点火，两者不会同时发生。
+ */
+const FADE_MS = 220
+
 /** 贴图缓存：同一批帧反复切换时不用重新加载 */
 const textureCache = new Map()
 function getTexture(url) {
@@ -134,6 +145,10 @@ export default function FramePet({
   const rectRef = useRef(null)
   const maskRef = useRef(null)
   const masksRef = useRef({}) // url -> alpha 掩码
+  // 换动作时的交叉淡入：spritePrevRef 是垫在下面的"旧帧"层，fadeRef 记这次淡入的起点。
+  // 为什么要有这一层、以及什么时候才点火，见挂载 effect 里 spritePrev 那段说明。
+  const spritePrevRef = useRef(null)
+  const fadeRef = useRef({ active: false, start: 0 })
   const hoverRef = useRef(false)
   const hoverCbRef = useRef(onHoverChange)
   hoverCbRef.current = onHoverChange
@@ -272,6 +287,24 @@ export default function FramePet({
     app.stage.addChild(sprite)
     spriteRef.current = sprite
 
+    /* ── 旧帧层：换动作时拿来做一次交叉淡入 ────────────────────────
+     * 为什么需要：待机是【站姿】，而 think / teach / ask / happy / sad 是【漂浮坐姿】
+     * —— 两套姿势的躯干轮廓差很多，硬切是"啪"地换个形状。
+     * 实测两种姿势的**头顶位置和整体高度是对齐的**（归一化都锚到角色高 1200px、
+     * 头心对齐画布中心），所以淡入淡出读起来像"身体在变"，不像瞬移。
+     *
+     * ⚠️ **只在【换动作】时淡，不在同一动作内换帧时淡**（这条是能不能这么做的前提）：
+     *   · 眨眼 overlay 每 90 / 110ms 就换一次贴图 —— 淡了就不叫眨眼了。
+     *     而且那个"零抖动"是**两帧身体逐像素一致**换来的，叠个淡入反而把它毁掉。
+     *   · 走路 6fps，一帧才 166ms，比淡入时长还短，淡了会糊成一团。
+     *   所以触发点只取 `frameKey` 变化（= 整个 frames 数组变了），
+     *   ticker 内部推进索引**不算**。
+     * ────────────────────────────────────────────────────────────── */
+    const spritePrev = new PIXI.Sprite(PIXI.Texture.EMPTY)
+    spritePrev.alpha = 0
+    app.stage.addChildAt(spritePrev, 0) // 垫在下面；新帧那层盖在上面淡进来
+    spritePrevRef.current = spritePrev
+
     /* ══════════════════════════════════════════════════════════
      * 尺寸与锚点：按【角色实际占的那块】算，不是按整张画布
      *
@@ -299,6 +332,7 @@ export default function FramePet({
       if (!tex || !tex.width) return
       if (!geo) {
         sprite.anchor.set(0.5, 1)
+        spritePrev.anchor.set(0.5, 1)
         return
       }
       // ⚠️ 分母必须用 geo.canvas_h，**不要**改用贴图的实际高度。
@@ -308,6 +342,9 @@ export default function FramePet({
       //    1413/1536 = 0.92）；换成贴图高度反而会错成 942/1536 = 0.61，角色浮空。
       const ch = geo.canvas_h || tex.height
       sprite.anchor.set(0.5, geo.char_y1 / ch)
+      // 旧帧层用**同一个锚点比例**。比例是尺度无关的，两批素材画布都是 1536×1536，
+      // 所以直接照抄就对（这也是"交叉淡入时两层不会错位"的前提）。
+      spritePrev.anchor.set(0.5, geo.char_y1 / ch)
     }
 
     /**
@@ -633,6 +670,29 @@ export default function FramePet({
        */
       sprite.y = chh + Math.min(0, bob)
 
+      /* 旧帧层照抄这一帧的变换。
+       * ⚠️ 两层必须**严丝合缝地重合** —— 差一点点，淡入过程中就会看到重影/双轮廓。
+       *    所以是"照抄"而不是各算各的。 */
+      spritePrev.scale.set(sprite.scale.x, sprite.scale.y)
+      spritePrev.rotation = sprite.rotation
+      spritePrev.x = sprite.x
+      spritePrev.y = sprite.y
+
+      /* 交叉淡入：新帧 0→1、旧帧 1→0。
+       * 点火在 `frameKey` 那个 effect 里（只有"换动作"才点），这里只管推进进度。 */
+      const fd = fadeRef.current
+      if (fd && fd.active) {
+        const e = (now - fd.start) / FADE_MS
+        if (e >= 1) {
+          fd.active = false
+          sprite.alpha = 1
+          spritePrev.alpha = 0
+        } else {
+          sprite.alpha = e
+          spritePrev.alpha = 1 - e
+        }
+      }
+
       // 记录角色当前画在窗口里的矩形，供命中检测换算归一化坐标
       // 锚点已经不一定是 (0.5, 1) 了（有 geometry 时是角色的脚底中心），
       // 而且往左走时 scale.x 是负的，所以要按锚点实算并取两边的最小值
@@ -681,6 +741,22 @@ export default function FramePet({
   //    等以后走路/待机那批多帧素材到位，这段也不冲突（多帧时它切到第 0 帧，
   //    ticker 随后接管推进）。
   useEffect(() => {
+    /* 换动作 → 先把【当前这张】快照到下面的旧帧层，然后才切到新动作的第 0 帧。
+     *
+     * ⚠️ 顺序不能反：`showFrame(0)` 那一下就会把贴图换成新的，
+     *    换完再取就拿不到"旧的那张"了，淡入会变成"从自己淡到自己"（等于没淡）。
+     *
+     * ⚠️ 首帧跳过：挂载时 sprite 还是 `Texture.EMPTY`，那时候淡入没有意义
+     *    （会让小人一启动就闪一下）。用 EMPTY 判断而不是额外的 ref，
+     *    因为"贴图还是 EMPTY"本身就精确表示"还没显示过任何一帧"。
+     */
+    const sp = spriteRef.current
+    const prev = spritePrevRef.current
+    if (sp && prev && sp.texture && sp.texture !== PIXI.Texture.EMPTY && sp.texture.width) {
+      prev.texture = sp.texture
+      fadeRef.current = { active: true, start: performance.now() }
+    }
+
     if (showFrameRef.current) showFrameRef.current(0)
   }, [frameKey])
 

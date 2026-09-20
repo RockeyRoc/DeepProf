@@ -354,6 +354,27 @@ let runtime = null
 /** 渲染进程订阅事件用的频道名 */
 const EVENT_CHANNEL = 'runtime:event'
 
+/**
+ * 应用图标（窗口图标）的路径 —— 任务栏 / Alt+Tab / 窗口缩略图上显示的那个。
+ *
+ * ⚠️ **开发态和打包态的路径不一样，不能写死。** 照 `setupIpc()` 里 `sayPyPath()`
+ *    那个写法来（同一个坑）：
+ *
+ *    · `build/` 是 electron-builder 的 `buildResources` 目录，**默认不进包**，
+ *      所以 asar 里根本没有 `icon.ico`，打包后按 `__dirname` 找一定是找不到的。
+ *    · 因此在 package.json 的 `extraResources` 里把 `build/icon.ico` 复制到
+ *      `<安装目录>/resources/icon.ico`（asar 外），这里按 `process.resourcesPath` 找。
+ *    · 开发期（或 extraResources 万一没生效）退回源码目录 —— 打包产物在
+ *      `out/main/`，`../../build/` 正好是 `desktop/build/`。
+ *
+ * 图标本身由 `tools/素材流水线/生成应用图标.py` 生成（换角色/换姿势要重跑）。
+ */
+const appIconPath = () => {
+  const packaged = path.join(process.resourcesPath || '', 'icon.ico')
+  if (app.isPackaged && require('fs').existsSync(packaged)) return packaged
+  return path.join(__dirname, '../../build/icon.ico')
+}
+
 function createWindow() {
   const { workArea } = screen.getPrimaryDisplay()
   // 默认只有角色那么大 —— 桌宠就该是桌面上一个小人，不是个应用窗口
@@ -366,6 +387,10 @@ function createWindow() {
     // 默认贴在屏幕右下角
     x: workArea.x + workArea.width - W - 24,
     y: workArea.y + workArea.height - H - 24,
+    // 窗口图标：任务栏按钮、Alt+Tab、窗口缩略图都用它。
+    // 打包后 exe 本身已经带图标，但**开发态跑的是 electron.exe**，
+    // 不显式给就是 Electron 默认标 —— 路径按 appIconPath() 分开发/打包两种。
+    icon: appIconPath(),
     frame: false, // 无边框
     transparent: true, // 透明背景（桌宠要浮在桌面上）
     resizable: false,
@@ -504,7 +529,22 @@ const TRAY_ICON_DATA_URL =
   'data:image/png;base64,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'
 
 function createTray() {
-  const icon = nativeImage.createFromDataURL(TRAY_ICON_DATA_URL)
+  /*
+   * ⚠️ 2026-09-20 晚改：**不要再用下面那个 `TRAY_ICON_DATA_URL`**。
+   *
+   * 它坏了 —— 内嵌 PNG 的 **adler32 校验和是错的**，`createFromDataURL` 解出来是**空图**
+   * （受控实验：原样喂进去 `isEmpty === true`；只把尾部 4 字节的校验和改对、
+   *  像素一个字节没动 → `isEmpty === false`、32×32 正常）。
+   * 症状就是 **托盘里一个透明格子**：项还在、右键菜单也能用，但**看不见** ——
+   * 而这个应用「窗口可能被拖到屏幕外」时，**托盘是唯一的退出入口**
+   * （见下面 setContextMenu 的注释）。所以它必须可见。
+   * 另外那张图画的还是**旧角色**（09-18 的蓝发版），跟现在桌上的白发 Q 版不是一个人。
+   *
+   * 现在直接从 `build/icon.ico` 读 —— 它就是本角色生成的、7 档尺寸齐全，
+   * 由 `tools/素材流水线/生成应用图标.py` 产出，随 extraResources 一起打包
+   * （打包后落在 `resources/icon.ico`，路径由 `appIconPath()` 分开发/打包两种）。
+   */
+  const icon = nativeImage.createFromPath(appIconPath())
   tray = new Tray(icon)
   tray.setToolTip('DeepProf 桌宠 —— 右键可退出')
   tray.setContextMenu(
@@ -636,6 +676,7 @@ function safeSetPosition(x, y) {
  * ══════════════════════════════════════════════════════════════ */
 let hitRegion = null // { rect:{left,top,w,h}, mask:number[], maskSize:number }
 let uiOpen = false // 菜单/面板展开中
+let uiRect = null // 菜单/面板**实际占的那块**（窗口坐标系 {left,top,w,h}），由渲染端上报
 let forceThrough = false // 用户手动开的强制穿透
 let throughTimer = null
 let lastIgnore = null
@@ -661,13 +702,41 @@ function cursorOverPet() {
   return (m[my * size + mx] || 0) >= 24
 }
 
+/**
+ * 光标是不是落在一个窗口坐标系矩形里。
+ * :param r: {left,top,w,h} 或 null
+ */
+function insideRect(r) {
+  if (!r || !win || win.isDestroyed()) return false
+  const p = screen.getCursorScreenPoint()
+  const [wx, wy] = win.getPosition()
+  const x = p.x - wx
+  const y = p.y - wy
+  return x >= r.left && x <= r.left + r.w && y >= r.top && y <= r.top + r.h
+}
+
+/**
+ * 这一次轮询该不该「忽略鼠标」（= 让点击穿到后面的窗口）。
+ *
+ * 三种**必须接收**的情况：用户开了强制穿透、光标压在菜单/面板上、
+ * 光标压在角色身上。其余（窗口里的透明区域）一律穿透。
+ *
+ * ⚠️ `uiOpen 但没量到 uiRect` 时**退回"整窗口不穿透"**（旧的粗暴行为）。
+ *    绝不能在这种时候按"只挡角色"算 —— 那样面板本身会变成穿透的、
+ *    用户点不到里面的按钮，比"多挡一圈"严重得多。
+ */
+function shouldIgnoreMouse() {
+  if (forceThrough) return false
+  if (uiOpen && !uiRect) return false
+  if (insideRect(uiRect)) return false
+  return !cursorOverPet()
+}
+
 function startThroughWatch() {
   if (throughTimer) clearInterval(throughTimer)
   throughTimer = setInterval(() => {
     if (!win || win.isDestroyed()) return
-    // 菜单/面板展开时不穿透（否则菜单项和按钮点不动，实测踩过）
-    // 用户手动开强制穿透时也不自动切
-    const ignore = forceThrough ? false : uiOpen ? false : !cursorOverPet()
+    const ignore = shouldIgnoreMouse()
     if (ignore !== lastIgnore) {
       lastIgnore = ignore
       win.setIgnoreMouseEvents(ignore, { forward: true })
@@ -821,9 +890,18 @@ function setupIpc() {
     return { ok: true }
   })
 
-  /** 菜单/聊天面板是否展开 —— 展开时不能穿透，否则菜单项和按钮点不动 */
-  ipcMain.handle('win:set-ui-open', (_e, v) => {
+  /**
+   * 菜单/聊天面板的展开状态 **+ 它实际占的那块矩形**（窗口坐标系）。
+   *
+   * ⚠️ 为什么要连矩形一起报（2026-09-20 晚加的）：原来只知道 true/false，
+   *    于是"有 UI"就等于"整个窗口都不穿透"。实测面板打开时窗口约 380×620，
+   *    面板只占下面一部分 —— 剩下的透明区域全跟着挡鼠标，
+   *    而且**小人是会溜达的**，等于拖着一块点击黑洞满屏跑。
+   *    现在只对"矩形内 + 角色身上"不穿透，其余照常穿。
+   */
+  ipcMain.handle('win:set-ui-open', (_e, v, rect) => {
     uiOpen = !!v
+    uiRect = rect && rect.w > 0 && rect.h > 0 ? rect : null
     return { ok: true }
   })
 

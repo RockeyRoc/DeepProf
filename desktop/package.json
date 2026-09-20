@@ -27,9 +27,14 @@
       {
         "from": "tools/tts",
         "to": "tools/tts"
+      },
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
       }
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         {
           "target": "nsis",

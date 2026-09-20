@@ -78,8 +78,12 @@ contextBridge.exposeInMainWorld('deepprof', {
      * 主进程靠它判断"光标是不是真在角色身上"，从而决定要不要穿透。
      */
     setHitRegion: (r) => ipcRenderer.invoke('win:set-hit-region', r),
-    /** 菜单/面板展开时不能穿透，否则里面的按钮点不动 */
-    setUiOpen: (v) => ipcRenderer.invoke('win:set-ui-open', v),
+    /**
+     * 菜单/面板的展开状态 **+ 它实际占的那块矩形**（窗口坐标系）。
+     * 只报 true/false 的话主进程只能"整窗口不穿透"，面板以外那圈透明区会跟着挡鼠标；
+     * 带上矩形它才能只挡该挡的地方。矩形量不出来就传 null（主进程会退回整窗口不穿透）。
+     */
+    setUiOpen: (v, rect) => ipcRenderer.invoke('win:set-ui-open', v, rect),
     /** 拖动：按增量移动窗口 */
     moveBy: (dx, dy) => ipcRenderer.invoke('win:move-by', dx, dy),
     /** 告诉主进程拖动开始/结束，期间暂停漫游 */

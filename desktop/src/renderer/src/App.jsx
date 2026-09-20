@@ -451,7 +451,61 @@ export default function App() {
    * 这里只是把"有没有 UI 挡着"这个信息报上去。
    */
   useEffect(() => {
-    window.deepprof.win.setUiOpen(menuOpen || chatOpen)
+    const open = menuOpen || chatOpen
+    if (!open) {
+      window.deepprof.win.setUiOpen(false, null)
+      return
+    }
+
+    /* 除了 true/false，还要把**菜单/面板实际占的那块矩形**量出来报给主进程。
+     *
+     * ⚠️ 为什么要连矩形一起报（2026-09-20 晚）：主进程原来只知道"有 UI"，
+     *    于是整窗口不穿透。而面板一开窗口会涨到约 380×620，面板只占下面一部分 ——
+     *    剩下的透明区域全跟着挡鼠标，**而小人是会溜达的**，
+     *    等于拖着一块点击黑洞满屏跑。
+     *
+     * 取法是"角色区以外、所有有尺寸的元素"的并集：面板在 JSX 里是一组**兄弟节点**
+     * （node-chip / 面板 / controls …），没有统一的外层容器，
+     * 逐个写 class 既啰嗦、又会随改版失效。
+     */
+    const measure = () => {
+      const petArea = document.querySelector('.pet-area')
+      const root = document.querySelector('.app') || document.body
+      let L = Infinity
+      let T = Infinity
+      let R = -Infinity
+      let B = -Infinity
+      for (const el of root.querySelectorAll('*')) {
+        // ⚠️ 要**双向**排除角色区：既排除它的祖先（.app 之类，它们同时包着面板），
+        //    也排除它的**子孙**（.pet-host / canvas）。
+        //    第一版只排了祖先，结果 `.pet-host`（角色画布容器，368×279）被算进并集，
+        //    并集直接撑成整个窗口 = 修复静默失效（量出来是 [6,6,374,616]）。
+        if (petArea && (el === petArea || el.contains(petArea) || petArea.contains(el))) continue
+        const r = el.getBoundingClientRect()
+        if (r.width < 8 || r.height < 8) continue // 藏起来的/装饰性的不算
+        L = Math.min(L, r.left)
+        T = Math.min(T, r.top)
+        R = Math.max(R, r.right)
+        B = Math.max(B, r.bottom)
+      }
+      if (!isFinite(L)) {
+        // 量不出来就报 null —— 主进程会退回"整窗口不穿透"。
+        // 宁可多挡一圈，也不能让面板变成穿透的、按钮点不动。
+        window.deepprof.win.setUiOpen(true, null)
+        return
+      }
+      window.deepprof.win.setUiOpen(true, {
+        left: Math.round(L),
+        top: Math.round(T),
+        w: Math.round(R - L),
+        h: Math.round(B - T)
+      })
+    }
+
+    measure()
+    // 面板内容会变长（事件日志、消息、教学依据条）→ 高度跟着变，所以定时重量
+    const id = setInterval(measure, 400)
+    return () => clearInterval(id)
   }, [menuOpen, chatOpen])
 
   useEffect(() => {
