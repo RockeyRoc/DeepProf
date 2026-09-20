@@ -215,12 +215,40 @@ export default function FramePet({
      * 把渲染器尺寸对齐到宿主的【CSS 尺寸】（不是 CSS 尺寸 × DPR）。
      * 这样舞台坐标就和屏幕 CSS 像素 1:1，不用任何换算系数。
      */
+    /*
+     * ⚠️ 画布尺寸 + 角色定位必须用【同一对数字】，否则角色会被推出画布。
+     *
+     * 踩过的坑（2026-09-20 张钧翔报「脚一闪一闪地不见，弹一下就恢复」）：
+     *   原来只有 `sprite.y = host.clientHeight`（读活的 DOM），而画布**只在
+     *   `window.resize` 时**才跟着宿主改尺寸。面板里的 `.pet-area` 是 `flex: 1`，
+     *   所以**任何内部布局变化**（比如「教学依据条」出现/消失）都会改宿主高度，
+     *   却**不触发 window.resize** —— 于是画布和 host.clientHeight 会不一致一帧：
+     *   依据条消失 → 宿主变高 → sprite.y 跟着变大 → 但画布还是旧的小尺寸
+     *   → 角色被推到画布外 → **脚被裁**；下一帧画布追上就恢复正常。
+     *
+     * 两道保险：
+     *   ① ResizeObserver 盯住宿主，**任何**尺寸变化都同步画布（不只 window.resize）
+     *   ② 定位/缩放一律读下面这对缓存值（= 画布实际尺寸），不读活的 DOM
+     */
+    let canvasW = 0
+    let canvasH = 0
     const resizeRenderer = () => {
       const w = host.clientWidth
       const h = host.clientHeight
-      if (w && h) app.renderer.resize(w, h)
+      if (w && h) {
+        app.renderer.resize(w, h)
+        canvasW = w
+        canvasH = h
+      }
     }
     resizeRenderer()
+
+    // ① 内部布局变化也要跟着改画布（window.resize 抓不到这些）
+    const ro = new ResizeObserver(() => {
+      resizeRenderer()
+      fit()
+    })
+    ro.observe(host)
 
     /* ── 窗口不可见时暂停渲染循环（性能红线）──────────────────────
      * 反面教材：Desktop Mate 隐藏后在后台仍占 15% CPU 被骂穿。
@@ -362,15 +390,18 @@ export default function FramePet({
       if (!tex || !tex.width || !host.clientWidth) return
       applyAnchor()
       const c = contentSize(tex)
+      // 同 ticker：一律用画布尺寸，别读活的 DOM（见 resizeRenderer 的说明）
+      const cw = canvasW || host.clientWidth
+      const chh = canvasH || host.clientHeight
       sprite.scale.set(
         Math.min(
           IDEAL_H / (c.h * SCREEN_FACTOR),
-          host.clientWidth / (c.w * SCREEN_FACTOR),
-          host.clientHeight / (c.h * SCREEN_FACTOR)
+          cw / (c.w * SCREEN_FACTOR),
+          chh / (c.h * SCREEN_FACTOR)
         ) * scaleRef.current
       )
-      sprite.x = host.clientWidth / 2
-      sprite.y = host.clientHeight
+      sprite.x = cw / 2
+      sprite.y = chh
     }
 
     /**
@@ -508,11 +539,16 @@ export default function FramePet({
       if (curUrl && textureCache.get(curUrl) === tex) checkMaterialSize(curUrl, tex)
       // 按【角色那块】算，不是整张画布 —— 见上面 applyAnchor 的说明
       const content = contentSize(tex)
+      // 本帧一律用【画布尺寸】定位与缩放，保证和 renderer 永远一致（见 resizeRenderer 的说明）。
+      // 画布还没量出尺寸时退回读宿主，免得启动瞬间算出 scale=0 什么都不显示。
+      const cw = canvasW || host.clientWidth
+      const chh = canvasH || host.clientHeight
+
       const base =
         Math.min(
           IDEAL_H / (content.h * SCREEN_FACTOR),
-          host.clientWidth / (content.w * SCREEN_FACTOR),
-          host.clientHeight / (content.h * SCREEN_FACTOR)
+          cw / (content.w * SCREEN_FACTOR),
+          chh / (content.h * SCREEN_FACTOR)
         ) * scaleRef.current
 
       const p = poseRef.current
@@ -573,7 +609,7 @@ export default function FramePet({
       const d = dirRef.current || 1
       sprite.scale.set(base * (1 - scaleY * 0.7) * bounce * d, base * (1 + scaleY) * bounce)
       sprite.rotation = (tilt * Math.PI) / 180
-      sprite.x = host.clientWidth / 2
+      sprite.x = cw / 2
       /*
        * ⚠️ 向下的 bob 必须夹到 0，否则脚会被推出画布。
        *
@@ -595,7 +631,7 @@ export default function FramePet({
        *    几像素余量（把 rest 位置抬高），而不是让它沉到画布外 —— 那属于改观感，
        *    没有实测依据之前不擅自做。
        */
-      sprite.y = host.clientHeight + Math.min(0, bob)
+      sprite.y = chh + Math.min(0, bob)
 
       // 记录角色当前画在窗口里的矩形，供命中检测换算归一化坐标
       // 锚点已经不一定是 (0.5, 1) 了（有 geometry 时是角色的脚底中心），
@@ -620,6 +656,7 @@ export default function FramePet({
 
     return () => {
       window.removeEventListener('resize', onResize)
+      ro.disconnect()
       document.removeEventListener('visibilitychange', onVis)
       spriteRef.current = null
       filterRef.current = null
