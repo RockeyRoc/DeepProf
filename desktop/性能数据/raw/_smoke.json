@@ -1,0 +1,443 @@
+{
+  "meta": {
+    "generated_at": "2026-09-19T04:45:18.137Z",
+    "host": {
+      "platform": "win32",
+      "arch": "x64",
+      "os": "10.0.26200",
+      "cpus": 24,
+      "cpu_model": "Intel(R) Core(TM) i7-14650HX",
+      "total_mem_gb": 31.71
+    },
+    "electron": "33.4.11",
+    "chrome": "130.0.6723.191",
+    "node": "20.18.3",
+    "display": {
+      "size": {
+        "width": 1707,
+        "height": 1067
+      },
+      "work_area": {
+        "width": 1707,
+        "height": 1019
+      },
+      "scale_factor": 1.5,
+      "display_frequency_hz": 240
+    },
+    "mode": "prod (out/ 打包产物)"
+  },
+  "timeline": {
+    "process_start_epoch": 1789793117959.4,
+    "module_load_after_start_ms": 88.6,
+    "app_ready_after_start_ms": 174.3,
+    "window_shown_after_start_ms": 568.3,
+    "react_mounted_after_start_ms": 626.4,
+    "root_html_len_at_mount_check": 203
+  },
+  "memory": [
+    {
+      "tag": "t0_窗口刚显示",
+      "at_ms": 599.8,
+      "processes": [
+        {
+          "pid": 11556,
+          "type": "Browser",
+          "working_set_mb": 92.8,
+          "peak_working_set_mb": 93.6
+        },
+        {
+          "pid": 21736,
+          "type": "GPU",
+          "working_set_mb": 114.1,
+          "peak_working_set_mb": 114.1
+        },
+        {
+          "pid": 3284,
+          "type": "Utility",
+          "working_set_mb": 50.1,
+          "peak_working_set_mb": 50.1
+        },
+        {
+          "pid": 13260,
+          "type": "Tab",
+          "working_set_mb": 83.6,
+          "peak_working_set_mb": 84.8
+        }
+      ],
+      "total_working_set_mb": 340.6
+    },
+    {
+      "tag": "t8s_稳态",
+      "at_ms": 10102.2,
+      "processes": [
+        {
+          "pid": 11556,
+          "type": "Browser",
+          "working_set_mb": 119.3,
+          "peak_working_set_mb": 119.4
+        },
+        {
+          "pid": 21736,
+          "type": "GPU",
+          "working_set_mb": 171.1,
+          "peak_working_set_mb": 182.2
+        },
+        {
+          "pid": 3284,
+          "type": "Utility",
+          "working_set_mb": 50.1,
+          "peak_working_set_mb": 50.1
+        },
+        {
+          "pid": 13260,
+          "type": "Tab",
+          "working_set_mb": 120.8,
+          "peak_working_set_mb": 121.1
+        },
+        {
+          "pid": 19816,
+          "type": "Utility",
+          "working_set_mb": 78.1,
+          "peak_working_set_mb": 78.1
+        }
+      ],
+      "total_working_set_mb": 539.4
+    },
+    {
+      "tag": "t15s_延迟测量前",
+      "at_ms": 16618.6,
+      "processes": [
+        {
+          "pid": 11556,
+          "type": "Browser",
+          "working_set_mb": 119.3,
+          "peak_working_set_mb": 120
+        },
+        {
+          "pid": 21736,
+          "type": "GPU",
+          "working_set_mb": 166.5,
+          "peak_working_set_mb": 182.2
+        },
+        {
+          "pid": 3284,
+          "type": "Utility",
+          "working_set_mb": 50.1,
+          "peak_working_set_mb": 50.1
+        },
+        {
+          "pid": 13260,
+          "type": "Tab",
+          "working_set_mb": 129.7,
+          "peak_working_set_mb": 129.7
+        },
+        {
+          "pid": 19816,
+          "type": "Utility",
+          "working_set_mb": 78.1,
+          "peak_working_set_mb": 78.1
+        }
+      ],
+      "total_working_set_mb": 543.7
+    },
+    {
+      "tag": "t60s_测量结束",
+      "at_ms": 75489.5,
+      "processes": [
+        {
+          "pid": 11556,
+          "type": "Browser",
+          "working_set_mb": 119.5,
+          "peak_working_set_mb": 122.8
+        },
+        {
+          "pid": 21736,
+          "type": "GPU",
+          "working_set_mb": 168.8,
+          "peak_working_set_mb": 182.2
+        },
+        {
+          "pid": 3284,
+          "type": "Utility",
+          "working_set_mb": 50,
+          "peak_working_set_mb": 50.1
+        },
+        {
+          "pid": 13260,
+          "type": "Tab",
+          "working_set_mb": 125.1,
+          "peak_working_set_mb": 131.6
+        },
+        {
+          "pid": 19816,
+          "type": "Utility",
+          "working_set_mb": 78.3,
+          "peak_working_set_mb": 78.3
+        }
+      ],
+      "total_working_set_mb": 541.7
+    }
+  ],
+  "fps": {
+    "seconds": 5.001,
+    "raf_frames": 1200,
+    "raf_fps": 239.95,
+    "draw_calls": 147,
+    "draw_calls_per_sec": 29.4,
+    "draws_per_frame": 0.122,
+    "gl_clears": 147,
+    "gl_clears_per_sec": 29.4,
+    "break_down": {
+      "drawElements": 147,
+      "drawArrays": 0,
+      "drawElementsInstanced": 0,
+      "drawArraysInstanced": 0
+    },
+    "bind_texture": 0,
+    "bind_texture_per_frame": 0,
+    "use_program": 0,
+    "per_second": [
+      {
+        "t": 1,
+        "raf": 240,
+        "draws": 29,
+        "clears": 29
+      },
+      {
+        "t": 2,
+        "raf": 240,
+        "draws": 30,
+        "clears": 30
+      },
+      {
+        "t": 3,
+        "raf": 240,
+        "draws": 29,
+        "clears": 29
+      },
+      {
+        "t": 4,
+        "raf": 240,
+        "draws": 30,
+        "clears": 30
+      },
+      {
+        "t": 5,
+        "raf": 240,
+        "draws": 29,
+        "clears": 29
+      }
+    ],
+    "pixi_shared_ticker": {
+      "started": false,
+      "FPS": 59.99999999999999,
+      "is_default_value": true
+    },
+    "canvas": {
+      "w": 222,
+      "h": 302,
+      "css_w": 222,
+      "css_h": 302
+    },
+    "device_pixel_ratio": 1.5,
+    "react_root_html_len": 283
+  },
+  "latency": [
+    {
+      "round": 1,
+      "question": "帮我讲讲数据库第三范式",
+      "clock_skew_ms": 2.377,
+      "t_send": 1789793134735.75,
+      "raw_t_dom_mutation": 1789793135241.5,
+      "raw_t_first_frame": 1789793135245.9,
+      "send_to_dom_ms": 503.37,
+      "send_to_frame_ms": 507.77,
+      "evidence_bubble_present": true,
+      "evidence_bubble_text": "你问的"
+    },
+    {
+      "round": 2,
+      "question": "什么是函数依赖",
+      "clock_skew_ms": 2.434,
+      "t_send": 1789793143877.63,
+      "raw_t_dom_mutation": 1789793143881.8,
+      "raw_t_first_frame": 1789793143882.4,
+      "send_to_dom_ms": 1.74,
+      "send_to_frame_ms": 2.34,
+      "evidence_bubble_present": true,
+      "evidence_bubble_text": "思考中"
+    },
+    {
+      "round": 3,
+      "question": "候选键怎么找",
+      "clock_skew_ms": 2.315,
+      "t_send": 1789793153015.26,
+      "raw_t_dom_mutation": 1789793153019.5,
+      "raw_t_first_frame": 1789793153020,
+      "send_to_dom_ms": 1.92,
+      "send_to_frame_ms": 2.42,
+      "evidence_bubble_present": true,
+      "evidence_bubble_text": "思考中"
+    },
+    {
+      "round": 4,
+      "question": "什么是传递依赖",
+      "clock_skew_ms": 2.396,
+      "t_send": 1789793162160.16,
+      "raw_t_dom_mutation": 1789793162163.9,
+      "raw_t_first_frame": 1789793162165.3,
+      "send_to_dom_ms": 1.35,
+      "send_to_frame_ms": 2.75,
+      "evidence_bubble_present": true,
+      "evidence_bubble_text": "思考中"
+    },
+    {
+      "round": 5,
+      "question": "BCNF 和 3NF 差在哪",
+      "clock_skew_ms": 2.343,
+      "t_send": 1789793171297.74,
+      "raw_t_dom_mutation": 1789793171301.3,
+      "raw_t_first_frame": 1789793171302.9,
+      "send_to_dom_ms": 1.22,
+      "send_to_frame_ms": 2.82,
+      "evidence_bubble_present": true,
+      "evidence_bubble_text": "思考中"
+    },
+    {
+      "round": 6,
+      "question": "为什么要做范式分解",
+      "clock_skew_ms": 2.396,
+      "t_send": 1789793180427.17,
+      "raw_t_dom_mutation": 1789793180430.7,
+      "raw_t_first_frame": 1789793180431.9,
+      "send_to_dom_ms": 1.13,
+      "send_to_frame_ms": 2.33,
+      "evidence_bubble_present": true,
+      "evidence_bubble_text": "思考中"
+    }
+  ],
+  "stream_mutations": [
+    {
+      "round": 1,
+      "mutations": 16,
+      "window_ms": 3000
+    },
+    {
+      "round": 2,
+      "mutations": 16,
+      "window_ms": 3000
+    },
+    {
+      "round": 3,
+      "mutations": 15,
+      "window_ms": 3000
+    },
+    {
+      "round": 4,
+      "mutations": 17,
+      "window_ms": 3000
+    },
+    {
+      "round": 5,
+      "mutations": 18,
+      "window_ms": 3000
+    },
+    {
+      "round": 6,
+      "mutations": 16,
+      "window_ms": 3000
+    }
+  ],
+  "gpu": {
+    "2d_canvas": "enabled",
+    "canvas_oop_rasterization": "enabled_on",
+    "direct_rendering_display_compositor": "disabled_off_ok",
+    "gpu_compositing": "enabled",
+    "multiple_raster_threads": "enabled_on",
+    "opengl": "enabled_on",
+    "rasterization": "enabled",
+    "raw_draw": "disabled_off_ok",
+    "skia_graphite": "disabled_off",
+    "video_decode": "enabled",
+    "video_encode": "enabled",
+    "vulkan": "disabled_off",
+    "webgl": "enabled",
+    "webgl2": "enabled",
+    "webgpu": "enabled",
+    "webnn": "disabled_off"
+  },
+  "notes": [],
+  "probe_injected": "ok",
+  "ipc_roundtrip": [
+    2.8,
+    0.7,
+    1.2,
+    0.9,
+    0.8,
+    1.6,
+    1.3,
+    0.6,
+    1.4,
+    0.9,
+    0.8,
+    0.7
+  ],
+  "fps_streaming": {
+    "seconds": 4.001,
+    "raf_frames": 961,
+    "raf_fps": 240.18,
+    "draw_calls": 119,
+    "draw_calls_per_sec": 29.7,
+    "draws_per_frame": 0.124,
+    "gl_clears": 119,
+    "gl_clears_per_sec": 29.7,
+    "break_down": {
+      "drawElements": 119,
+      "drawArrays": 0,
+      "drawElementsInstanced": 0,
+      "drawArraysInstanced": 0
+    },
+    "bind_texture": 0,
+    "bind_texture_per_frame": 0,
+    "use_program": 0,
+    "per_second": [
+      {
+        "t": 1,
+        "raf": 241,
+        "draws": 30,
+        "clears": 30
+      },
+      {
+        "t": 2,
+        "raf": 240,
+        "draws": 30,
+        "clears": 30
+      },
+      {
+        "t": 3,
+        "raf": 239,
+        "draws": 29,
+        "clears": 29
+      },
+      {
+        "t": 4,
+        "raf": 241,
+        "draws": 30,
+        "clears": 30
+      }
+    ],
+    "pixi_shared_ticker": {
+      "started": false,
+      "FPS": 59.99999999999999,
+      "is_default_value": true
+    },
+    "canvas": {
+      "w": 222,
+      "h": 302,
+      "css_w": 222,
+      "css_h": 302
+    },
+    "device_pixel_ratio": 1.5,
+    "react_root_html_len": 237
+  }
+}

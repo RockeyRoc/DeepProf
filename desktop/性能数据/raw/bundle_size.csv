@@ -1,0 +1,21 @@
+﻿group,item,size_mb,size_bytes,files
+out,out/ 合计,6.87,7202337,43
+out,  out/main（主进程）,0.03,33864,1
+out,  out/preload（预加载桥）,0.0,2110,1
+out,  out/renderer（渲染进程）,6.83,7166363,41
+out-breaking,  ↳ 其中 Live2D 样例模型（开发期用，不进交付）,3.9,4085969,33
+out-breaking,  ↳ 扣除 Live2D 样例模型后的交付体积,2.97,3116368,0
+node_modules,node_modules/ 合计（不进交付包）,357.71,375089461,5595
+node_modules-top,    electron,269.02,282091040,82
+node_modules-top,    pixi.js,11.31,11854743,20
+node_modules-top,    .vite,9.47,9935038,41
+node_modules-top,    @esbuild/win32-x64,9.46,9914373,3
+node_modules-top,    @pixi/core,6.25,6551752,17
+node_modules-top,    react-dom,4.3,4513549,32
+node_modules-top,    vite,3.13,3279269,31
+node_modules-top,    rollup,2.74,2875271,27
+node_modules-top,    @babel/types,2.62,2750769,178
+node_modules-top,    @rollup/rollup-win32-x64-msvc,2.54,2666532,3
+node_modules-top,    @types/node,2.18,2288801,69
+node_modules-top,    @rollup/rollup-win32-x64-gnu,1.99,2084895,3
+source,src/ 源码合计,15.31,16051214,67
