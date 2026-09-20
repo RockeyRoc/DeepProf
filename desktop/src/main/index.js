@@ -726,7 +726,20 @@ function insideRect(r) {
  *    用户点不到里面的按钮，比"多挡一圈"严重得多。
  */
 function shouldIgnoreMouse() {
-  if (forceThrough) return false
+  /*
+   * ⚠️ 2026-09-20 修：这里原来是 `return false`，**反了**。
+   *
+   * 本函数的返回值语义是"要不要忽略鼠标"（true = 忽略 = 让点击穿到后面的窗口）。
+   * 而 `forceThrough` 来自 `win:set-ignore-mouse`（参数名就叫 `ignore`），
+   * 是渲染端如实上报的"用户点了【点击穿透】"—— 菜单文案是
+   * `{through ? '恢复鼠标操作' : '点击穿透'}`，语义没有歧义。
+   *
+   * 所以原来那行等于：**用户要穿透 → 反而整窗口吃点击**。
+   * 症状：菜单一点「点击穿透」，桌宠就把整个窗口的点击全吞掉 ——
+   * 而角色只占窗口下半部分（4:3 画布 + 上半留白），于是"还没靠近她、
+   * 在她边上就能互动"。这条从该开关存在起就是反的。
+   */
+  if (forceThrough) return true
   if (uiOpen && !uiRect) return false
   if (insideRect(uiRect)) return false
   return !cursorOverPet()
