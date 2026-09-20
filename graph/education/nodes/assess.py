@@ -37,6 +37,7 @@ from ..policies import (
     MISCONCEPTION_KEEP,
     is_misconception_record,
     misconception_label,
+    reports_prior_gap,
 )
 from ..router import decide_action
 from ..state import PedagogyState
@@ -88,6 +89,9 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         f"memory://{learner_id or 'anonymous'}/{concept or 'general'}"
     )
     misconceptions = _merge_misconceptions(state.get("misconceptions") or [], records)
+    # 先验判定（§16.3 先验不足样例）：只认学生的自述，不从"记忆为空"反推没掌握；
+    # 判定口径（关键词与讲解起点）都在 policies，节点不自己写一份。
+    prior_gap = reports_prior_gap(str(state.get("user_input") or ""))
 
     # ---- 3) 取证：学生已停止或已达轮次上限时不再检索 ----
     # 这两种情况下本轮不会有教学输出，探一次只是白花一次检索；
@@ -125,6 +129,7 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         "misconceptions": misconceptions,
         "evidence_sufficient": evidence_sufficient,
         "retrieved_evidence_refs": evidence_refs,
+        "prior_knowledge_gap": prior_gap,
     }
     action, reason = decide_action(decision_state)
     assessment = {
@@ -136,6 +141,7 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         "attempt_count": int(state.get("attempt_count") or 0),
         "wrong_streak": int(state.get("wrong_streak") or 0),
         "hint_level": int(state.get("hint_level") or 0),
+        "prior_knowledge_gap": prior_gap,
         "turn_count": next_turn,
         "max_turns": max_turns,
         "memory_refs": record_ids,
@@ -190,6 +196,7 @@ async def assess(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         "misconceptions": misconceptions,
         "retrieved_evidence_refs": evidence_refs,
         "evidence_sufficient": evidence_sufficient,
+        "prior_knowledge_gap": prior_gap,
         "last_assessment": assessment,
         "next_action": action,
         "action": action,

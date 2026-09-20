@@ -62,10 +62,14 @@ def decide_action(state: PedagogyState) -> tuple[str, str]:
     5. 需要验证理解 → test
        attempt_count ≥ QUIZ_AFTER_ATTEMPTS 且本轮没有未处理的错误
        （有错时先走 Hint/Correct，测验留到状态干净之后，避免边讲边测）。
-    6. 主动求讲解 / 概念缺失 → teach
+    6. 先验不足 → teach
+       学生自述缺少先验（前置概念未学）且尚无作答尝试：此时追问等于要求他
+       推理一个还没学过的前置概念，只会强化挫败；直接讲解并把起点前移到
+       前置概念（§16.3"先验不足"样例，起讲点由 policies.teach_prior_note 决定）。
+    7. 主动求讲解 / 概念缺失 → teach
        命中讲解意图且没有任何作答尝试（attempt_count == 0）：
        学生还没开始推理，此时直接分层讲解比追问更有效（§16.3"主动求讲解"样例）。
-    7. 默认 → ask
+    8. 默认 → ask
        最保守也最不泄露答案的苏格拉底追问（§6.3 Socratic）。
 
     注意：证据不足**不**改变动作选择，只改变输出方式——Teach / Correct 在
@@ -120,6 +124,12 @@ def decide_action(state: PedagogyState) -> tuple[str, str]:
         return (
             ACTION_TEST,
             f"累计尝试 {attempt_count} 次（阈值 {QUIZ_AFTER_ATTEMPTS}）且本轮无未处理错误，转测验验证理解",
+        )
+    if attempt_count == 0 and bool(state.get("prior_knowledge_gap")):
+        return (
+            ACTION_TEACH,
+            "学生自述缺少先验（前置概念未学）且尚无作答尝试：先讲解前置概念，"
+            "不要求他自行推理（§16.3 先验不足样例）",
         )
     if attempt_count == 0 and requests_explanation(str(state.get("user_input") or "")):
         return ACTION_TEACH, "学生主动求讲解且尚无作答尝试，概念缺失，适合分层讲解并给出来源"

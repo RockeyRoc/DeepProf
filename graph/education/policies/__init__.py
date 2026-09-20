@@ -163,6 +163,80 @@ def requests_explanation(text: str) -> bool:
     return any(keyword in content for keyword in EXPLAIN_INTENT_KEYWORDS)
 
 
+#: 学生自述"缺少先验"的意图关键词（§16.3 教学样例"先验不足"）。
+#: 与 EXPLAIN_INTENT_KEYWORDS 的区别：求讲解是"想听这个知识点"，
+#: 先验不足是"前置概念还没学"——两者都该讲解，但起讲点不同（见 teach_prior_note）。
+PRIOR_GAP_KEYWORDS = (
+    "没学过",
+    "没有学过",
+    "还没学",
+    "没接触过",
+    "零基础",
+    "第一次接触",
+    "没上过",
+    "基础不好",
+    "基础很差",
+    "前置知识",
+)
+
+#: 先验不足时讲解的起讲点说明（教师可评审；由绑定拼进 Teach 的提示词）。
+PRIOR_GAP_TEACH_NOTE = (
+    "学生自述缺少先验（前置概念未学）：请先补齐最基础的一步（定义与前置概念）"
+    "再进入本节内容，不要用追问要求他自行推理。"
+)
+
+#: 先验正常时的讲解提示（同样是策略，声明在绑定里；与上面成对，避免提示词缺一段）。
+PRIOR_OK_TEACH_NOTE = (
+    "学生未声明缺少先验：可以精简基础步骤，把篇幅放在关键条件与易错点上。"
+)
+
+
+def reports_prior_gap(text: str) -> bool:
+    """学生是否自述缺少先验（用于"先验不足"教学样例的触发条件）。
+
+    只做**学生自述**的规则化识别，不从"学情记忆为空"反推先验不足——
+    没有数据不等于没掌握，那会变成给学生贴永久标签（§13.1）。
+    学情侧真正的先验判断要等 BKT/IRT 接入（§18.1）。
+    """
+    content = str(text or "")
+    return any(keyword in content for keyword in PRIOR_GAP_KEYWORDS)
+
+
+def teach_prior_note(prior_gap: bool) -> str:
+    """按先验判定选讲解提示（分层讲解的"起点"由这条策略决定）。"""
+    return PRIOR_GAP_TEACH_NOTE if prior_gap else PRIOR_OK_TEACH_NOTE
+
+
+# ======================================================================
+# 四之二、作答事实（Attempt）的产出纪律（§16.3 / §18.2）
+# ======================================================================
+
+
+def attempt_gate(correct: bool | None, item_id: str, learner_id: str) -> tuple[bool, str]:
+    """是否产出 Attempt，以及不产出时的显式原因（§18.2 / §13.1）。
+
+    三个必要条件，缺一不可：
+
+    1. **归属明确**：``learner_id`` 非空。无法归属到具体学习者的作答事实
+       会污染别人的画像，宁可这一轮不产出（与 UpdateProfile 的写入纪律一致）。
+    2. **判分可靠**：``correct`` 必须是显式 bool。判分缺失（None）既不能当成
+       答错，也不能写进学情——否则 BKT / IRT 会把"判不了"学成"答错了"（§13.1）。
+    3. **题目可追踪**：``item_id`` 非空。Attempt 的幂等键与来源映射都依赖
+       item_id（§18.2 必需字段），课程题库未接入时 Quiz 给不出 item_id，
+       因此**宁可不产出**，也不编造一个无法与题库对齐的 id。
+
+    返回 ``(True, "")`` 或 ``(False, 原因)``。原因会写进决策事件，
+    让人一眼看出"这一轮为什么没有答题记录"，而不是误以为链路坏了。
+    """
+    if not str(learner_id or "").strip():
+        return False, "缺少 learner_id，无法归属：不产出 Attempt，避免跨学习者污染（§13.2）"
+    if correct is None:
+        return False, "缺少可靠判分（自动判分未接入）：不产出 Attempt，不得把判不了当成答错（§13.1）"
+    if not str(item_id or "").strip():
+        return False, "缺少可追踪 item_id（课程题库未接入）：不产出 Attempt，不编造无法与题库对齐的 id（§18.2）"
+    return True, ""
+
+
 # ======================================================================
 # 五、证据与引用（§7.3：RAG 证据不足禁止伪造引用；§12 不编造引用）
 # ======================================================================
@@ -224,8 +298,8 @@ STOPPED_TEXT = (
 
 #: Test 节点必须声明的限制（诚实原则：题库与自动判分尚未接入）
 QUIZ_NOT_CONNECTED_NOTE = (
-    "（说明：课程题库与自动判分尚未接入——题目由模型即时生成，"
-    "判分结论不写入学情；待课程题库与 Attempt 链路补齐后再启用正式测验。）"
+    "（说明：课程题库与自动判分尚未接入——题目由模型即时生成，判分结论不写入学情；"
+    "作答事实（Attempt）只在题目可追踪且判分可靠时产出，当前题库未接入，故本轮不产出。）"
 )
 
 #: Quiz Skill 不可用时的兜底自检题（仍然不给答案）
@@ -323,6 +397,9 @@ GRAPH_SOURCE = "deepprof.graph.education"
 EVENT_NODE_ENTERED = "pedagogy.node.entered"
 EVENT_DECISION = "pedagogy.decision"
 EVENT_NODE_EXITED = "pedagogy.node.exited"
+#: 作答事实事件：教育组 → 数据组的 Attempt 交接通道（§16.3 / §18.2），
+#: 随事件落盘，数据组按 learner_id / concept 消费（BKT / IRT 输入）。
+EVENT_ATTEMPT = "pedagogy.attempt"
 
 #: 模型调用的默认温度：讲解/纠错要稳，追问要有点变化
 GENERATE_TEMPERATURE = 0.3

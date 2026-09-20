@@ -61,6 +61,9 @@ class EventType(str, Enum):
     PEDAGOGY_NODE_ENTERED = "pedagogy.node.entered"
     PEDAGOGY_DECISION = "pedagogy.decision"
     PEDAGOGY_NODE_EXITED = "pedagogy.node.exited"
+    # 作答事实（Attempt，§18.2 教育组 → 数据组）：随事件落盘后由数据组消费，
+    # 用于 BKT / IRT 的输入；契约字段见 models/learner/attempt.py。
+    PEDAGOGY_ATTEMPT = "pedagogy.attempt"
 
 
 # 落盘前需要脱敏的字段名（大小写不敏感，子串匹配）

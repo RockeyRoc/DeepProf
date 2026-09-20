@@ -1,6 +1,10 @@
 """Teach 节点：给出讲解决策，不生成讲解正文（DESIGNv0.4 §4.4 / §6.2 / §7.3 / §12）。
 
-进入条件：概念缺失且适合直接解释（由 Assess 决策为 teach）。
+进入条件：概念缺失、学生主动求讲解或先验不足（由 Assess 决策为 teach）。
+
+先验不足时（§16.3"先验不足"样例）：Assess 已判定 `prior_knowledge_gap`，
+本节点只把"起讲点前移到前置概念"的策略说明放进 `params.prior_gap_note`，
+具体那段话由 policies.teach_prior_note 决定、由绑定拼进提示词——节点不写文案。
 
 两条关键纪律现在由"决策 + 绑定"共同保证，而不是由节点自己写代码：
 
@@ -23,7 +27,7 @@ from typing import Any
 from runtime.core.ports import RuntimePort
 
 from ..contracts import PedagogicalDecision
-from ..policies import ACTION_TEACH, EMOTION_BY_ACTION
+from ..policies import ACTION_TEACH, EMOTION_BY_ACTION, teach_prior_note
 from ..state import PedagogyState
 from . import dispatch, emit_decision, emit_entered, emit_exited
 
@@ -34,12 +38,16 @@ async def teach(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     """分层讲解：有证据则带引用生成，无证据则明确说明证据不足。"""
     concept = str(state.get("current_concept") or "")
     evidence_sufficient = bool(state.get("evidence_sufficient"))
+    # 先验判定由 Assess 给出（§16.3 先验不足样例）；"怎么讲"的起讲点提示词由
+    # policies.teach_prior_note 决定，节点只负责把它交给绑定去拼。
+    prior_gap = bool(state.get("prior_knowledge_gap"))
     await emit_entered(
         port,
         state,
         NODE,
         concept=concept,
         evidence_sufficient=evidence_sufficient,
+        prior_knowledge_gap=prior_gap,
     )
 
     query = str(state.get("user_input") or "") or concept
@@ -58,8 +66,13 @@ async def teach(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
                 "learning_goal": str(state.get("learning_goal") or ""),
                 "user_input": str(state.get("user_input") or ""),
                 "query": query,
+                "prior_gap_note": teach_prior_note(prior_gap),
             },
-            reason="概念缺失且适合直接解释",
+            reason=(
+                "学生自述缺少先验，讲解起点前移到前置概念"
+                if prior_gap
+                else "概念缺失且适合直接解释"
+            ),
         ),
     )
 
@@ -81,6 +94,7 @@ async def teach(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         citation_count=len(citations),
         generation_skipped=result.status == "insufficient_evidence",
         source_attached=bool(citations),
+        prior_knowledge_gap=prior_gap,
         capability=result.capability,
         capability_status=result.status,
     )

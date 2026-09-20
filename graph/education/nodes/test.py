@@ -16,10 +16,14 @@
 
 诚实原则（本项目当前状态）仍然成立，且现在由数据保证：
 - 课程题库、题目难度标定与自动判分**尚未接入**（题库与来源映射由许阳毅负责，
-  Attempt 与判分链路由欧阳文凯负责），因此出题走 Quiz Skill 的模型即时生成，
+  自动判分链路由欧阳文凯负责），因此出题走 Quiz Skill 的模型即时生成，
   回复里必须声明"题库未接入"（绑定的后缀文案）；
 - 判分只使用调用方给出的结构化 `last_answer_correct`；若为 None，
-  则**不更新 wrong_streak**、不写成学情标签（§13.1），措辞也换成"先对齐"。
+  则**不更新 wrong_streak**、不写成学情标签（§13.1），措辞也换成"先对齐"；
+- **作答事实（Attempt）**由本节点按 §18.2 交给数据组（§16.3"向数据组发送 Attempt"，
+  契约由数据组定义在 models/learner/attempt.py）：产出条件是
+  "归属明确 + 判分可靠 + 题目可追踪"（policies.attempt_gate），
+  当前题库未接入 → 没有 item_id → 显式不产出，并在决策事件里写明原因。
 
 只依赖 RuntimePort：execute / emit。
 """
@@ -39,7 +43,7 @@ from ..policies import (
     REPLY_FRAME_UNKNOWN,
 )
 from ..state import PedagogyState
-from . import dispatch, emit_decision, emit_entered, emit_exited
+from . import dispatch, emit_attempt, emit_decision, emit_entered, emit_exited
 
 NODE = "test"
 
@@ -111,6 +115,12 @@ async def test(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     if mode == MODE_EVALUATE:
         attempt_count += 1
 
+    # ---- 作答事实：交给数据组（§16.3 交接 / §18.2 契约）----
+    # 出题模式本轮没有作答，判分三态里的"判不了"也不是作答事实：
+    # 两种情况都只由 attempt_gate 给出显式原因，不产出 Attempt（§13.1）。
+    judged = correct if mode == MODE_EVALUATE else None
+    attempt, skip_reason = await emit_attempt(port, state, correct=judged)
+
     await emit_decision(
         port,
         state,
@@ -121,6 +131,9 @@ async def test(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         item_bank_connected=bool(result.metadata.get("item_bank_connected")),
         judgement=judgement,
         answer_leaked=judgement == "correct",
+        attempt_recorded=attempt is not None,
+        attempt_id=str((attempt or {}).get("attempt_id") or ""),
+        attempt_skip_reason=skip_reason,
         capability=result.capability,
         capability_status=result.status,
     )

@@ -2,15 +2,20 @@
 
 **诚实边界（重要）**：课程题库与题目难度标定**尚未接入**
 （题库、知识点标注与来源映射由许阳毅按 §16.2 交接；
-Attempt 与判分链路由欧阳文凯按 §16.6 负责）。
+自动判分链路由欧阳文凯按 §16.6 负责）。
 因此本 Skill：
 - 出题走 port.generate 的模型即时生成，返回 item_bank_connected=False，
   并在 note 里写明题目不可用于正式测评/成绩；
 - 评价只给"学习性反馈"，**不返回确定性对错**（correct=None），
   避免把无标定的模型判断当成学情结论（§13.1 不给学生贴永久标签）。
 
-待题库与 Attempt 链路接入后，这里应改为检索真实题目 + 结构化判分，
-并输出 §18.2 的 Attempt 字段（attempt_id / item_id / concept_ids / correct / hint_count）。
+Attempt（§18.2）的责任分工：**契约**由数据组定义（models/learner/attempt.py），
+**产出与发送**由教育组在 Test / Correct 节点完成（§16.3）——
+本 Skill 只在题库接入后负责给出可追踪的 item_id 与结构化判分（见下）。
+
+待题库接入后，这里应改为检索真实题目 + 结构化判分，
+并给出 §18.2 Attempt 所需的 item_id / concept_ids / correct 取值
+（attempt_id / hint_count 由图的产出侧填充）。
 
 责任人：孙一新（§16.3 教学策略与测验闭环）。
 """
@@ -34,7 +39,7 @@ _EVALUATE_SYSTEM_PROMPT = (
 )
 
 _NOT_CONNECTED_NOTE = (
-    "课程题库与自动判分尚未接入（许阳毅负责题库与来源映射，欧阳文凯负责 Attempt 与判分）；"
+    "课程题库与自动判分尚未接入（许阳毅负责题库与来源映射，欧阳文凯负责判分链路）；"
     "当前题目由模型即时生成，判分结论不写入学情。"
 )
 

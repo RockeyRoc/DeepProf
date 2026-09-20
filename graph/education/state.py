@@ -15,6 +15,7 @@
   learner_id / trace_id / user_input            关联信息与本轮输入
   action / response_text / emotion / citations  交前端的三件套（§16.3 交接）
   evidence_sufficient / wrong_streak / last_answer_correct  教学判断依据
+  prior_knowledge_gap / item_id                  先验判定与作答题目（Attempt 依据，§18.2）
   student_stopped / turn_count / max_turns      退出与防无限追问（§7.3）
   strategy_note                                 本轮策略备注（复盘用）
 """
@@ -55,6 +56,8 @@ class PedagogyState(TypedDict, total=False):
     evidence_sufficient: bool
     wrong_streak: int  # 连续答错次数
     last_answer_correct: bool | None  # None = 缺少可靠判分，不得当成答错
+    prior_knowledge_gap: bool  # 学生自述缺少先验（前置概念未学）→ 讲解起点前移
+    item_id: str  # 本轮作答对应的题目（Attempt 的幂等与来源映射依据；题库未接入时为空）
 
     # ---------- 循环控制（§7.3 防无限追问） ----------
     student_stopped: bool
@@ -87,6 +90,8 @@ DEFAULT_STATE: dict[str, Any] = {
     "evidence_sufficient": False,
     "wrong_streak": 0,
     "last_answer_correct": None,
+    "prior_knowledge_gap": False,
+    "item_id": "",
     "student_stopped": False,
     "turn_count": 0,
     "max_turns": MAX_TURNS_DEFAULT,

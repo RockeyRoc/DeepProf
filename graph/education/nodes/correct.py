@@ -12,7 +12,12 @@
 
 纠错完成后重置 wrong_streak 与 hint_level：纠错给出了新信息，
 下一轮应当重新 Assess、从最轻提示开始，而不是立刻再次进入同一纠错分支。
-错误事实本身不会丢——已由 attempt_count、misconceptions 与学情记忆记录（§5.5）。
+错误事实本身不会丢——已由 attempt_count、misconceptions、学情记忆（§5.5）
+与作答事实（Attempt，§18.2）记录。
+
+本节点同样产出 Attempt（§16.3"在 Test / Correct 节点产出作答事实"）：
+但只认调用方给出的可靠判分（last_answer_correct），
+不由"连续答错次数"或误解条目反推一条作答事实出来（§13.1 不给学生贴永久标签）。
 
 只依赖 RuntimePort：execute / emit。
 """
@@ -25,7 +30,7 @@ from runtime.core.ports import RuntimePort
 from ..contracts import PedagogicalDecision
 from ..policies import ACTION_CORRECT, EMOTION_BY_ACTION
 from ..state import PedagogyState
-from . import dispatch, emit_decision, emit_entered, emit_exited
+from . import dispatch, emit_attempt, emit_decision, emit_entered, emit_exited
 
 NODE = "correct"
 
@@ -75,6 +80,12 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     else:
         reason = f"针对稳定错误生成纠错与对比例，依据 {len(citations)} 条可定位教材片段"
 
+    # ---- 作答事实：交给数据组（§16.3 交接 / §18.2 契约）----
+    # 判分缺失（None）或题目不可追踪时由 attempt_gate 给出显式原因，不产出（§13.1）
+    attempt, skip_reason = await emit_attempt(
+        port, state, correct=state.get("last_answer_correct")
+    )
+
     await emit_decision(
         port,
         state,
@@ -85,6 +96,9 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         generation_skipped=result.status == "insufficient_evidence",
         source_attached=bool(citations),
         misconception_count=len(misconceptions),
+        attempt_recorded=attempt is not None,
+        attempt_id=str((attempt or {}).get("attempt_id") or ""),
+        attempt_skip_reason=skip_reason,
         capability=result.capability,
         capability_status=result.status,
     )

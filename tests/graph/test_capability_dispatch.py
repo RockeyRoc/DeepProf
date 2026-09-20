@@ -72,6 +72,7 @@ from graph.education.policies import (
     STOPPED_TEXT,
     TEACH_INSUFFICIENT_EVIDENCE_TEXT,
     next_hint_level,
+    teach_prior_note,
 )
 from graph.education.state import new_state
 from runtime.providers.fake import FakeProvider
@@ -195,6 +196,9 @@ def teach_decision(evidence_sufficient: bool = True) -> dict:
             "learning_goal": BASE_STATE["learning_goal"],
             "user_input": QUERY,
             "query": QUERY,
+            # 起讲点说明：Teach 的提示词按它分层（先验不足 / 先验正常），
+            # 由 policies.teach_prior_note 产出（§16.3 先验不足样例）
+            "prior_gap_note": teach_prior_note(False),
         },
         reason="概念缺失且适合直接解释",
     ).to_dict()

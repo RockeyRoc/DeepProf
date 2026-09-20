@@ -24,6 +24,8 @@ from graph.education.policies import (
     HINT_LEVEL_TEMPLATES,
     HINT_MAX_LEVEL,
     MAX_TURNS_DEFAULT,
+    PRIOR_GAP_TEACH_NOTE,
+    PRIOR_OK_TEACH_NOTE,
 )
 from runtime.core.events import EventType
 from runtime.testing import FakeRuntime
@@ -94,6 +96,33 @@ def test_teach_branch_when_student_asks_for_explanation():
     assert result["citations"], "有证据时应当给出引用"
     assert "证据不足" not in result["response_text"]
     assert entered_nodes(port) == ["assess", "teach", "update_profile"]
+
+
+def test_teach_branch_when_prior_knowledge_missing():
+    """先验不足（学生自述前置概念没学过）→ Teach 讲前置概念，而不是苏格拉底追问。
+
+    §16.3 教学样例之二。与"主动求讲解"的区别在**起讲点**：
+    求讲解是学生想听这个知识点，先验不足是前置概念还没学——
+    此时追问等于要求他推理还没学过的内容，只会强化挫败。
+    """
+    port = make_port(with_evidence=True)
+    result = run_turn(port, user_input="我没学过前面的导数，这块还能听吗")
+
+    assert result["action"] == "teach"
+    assert entered_nodes(port) == ["assess", "teach", "update_profile"]
+
+    assess_decision = next(
+        event["payload"]
+        for event in port.events
+        if event.get("type") == EVENT_DECISION and event["payload"]["node"] == "assess"
+    )
+    assert assess_decision["prior_knowledge_gap"] is True
+    assert "先验" in assess_decision["reason"]
+
+    # 起讲点真的前移了：送给模型的提示词要求先补前置概念，而不是精简基础步骤
+    prompt = port.calls_of("generate")[0]["request"]["messages"][1]["content"]
+    assert PRIOR_GAP_TEACH_NOTE in prompt
+    assert PRIOR_OK_TEACH_NOTE not in prompt
 
 
 def test_ask_branch_by_default():

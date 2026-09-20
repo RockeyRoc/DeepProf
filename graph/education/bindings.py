@@ -101,9 +101,12 @@ from .policies import (
 )
 
 #: Teach 的提示词模板（绑定侧是唯一来源；节点已不再自带一份）。
+#: 起讲点由 `{prior_gap_note}` 决定——它来自 policies.teach_prior_note：
+#: 先验不足时要求先补前置概念，先验正常时精简基础步骤（§16.3 先验不足样例）。
 TEACH_PROMPT_TEMPLATE = (
     "请针对知识点「{concept}」做分层讲解。\n"
     "学习目标：{learning_goal}\n"
+    "{prior_gap_note}\n"
     "学生的问题：{user_input}\n\n"
     "教材片段（唯一允许的依据）：\n"
     "{evidence_block}\n\n"
@@ -265,6 +268,7 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "concept": "${concept}",
                 "learning_goal": "${params.learning_goal}",
                 "user_input": "${params.user_input}",
+                "prior_gap_note": "${params.prior_gap_note}",
             },
             "temperature": GENERATE_TEMPERATURE,
             "max_chars": EVIDENCE_MAX_TEXT_CHARS,
