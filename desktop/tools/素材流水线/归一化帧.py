@@ -147,6 +147,11 @@ def strip_background(img):
     return Image.fromarray(out, "RGBA"), "抠图完成（连通域 + 去白边）"
 
 
+#: 小块离主块不超过这么多像素，就认定它是角色自己的部件，不删。
+#: 见 drop_fragments 里的说明。
+NEAR_MAIN_PX = 3
+
+
 def drop_fragments(img, keep_ratio=0.05):
     """去掉游离的小碎块，只留角色本体。
 
@@ -155,8 +160,23 @@ def drop_fragments(img, keep_ratio=0.05):
     比不放还糟。而且归一化是按【外接框】对齐的 —— 一个远处的碎块
     会把外接框撑大，把整帧缩放带偏。
 
-    规则：只保留最大的连通域，以及大于它 keep_ratio 的那些
-    （头发和身体偶尔会被细线分开，不能一刀切成"只留一个"）。
+    ⚠️ 为什么光看大小不够（2026-09-20 踩的坑，**症状是走路时脸上透明**）：
+        原来只有一条规则 ——「保留最大块 + 大于它 keep_ratio 的块」。
+        可**角色自己的脸就可能是个小块**：脸被头发和描边切断，成了独立连通域，
+        而它常常不到主块（身体+头发）的 5% → **被当碎块删掉**。
+        更糟的是比例刚好卡在阈值上下，于是**某些帧删、某些帧留**，
+        看起来像"随机闪一下"。
+
+        实测（新角色走路四帧，主块约 8~11 万像素）：
+          walk_1 脸 4341px（5% 线 5475）→ 删
+          walk_2 脸 4328px（5% 线 5475）→ 删
+          walk_3 脸 4376px（5% 线 4093）→ 留
+        同一个人物，四帧里两帧没脸。
+
+        所以补第二条规则：**贴着主块的小块不删**。真正的残片（邻格漏进来的）
+        离主块都远，照样会被删掉。
+
+    规则：保留 ①最大块 ②大于它 keep_ratio 的块 ③离主块 ≤ NEAR_MAIN_PX 的块
     """
     from scipy import ndimage
     a = np.array(img)[:, :, 3]
@@ -165,11 +185,26 @@ def drop_fragments(img, keep_ratio=0.05):
         return img, 0
     sizes = np.bincount(lab.ravel())
     sizes[0] = 0  # 背景不算
-    biggest = sizes.max()
-    drop = np.isin(lab, [i for i in range(1, n + 1) if sizes[i] < biggest * keep_ratio])
-    k = int(drop.sum())
-    if not k:
+    biggest_id = int(sizes.argmax())
+    biggest_size = int(sizes[biggest_id])
+
+    # 每个像素到【主块】的距离（主块自身为 0）—— 用来判断小块是不是贴着主块
+    dist_to_main = ndimage.distance_transform_edt(lab != biggest_id)
+
+    drop_ids = []
+    for i in range(1, n + 1):
+        if sizes[i] == 0:
+            continue
+        if i == biggest_id or sizes[i] >= biggest_size * keep_ratio:
+            continue  # 规则 ①②
+        if dist_to_main[lab == i].min() <= NEAR_MAIN_PX:
+            continue  # 规则 ③：贴着主块 → 是角色自己的部件（比如被头发切断的脸）
+        drop_ids.append(i)
+
+    if not drop_ids:
         return img, 0
+    drop = np.isin(lab, drop_ids)
+    k = int(drop.sum())
     out = np.array(img).copy()
     out[drop] = (0, 0, 0, 0)
     return Image.fromarray(out, "RGBA"), k
