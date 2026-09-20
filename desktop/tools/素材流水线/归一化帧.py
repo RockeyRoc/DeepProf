@@ -430,10 +430,17 @@ def normalize_action(action, spec, mode="表情", want_debug=False):
     if drift > spec["canvas_w"] * 0.04:
         print("      ⚠️ 各帧头部水平位置相差 %.0fpx（缩放后）—— 对齐后角色会左右晃。" % drift)
 
-    if min(scales) > 1.02:
-        print("      ⚠️ 这是在【放大】—— 原图角色只有 %dpx 高，硬拉到 %dpx 会糊。"
-              % (median_h, spec["target_h"]))
-        print("         首选：让即梦出更大的图（角色至少 1024px 高）。")
+    # ⚠️ 判据**不能**用 `min(scales)`（2026-09-20 晚返工过一次）：
+    #    逐帧模式整批共用一个系数，取 min 没问题；但**表情模式是逐张各一个系数** ——
+    #    只要同批里有一张是缩小的，最小值就被它压下去，**整批在放大也不会报警**。
+    #    实测：第四批三格图拆出的三张表情，源角色只有 631/640/641px，要被放大
+    #    1.87~1.90 倍才够 1200px，却因为同批的 think.png 系数是 0.987 而**一声没响**
+    #    —— 又是那种"不报错、不崩溃、只是看着糊"的静默失败。改成逐张数有几张在放大。
+    over = [s for s in scales if s > 1.02]
+    if over:
+        print("      ⚠️ 有 %d/%d 张是在【放大】（最大 %.2f×）—— 最小的原图角色只有 %dpx 高，"
+              "硬拉到 %dpx 会糊。" % (len(over), len(scales), max(over), heights.min(), spec["target_h"]))
+        print("         首选：让即梦出更大的图（**角色本体**至少 1024px 高，不是画布尺寸）。")
         print("         次选：调小目标高度重跑 —— 但规格是全局的，")
         print("               改了一个动作会让它和别的动作大小对不上。")
 

@@ -49,7 +49,7 @@ except Exception:
     pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)                      # DeepProf/
+ROOT = os.path.dirname(HERE)                      # deepprof/
 RIG_DIR = os.path.join(HERE, "动作帧", "rig")
 PET_DIR = os.path.join(ROOT, "desktop", "src", "renderer", "src", "assets", "pet")
 

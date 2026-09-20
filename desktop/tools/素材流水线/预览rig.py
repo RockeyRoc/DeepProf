@@ -31,7 +31,7 @@ except Exception:
     pass
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)                      # DeepProf/
+ROOT = os.path.dirname(HERE)                      # deepprof/
 RIG = os.path.join(HERE, "动作帧", "rig")
 PREVIEW = os.path.join(HERE, "动作帧", "预览")
 
