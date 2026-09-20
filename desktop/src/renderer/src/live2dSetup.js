@@ -23,7 +23,7 @@
  *    ⚠️ 现在 public/ 下**没有**这个文件了（样例模型 + 运行时都已移到
  *       `_素材工作区/_第三方样例模型/`）。本文件**自身不受影响** ——
  *       它只 import pixi.js 和 @pixi/unsafe-eval，**不碰** pixi-live2d-display，
- *       所以 FramePet / RigPet / SwayPet 照常工作。
+ *       所以 FramePet / RigPet 照常工作。
  *       真正会因为缺运行时炸掉的是 `Live2DPet.jsx`（它 import cubism4），
  *       而那条路径已被 `App.jsx` 的 React.lazy 隔离。
  *       要恢复 Live2D 链路验证，见 `_素材工作区/_第三方样例模型/README.md` §五。

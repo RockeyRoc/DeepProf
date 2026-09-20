@@ -116,8 +116,6 @@ import blink1Url from './assets/pet/frames/blink/blink_1.png'
  * 因为画布是方的（1536×1536）而桌宠窗口是窄高的（220×300），会变成宽度受限。
  */
 export const EXPRESSION_GEOMETRY = geometry
-export const WALK_GEOMETRY = walkGeo
-export const BLINK_GEOMETRY = blinkGeo
 
 export const ANIMATIONS = {
   // ---- 待机：⚠️ 用【站姿】眨眼批的第 0 帧 ----

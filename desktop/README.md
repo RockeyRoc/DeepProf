@@ -174,7 +174,6 @@ desktop/
             ├── RigPet.jsx          # 分层 rig 播放器：身体+左右腿三层，腿由代码摆动 + 命中区上报
             ├── Live2DPet.jsx       # Live2D 播放器（⚠️ **本轮不提供**：菜单那项只弹说明，
             │                       #    不再真的切过去；组件与 lazy 隔离保留备用）
-            ├── SwayPet.jsx         # 早期单图版（当前无人引用）
             ├── petAnimations.js    # ⭐ 教学节点 → 动画名 → 帧素材（当前生效的 PNG 映射）
             ├── petState.js         # 表情 / Live2D 映射（表情表是死代码；Live2D 表已生效）
             ├── petStats.js         # 好感度 / 心情 / 精力（localStorage，本地状态）
