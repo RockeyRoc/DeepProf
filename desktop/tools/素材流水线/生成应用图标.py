@@ -43,11 +43,29 @@
 加过一次之后它就进了版本控制，以后再改不用再加 -f。
 
 跑法（在哪跑都行，路径按本文件推）：
-    python desktop/tools/素材流水线/生成应用图标.py
+    python desktop/tools/素材流水线/生成应用图标.py logo   # ← 当前交付用的
+    python desktop/tools/素材流水线/生成应用图标.py face   # 角色脸（默认）
 产物：
-    desktop/build/icon.ico                ← 交给 electron-builder
+    desktop/build/icon.ico                ← 交给 electron-builder，托盘图标也读它
     desktop/build/icon_sizes/*.png        ← 各档原样落盘，用来肉眼验收
     desktop/build/icon_sizes/_预览.png    ← 浅底/深底对照（棋盘格 = 透明）
+
+════════════════════════════════════════════════════════════════════
+两个模式（2026-09-20 加 logo 模式）
+════════════════════════════════════════════════════════════════════
+face —— 从角色立绘裁脸（上面那 4 条实测规则都是为它定的）
+logo —— 从项目 logo（鲸鱼 + 书）出图标。**当前 exe / 托盘用的是这个。**
+
+两者只有「怎么得到正方形母图」不同，出 ICO 的容器逻辑（`write_ico` / `to_dib`）
+完全共用 —— 那部分是实测过的（小档位 BMP、256 走 PNG），别为 logo 另写一份。
+
+logo 模式的三条差异：
+1. **不描边**。logo 是白底上的实心蓝块，描边只会给正方形加一圈可见边框。
+2. **先裁到「非背景」外接框再补白**。原图 1254×1254 里 logo 只占宽 72.6%、
+   高 55.9%，四周留白极大；不裁的话缩到 16px 只剩一小团蓝。
+   ⚠️ 不能用 `getbbox()` —— 它按「非 0 像素」算，白底 255 也非 0，会返回整张图。
+3. **保留白底**（不抠透明）。代价是深色任务栏下会看到一个白方块，这是有意接受的：
+   白底在浅色任务栏 / 桌面 / 开始菜单都最稳。
 """
 
 import os
@@ -57,7 +75,9 @@ from io import BytesIO
 
 import numpy as np
 from PIL import Image, ImageEnhance
-from scipy import ndimage
+
+# ⚠️ scipy 只在 face 模式的 add_outline() 里用（binary_dilation）。
+#    放在函数内导入，好让 logo 模式在没装 scipy 的机器上也能跑。
 
 sys.stdout.reconfigure(encoding="utf-8")  # GBK 控制台下打印 ⚠️ 会 UnicodeEncodeError
 
@@ -80,6 +100,14 @@ PAD = 0.06  # 四周留白，占画布边长的比例
 OUTLINE_COLOR = (23, 56, 120)  # 深藏青，和白发/浅色任务栏都能拉开
 SMALL_BOOST = (1.30, 1.15)  # (饱和度, 对比度) —— 只给 ≤32px 用
 SIZES = [16, 24, 32, 48, 64, 128, 256]
+
+# ── logo 模式（鲸鱼 + 书，项目 logo）────────────────────────────────
+# 用仓库根 media/ 下那张（与门户配图同一份，SHA256 一致，不必另存副本）。
+# 1254×1254、白底；logo 主色约 RGB(22,90,238)。
+LOGO_SRC = os.path.join(os.path.dirname(DESKTOP), "media", "DeepProf.jpg")
+LOGO_BG = (255, 255, 255)
+LOGO_BG_TOL = 40  # 与白色的最大通道差超过它才算 logo 像素（JPEG 噪点 ≤2，留足余量）
+LOGO_PAD = 0.06  # 四周留白，占正方形边长的比例
 
 
 def outline_px(size):
@@ -104,10 +132,35 @@ def square_crop(src, box=HEAD_BOX, pad=PAD):
     return sq
 
 
+def logo_square(src, tol=LOGO_BG_TOL, pad=LOGO_PAD, bg=LOGO_BG):
+    """把 logo 裁到「非背景」外接框，再补成白底正方形。
+
+    ⚠️ 不用 ``getbbox()``：它按「非 0 像素」算，白底 255 也非 0，
+       整张图会被当成内容，等于没裁。这里按「与背景色的偏差」判。
+    ⚠️ logo 内部也有白（书的页面、眼白），但它们在**外接框之内**，
+       所以先算外接框、再整体裁，不会把这些白挖掉。
+    """
+    rgb = src.convert("RGB")
+    a = np.array(rgb).astype(int)
+    dev = np.abs(a - np.array(bg)).max(axis=2)
+    ys, xs = np.where(dev > tol)
+    if len(xs) == 0:
+        raise ValueError("整张图都是背景色，找不到 logo（tol=%d）" % tol)
+
+    img = rgb.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
+    w, h = img.size
+    side = int(max(w, h) * (1 + pad * 2))
+    sq = Image.new("RGB", (side, side), bg)
+    sq.paste(img, ((side - w) // 2, (side - h) // 2))
+    return sq
+
+
 def add_outline(img, px, color=OUTLINE_COLOR):
     """沿 alpha 轮廓往外描 px 像素的边（颜色在角色【下面】）"""
     if px <= 0:
         return img
+    from scipy import ndimage  # 只有本函数需要 scipy，延迟到这里导入
+
     a = np.array(img)
     solid = a[:, :, 3] > 40
     grown = ndimage.binary_dilation(solid, iterations=px)
@@ -220,15 +273,9 @@ def make_sheet(images):
     return sheet
 
 
-def main():
-    if not os.path.exists(SRC):
-        print("❌ 找不到源立绘：%s" % SRC)
-        return 1
-
-    src = Image.open(SRC).convert("RGBA")
-    print("源图 %s  %dx%d" % (os.path.basename(SRC), src.size[0], src.size[1]))
-
-    master = square_crop(src)
+def build_face(src):
+    """face 模式：裁脸 → 逐档描边（≤32px 额外提色）"""
+    master = square_crop(src.convert("RGBA"))
     print("裁切框 %s → 母图 %dx%d（留白 %.0f%%）" % (HEAD_BOX, master.size[0], master.size[1], PAD * 100))
 
     images = {}
@@ -239,6 +286,37 @@ def main():
         im = add_outline(im, outline_px(size))
         images[size] = im
         print("  %3dpx  描边 %dpx%s" % (size, outline_px(size), "  + 色彩增强" if size <= 32 else ""))
+    return images
+
+
+def build_logo(src):
+    """logo 模式：裁到外接框 → 补白成正方形 → 逐档缩放（不描边、不动色）"""
+    master = logo_square(src).convert("RGBA")
+    print("外接框 → 母图 %dx%d（白底留白 %.0f%%）" % (master.size[0], master.size[1], LOGO_PAD * 100))
+
+    images = {}
+    for size in SIZES:
+        images[size] = master.resize((size, size), Image.LANCZOS)
+        print("  %3dpx" % size)
+    return images
+
+
+def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    mode = argv[0] if argv else "face"
+    if mode not in ("face", "logo"):
+        print("用法：python 生成应用图标.py [face|logo]（默认 face）")
+        return 2
+
+    src_path = SRC if mode == "face" else LOGO_SRC
+    if not os.path.exists(src_path):
+        print("❌ 找不到源图（模式 %s）：%s" % (mode, src_path))
+        return 1
+
+    src = Image.open(src_path)
+    print("模式 %s ｜ 源图 %s  %dx%d" % (mode, os.path.basename(src_path), src.size[0], src.size[1]))
+
+    images = build_face(src) if mode == "face" else build_logo(src)
 
     os.makedirs(OUT_DIR, exist_ok=True)
     for size, im in images.items():
