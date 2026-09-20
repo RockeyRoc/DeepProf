@@ -1,6 +1,6 @@
 {
   "name": "deepprof-desktop",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "private": true,
   "description": "DeepProf 桌宠前端 —— Electron + React（MVP-3 第一个模块）",
   "author": "张钧翔",
