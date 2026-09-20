@@ -15,9 +15,11 @@
  *      角色会**恒为一半大**：不报错、不崩溃、只是"看着不对"。
  *
  * ✅ 走路 4 帧 —— **2026-09-20 解禁**（组长给了新角色的侧视四格图）。
- * ⏸ 眨眼 / 说话 —— 仍停用（这两张图组长还没给；旧的帧还在 `frames/blink|talk/` 下，
- *    只是不再 import）。接回步骤见文件中部那段注释。
- * ⏸ 待机 2 帧（`idle_0` / `idle_1`）—— 仍未产出，`idle` 还是单帧。
+ * ✅ 眨眼 2 帧 —— **2026-09-20 解禁**（组长给了站姿的睁眼/闭眼两张）。
+ * ⏸ 说话 —— 仍停用：组长给的两张**都是张嘴的**（睁眼张嘴 / 闭眼张嘴），
+ *    没有同姿势的闭嘴版，做不出「嘴开合」。要接 talk 得再要一张闭嘴图。
+ *    旧的帧还在 `frames/talk/` 下，只是不再 import。
+ * ⏸ 待机 2 帧（`idle_0` / `idle_1`）—— 仍未产出，`idle` 是单帧。
  *    单帧时靠 FramePet 的 sway 形变滤镜 + 弹跳补一点"活着"的感觉。
  *
  * ⚠️ `assets/pet/idle.png`（642×1024）**仍是上一个角色**，但它现在**没有出口**：
@@ -76,9 +78,15 @@ import walk0Url from './assets/pet/frames/walk/walk_0.png'
 import walk1Url from './assets/pet/frames/walk/walk_1.png'
 import walk2Url from './assets/pet/frames/walk/walk_2.png'
 import walk3Url from './assets/pet/frames/walk/walk_3.png'
-// ⏸ 眨眼 / 说话仍停用 —— 这两张图组长还没给（见 _待确认 文档里的「要图清单」）
-// import blink0Url from './assets/pet/frames/blink/blink_0.png'
-// import blink1Url from './assets/pet/frames/blink/blink_1.png'
+// ✅ 眨眼 2 帧 —— 2026-09-20 解禁。走的是同一批站姿图（睁眼 / 闭眼）。
+//    ⚠️ blink_1（闭眼）**不是**组长那张原生闭眼图，而是拿 blink_0 改眼睛合成出来的
+//    —— 两张原图是【两次独立生成】，全身 21.5% 像素不同、脚底还差 9px，
+//    整图硬切会全身抖。合成后 blink_1 的身体像素与 blink_0 完全一致，抖动为零。
+//    合成脚本：`_素材工作区/_眨眼对位.py`（可重跑）。
+import blinkGeo from './assets/pet/frames/blink/geometry.json'
+import blink0Url from './assets/pet/frames/blink/blink_0.png'
+import blink1Url from './assets/pet/frames/blink/blink_1.png'
+// ⏸ 说话仍停用 —— 组长那两张都是张嘴的，没有闭嘴版（见文件头说明）
 // import talk0Url from './assets/pet/frames/talk/talk_0.png'
 // import talk1Url from './assets/pet/frames/talk/talk_1.png'
 
@@ -89,10 +97,19 @@ import walk3Url from './assets/pet/frames/walk/walk_3.png'
  */
 export const EXPRESSION_GEOMETRY = geometry
 export const WALK_GEOMETRY = walkGeo
+export const BLINK_GEOMETRY = blinkGeo
 
 export const ANIMATIONS = {
-  // ---- 待机：帧没出，先用 idle 单图 + 形变滤镜做呼吸 ----
-  idle: { frames: [idleUrl], fps: 1.5, loop: true, sway: false },
+  // ---- 待机：⚠️ 2026-09-20 起改用【站姿】眨眼批的第 0 帧 ----
+  //    为什么不用 expressions/idle.png：那张是**漂浮/坐姿**，而组长新给的眨眼对
+  //    是**站姿**（轮廓宽高比 0.77 vs 0.92）。idle 若还是漂浮的，眨眼瞬间小人会
+  //    从"坐着"跳到"站着" —— 那不是眨眼，是变身。
+  //    所以 idle 与 blink_0 **必须是同一张图**（这条 petAnimations 自己的接回
+  //    说明里就写了：「眨眼和说话的第一帧要跟表情批的 idle 同一张图才无缝」）。
+  //    现在两张是同一个文件，天然无缝。
+  //    ⚠️ 代价：6 张教学表情仍是漂浮姿势，切表情时会在两种姿势间跳 —— 这在本轮
+  //    之前就存在（6 张立绘本来就各是不同姿势），不是这次引入的。
+  idle: { frames: [blink0Url], fps: 1.5, loop: true, sway: false, geo: blinkGeo },
 
   // ---- 走路：✅ 2026-09-20 解禁（组长给了新角色的侧视四格）----
   // ⚠️ 必须带自己的 geo：走路那批角色框比表情批【宽】（侧视时身体/头发前后伸出去），
@@ -112,11 +129,13 @@ export const ANIMATIONS = {
   // （见文件末尾）。所以流式期间会正常显示当前教学表情，只是嘴不动。
   talk: { frames: [idleUrl], fps: 6, loop: true, sway: false },
 
-  // ---- 眨眼：⏸ 已停用（旧帧是上个角色）----
-  // 这里仍然保留 overlay 的结构（App.jsx 靠 ANIMATIONS.blink.frames 触发），
-  // 但两帧都是 idle，所以"眨"了等于没眨 —— 不会露出旧角色的脸。
-  // 接回新帧时把 holds 恢复成 [90, 110]（闭眼必须比睁眼短，否则是"闭着眼发呆"）。
-  blink: { frames: [idleUrl], holds: [90], loop: false, sway: false },
+  // ---- 眨眼：✅ 2026-09-20 解禁（站姿睁眼/闭眼两张）----
+  // 帧序**必须是 [睁眼, 闭眼]**：FramePet 会拿 frames[0] 和当前贴图比对，
+  // 相等就**跳过第 1 帧**直接从闭眼起播（省掉"重播一遍已经显示着的图"）。
+  // 所以 idle 与 blink_0 用同一个 import 是硬要求，不是巧合。
+  // holds[0] 因此平时用不到（只在没跳过时兜底）；真正起作用的是 holds[1] = 闭眼 110ms。
+  // 眨眼节奏由 App.jsx 的 blinkTimer 3~7 秒随机触发（不等长停留，避免机械感）。
+  blink: { frames: [blink0Url, blink1Url], holds: [90, 110], loop: false, sway: false },
 
   /* ---- 教学节点 ----
    *

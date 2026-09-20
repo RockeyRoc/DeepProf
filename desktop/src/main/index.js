@@ -448,12 +448,21 @@ function createWindow() {
 
 
     // 连拍：桌宠是"溜达"的，只在启动瞬间抓一张会正好错过它在走的时刻。
-    // 平时别开（每次启动留 11 个文件太吵），要查动画时设 DEEPPROF_SNAP=1 再启动。
+    // 平时别开（每次启动留一堆文件太吵），要查动画时设 DEEPPROF_SNAP=1 再启动。
+    //
+    // ⚠️ 2026-09-20 加了间隔/张数可配：原来写死 2 秒 × 10 张，**抓不到眨眼**。
+    //    眨眼闭眼只有 110ms，2 秒一采样撞上的概率约 5%。要查眨眼得把间隔压到
+    //    100~200ms 连拍十几秒，比如：
+    //        DEEPPROF_SNAP=1 DEEPPROF_SNAP_MS=120 DEEPPROF_SNAP_N=120 npm run dev
     if (process.env.DEEPPROF_SNAP) {
-      for (let i = 1; i <= 10; i++) {
-        setTimeout(() => snap(`-t${i}`), i * 2000)
+      const every = Number(process.env.DEEPPROF_SNAP_MS) || 2000
+      const count = Number(process.env.DEEPPROF_SNAP_N) || 10
+      for (let i = 1; i <= count; i++) {
+        setTimeout(() => snap(`-t${i}`), i * every)
       }
-      console.log('[桌宠] 连拍模式已开启（DEEPPROF_SNAP）—— 每 2 秒一张，共 10 张')
+      console.log(
+        `[桌宠] 连拍模式已开启（DEEPPROF_SNAP）—— 每 ${every}ms 一张，共 ${count} 张`
+      )
     }
   })
 
