@@ -1,0 +1,344 @@
+{
+  "contract": "deepprof.desktop-ipc",
+  "version": "1.1.0",
+  "frozen_at": "2026-09-19",
+  "status": "frozen-draft",
+  "owner": "张钧翔（桌宠前端）",
+  "source_of_truth": {
+    "暴露方": "desktop/src/preload/index.js（contextBridge.exposeInMainWorld('deepprof', {...})，2026-09-19 15:21 状态）",
+    "处理方": "desktop/src/main/index.js 的 setupIpc()（2026-09-19 15:22 状态）",
+    "消费方": "desktop/src/renderer/src/App.jsx"
+  },
+  "design_ref": "DESIGNv0.4.1 §16.4 第一轮任务第 3 条「通过 preload 暴露最小 IPC 接口」+ 验收项「渲染进程不持有模型密钥」",
+  "changelog_zh": {
+    "1.0.0 -> 1.1.0": [
+      "对齐 DESIGNv0.4.1（对齐本身对 IPC 层无强制改动，v0.4.1 的 D-7 修订只涉及后端 RuntimePort 与教学图）。",
+      "**数量修正**：1.0.0 写的是「11 条 invoke 通道」，实际当时已是 13 条。现在（15:22 状态）是 **16 条 invoke 通道 + 2 条推送通道 + 18 个暴露成员**。",
+      "补登 5 条**漏登**的通道：win:set-hit-region、win:set-ui-open、win:set-always-on-top、tts:selftest、tts:synthesize。",
+      "⚠️ 重大行为变更：**点击穿透改由主进程轮询决策**（main/index.js 的 startThroughWatch，每 50ms 问一次 screen.getCursorScreenPoint）。win:set-ignore-mouse 不再是「直接调 setIgnoreMouseEvents」，只是改一个意图标记。1.0.0 的描述已过期。",
+      "✅ 修正 win:drag-state 的描述：1.0.0 写的 `roaming = !dragging` 是当时就存在的缺陷（拖过一次漫游就被永久打开），现已改为「记住拖动前的值、松手原样还回去」。",
+      "✅ 修正 win:set-chat-open 的几何：宠物态高度是 **420**（PET_H，预留气泡空间），不是 300。",
+      "✅ 修正 win:set-roaming 的注记：1.0.0 说「主进程默认 false、渲染进程默认 true，两者不一致」—— 渲染端已改为默认 false，不一致已消除。",
+      "新增 window_behavior 段：把「关窗口 = 隐藏」「托盘第一项是退出」这两条不可从 IPC 签名看出的行为固化下来。"
+    ]
+  },
+
+  "security_model_zh": {
+    "_说明": "这一节的约束任何改动都不得放松，它是 §16.4 验收项「渲染进程不持有模型密钥」的实现依据。",
+    "contextIsolation": true,
+    "nodeIntegration": false,
+    "sandbox": false,
+    "rules": [
+      "preload 只暴露白名单方法，绝不暴露裸 ipcRenderer。",
+      "渲染进程拿不到任何模型密钥。所有模型调用（将来的真实 HTTP 请求）必须发生在主进程。",
+      "暴露给渲染进程的 invoke 通道是固定的 **16 条**（会话 3 + 窗口 11 + 语音 2），没有通配或动态通道。",
+      "新增通道必须同时改 preload 与 main，并在本文件登记。",
+      "⚠️ 语音通道（tts:*) 虽然是主进程能力，但**不引入任何凭据** —— 它只是本地起一次 edge-tts 子进程。若将来改为云端 TTS，密钥仍必须留在主进程。"
+    ],
+    "note_zh": "sandbox:false 是为了让 preload 能用 require('electron')。若将来开启 sandbox，preload 需改造为不可用 Node API 的写法。"
+  },
+
+  "namespaces": {
+    "_说明": "渲染进程统一通过 window.deepprof 访问，分四块：会话（真实后端契约相关）、窗口控制（纯本地 UI）、语音（本地子进程）、事件订阅。",
+    "session": "⭐ 与后端契约直接相关的三条通道。将来接真后端时，只有这一块需要改实现，方法签名不变。",
+    "win": "纯本地窗口行为，与后端无关。后端同学可以完全忽略这一块。",
+    "tts": "语音合成。走主进程起 edge-tts 子进程，失败时前端自动退回 Chromium 内置系统语音。与后端契约无关。",
+    "events": "主进程 → 渲染进程的推送通道，不是 invoke 型。"
+  },
+
+  "invoke_channels": {
+    "_说明": "渲染进程 → 主进程，全部为 ipcRenderer.invoke / ipcMain.handle 的请求-响应模式。返回值为 Promise。共 16 条。",
+    "count": 16,
+
+    "session:send": {
+      "group": "session",
+      "exposed_as": "window.deepprof.sendMessage(text, scenario)",
+      "args": {
+        "text": { "type": "string", "required": true, "meaning_zh": "用户输入文本。主进程会做 String(text || '') 强制转换，传 null 不会崩。" },
+        "scenario": {
+          "type": "string",
+          "required": false,
+          "default": "normal",
+          "enum": ["normal", "loading", "error", "reconnect"],
+          "meaning_zh": "⚠️ **演示专用参数**，用来现场触发四种 UI 状态。真实后端没有这个概念。",
+          "migration_zh": "接真后端时必须删除此参数（或忽略）。后端不要实现它，前端也不要在真实链路上依赖它。它是 §16.4 第一条「使用 Mock 事件流展示回复、加载、错误、取消与重连」的演示开关。"
+        }
+      },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "恒为 true，仅表示已投递给 Runtime，**不代表这一轮成功**。真正的成败由 runtime:event 上的 agent.turn.completed / agent.failed 告知。" } },
+      "side_effects_zh": "主进程调用 MockRuntime.run()，随后通过 runtime:event 推送一串事件（正常一轮约 40~60 条，含 6 段流式）。"
+    },
+
+    "session:cancel": {
+      "group": "session",
+      "exposed_as": "window.deepprof.cancel()",
+      "args": {},
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "是否真的取消了。若当前没有进行中的轮次（traceId 为 null），返回 false。" } },
+      "side_effects_zh": "主进程发 agent.failed{reason:'cancelled'}（source='renderer'）与 session.compacted{reason:'cancelled'} 两条事件，然后清空 traceId。⚠️ 后者是语义误用（compacted 应指上下文压缩），见 INCONSISTENCIES.md 第 6 条。",
+      "renderer_behavior_zh": "App.jsx 的 doCancel() 会**先**本地打断 TTS（interruptSpeech），再调这条 IPC —— 用户点取消的意思就是「别念了」，不等后端确认。",
+      "note_zh": "取消是前端主动发起、但以**事件**形式回流给前端的。即前端调 cancel() 之后要等 agent.failed 事件到达才真正切到 cancelled 状态。这个往返设计是对的（保证状态来源单一），但会增加一次 IPC 延迟。",
+      "reachability_zh": "⚠️ 面板上的「取消」按钮只在 status 为 loading / streaming 时出现，所以 traceId 为 null 的分支（返回 ok:false）在界面上不可达，只有直接调 IPC 才会遇到。"
+    },
+
+    "session:reconnect": {
+      "group": "session",
+      "exposed_as": "window.deepprof.reconnect()",
+      "args": {},
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "恒为 true。" } },
+      "side_effects_zh": "发 session.resumed，900ms 后发 model.completed 与 agent.turn.completed。⚠️ 这三条的 trace_id 全是 null（本轮结束后 traceId 已被清空，重连时没有新开 trace）。",
+      "note_zh": "⚠️ Mock 的重连是**定时器模拟**，没有真实的断线检测与重试退避。真实实现应在主进程做 WebSocket 重连 + 指数退避，且重连成功后按 §18.2 用 sequence 补发遗漏事件、前端按 event_id + sequence 去重（前端侧已就绪）。",
+      "dedup_note_zh": "⚠️ 连点 N 次「重连」会显示 N 条一样的「会话已恢复，可以继续。」并朗读 N 次 —— 因为 Mock 每次重连都产生**新的 event_id 与新的 sequence**，去重网拦不住。去重针对的是「后端重发同一条事件」，不是「用户重复触发」。"
+    },
+
+    "win:set-ignore-mouse": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.setIgnoreMouse(ignore)",
+      "args": { "ignore": { "type": "boolean", "required": true, "meaning_zh": "true = 用户要求强制穿透（不自动切换）；false = 交回自动模式。" } },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "恒为 true（只改标记，不做窗口操作）。" } },
+      "side_effects_zh": "⚠️ **行为已变更（1.0.0 的描述已过期）**：本通道**不再直接调** win.setIgnoreMouseEvents。它只是把主进程的 `forceThrough` 标记置位，真正的穿透决策在主进程的轮询循环里（见 startThroughWatch 与 window_behavior.click_through）。",
+      "note_zh": "⚠️ 渲染端调用点有一处遗留不一致：App.jsx 的 toggleThrough() 无论开还是关都传 `true`（`await window.deepprof.win.setIgnoreMouse(true)`），且 toggleThrough 只能从菜单进入（点了就把菜单关掉），所以「关掉强制穿透」这条路径在界面上**走不到** —— 一旦开启强制穿透，只能靠重启应用或让主进程的 uiOpen 判断接管。见 INCONSISTENCIES.md 第 30 条。"
+    },
+
+    "win:set-hit-region": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.setHitRegion(r)",
+      "args": {
+        "r": {
+          "type": "object | null",
+          "required": true,
+          "fields": {
+            "rect": { "type": "object", "meaning_zh": "角色在窗口坐标系里的外接矩形 {left, top, w, h}（整数，已 round）。" },
+            "mask": { "type": "number[]", "meaning_zh": "64×64 的 alpha 掩码，长度 maskSize²。用来区分「真在角色身上」与「在角色周围的透明矩形里」。" },
+            "maskSize": { "type": "integer", "meaning_zh": "掩码边长，当前为 64。" }
+          },
+          "note_zh": "传 null 或没有 rect 时主进程把 hitRegion 清空，此后 cursorOverPet() 保守返回 true（宁可接收事件，也不能让角色点不动）。"
+        }
+      },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "恒为 true。" } },
+      "side_effects_zh": "主进程记住命中区，供 cursorOverPet() 在 50ms 轮询里判断光标是否压在角色身上。",
+      "producer_zh": "由 RigPet.jsx / FramePet.jsx 上报：**启动时立即发一次，之后每 300ms 重发一次**（光标判定是 50ms 一次的主进程轮询在做，渲染端只需喂数据，不必与渲染帧同频）。掩码由 hitTest.js 的 buildAlphaMask 生成。",
+      "why_zh": "为什么必须由渲染端上报：只有渲染端知道角色画在窗口的哪一块、哪一块是透明的。主进程拿不到这些信息。"
+    },
+
+    "win:set-ui-open": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.setUiOpen(v)",
+      "args": { "v": { "type": "boolean", "required": true, "meaning_zh": "右键菜单或聊天面板是否展开。App.jsx 传 `menuOpen || chatOpen`。" } },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "恒为 true。" } },
+      "side_effects_zh": "置位主进程的 uiOpen 标记。标记为真时，轮询循环**强制不穿透** —— 否则菜单项和面板按钮点不动（实测踩过）。",
+      "note_zh": "为什么需要它：菜单/面板画在角色轮廓**之外**，按「光标在不在角色身上」判断会得出「该穿透」，于是按钮点不到。"
+    },
+
+    "win:set-always-on-top": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.setAlwaysOnTop(on)",
+      "args": { "on": { "type": "boolean", "required": true, "meaning_zh": "是否置顶。" } },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "窗口不存在时为 false。" } },
+      "side_effects_zh": "win.setAlwaysOnTop(on, 'screen-saver')。层级用 'screen-saver' 是为了尽量盖住其他窗口。",
+      "note_zh": "⚠️ 渲染端的 onTop state 初始为 true，但没有向主进程查询过真实值 —— 两边靠「初始值相同」保持一致，不是靠同步。"
+    },
+
+    "win:quit": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.quit()",
+      "args": {},
+      "returns": { "ok": { "type": "boolean" } },
+      "side_effects_zh": "quitApp()：先把 reallyQuitting 置真，再 app.quit()。⚠️ **不能直接调 app.quit()** —— 窗口的 close 事件被改成「隐藏」，不先立标记会被拦下来变成隐藏。",
+      "note_zh": "桌宠的退出入口之一（另有托盘菜单第一项「退出」、全局快捷键 Ctrl+Alt+Shift+X）。"
+    },
+
+    "win:move-by": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.moveBy(dx, dy)",
+      "args": {
+        "dx": { "type": "integer", "required": true, "meaning_zh": "相对当前窗口位置的 X 增量（屏幕坐标像素）。" },
+        "dy": { "type": "integer", "required": true, "meaning_zh": "相对当前窗口位置的 Y 增量。" }
+      },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "窗口不存在时为 false。" } },
+      "side_effects_zh": "按增量移动窗口，并**强制夹取**在屏幕工作区内（safeSetPosition）。",
+      "note_zh": "渲染进程用 screenX/screenY 差值计算增量。不用 CSS 的 -webkit-app-region: drag，因为那样元素收不到 click 事件，而桌宠需要「点一下」和「拖一下」共存。",
+      "setBounds_note_zh": "⚠️ safeSetPosition 内部用的是 **setBounds 并显式带上尺寸**，不是 setPosition。原因：Windows 分数 DPI 缩放（本机 112.5%）下只调 setPosition，Chromium 会为对齐整数像素而微调 DIP 尺寸，实测窗口会只增不减地一路漂（224→240），导致锚在底部的角色被推下去、气泡与角色越离越远。"
+    },
+
+    "win:drag-state": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.dragState(dragging)",
+      "args": { "dragging": { "type": "boolean", "required": true, "meaning_zh": "true = 拖动开始，false = 拖动结束。" } },
+      "returns": { "ok": { "type": "boolean" } },
+      "side_effects_zh": "拖动开始时把漫游关掉并停止当前移动；结束时**恢复拖动前的值**（roamingBeforeDrag 记忆，松手原样还回去）。",
+      "fixed_defect_zh": "✅ 这里曾有一个真实缺陷：原实现是 `roaming = !dragging`，本意是「拖动时暂停、松手恢复」，但恢复的是**固定值 true** 而不是拖之前的状态 —— 结果**只要拖过小人一次，漫游就自动打开了**，哪怕用户从没开过（而漫游的要求是默认关）。现已改为记忆式恢复。",
+      "note_zh": "渲染端用 8px 位移阈值区分「点击」与「拖拽」（早期用 2px 太敏感，手一抖就被判成拖拽）。"
+    },
+
+    "win:set-chat-open": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.setChatOpen(open)",
+      "args": { "open": { "type": "boolean", "required": true, "meaning_zh": "true = 展开聊天面板，false = 收起。" } },
+      "returns": { "ok": { "type": "boolean", "meaning_zh": "窗口不存在时为 false。" } },
+      "side_effects_zh": "改变窗口尺寸并在必要时调整位置以留在屏幕内，同时同步 winW / winH（safeSetPosition 移动窗口时要靠它们）。",
+      "geometry_zh": {
+        "宠物态": "220 × 420（常量 PET_W / PET_H）",
+        "聊天态": "380 × 620",
+        "展开时_zh": "nx = min(x, workArea 右边 − 380)，ny = max(workArea 顶, y − (620 − 420))，保证展开后不越界。",
+        "收起时_zh": "y 增加 (620 − 420)，让窗口底边不动（角色不会因为面板收起而跳位置）。",
+        "修正说明_zh": "⚠️ 1.0.0 里写的是 220×300 / y−320，那是错的。PET_H 现在是 **420**：角色 300 + 顶部预留 120 给气泡。为什么预留 —— 气泡锚在窗口【顶部】、角色锚在【底部】，若窗口高度刚好等于角色高度，气泡只能盖在角色头上（实测挡住额头）；而让窗口「气泡出现时临时长高」会导致拖动时窗口/气泡/角色互相追（出现「气泡越拖离人物越远」，试过，更糟）。所以固定预留，窗口一动不动。"
+      },
+      "renderer_note_zh": "⚠️ 收起面板后**不会**触发气泡重新排布 —— App.jsx 里那套「气泡出现就通知主进程把窗口长高」的逻辑已被撤掉，改为让气泡**绝对定位不占布局**，代价是长气泡会盖住头顶的头发（不是脸）。"
+    },
+
+    "win:set-roaming": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.setRoaming(on)",
+      "args": { "on": { "type": "boolean", "required": true, "meaning_zh": "是否开启自动漫游。" } },
+      "returns": { "ok": { "type": "boolean" } },
+      "side_effects_zh": "关闭时立即停止当前移动。",
+      "note_zh": "漫游默认**关闭**（历史原因：曾出现小人跑出屏幕找不回来，现在位置已强制夹取）。",
+      "fixed_inconsistency_zh": "✅ 1.0.0 记录的「主进程默认 false 而渲染进程 useState(true)，两者初始不一致」**已修**：App.jsx 现在初始 state 也是 false，注释里明确写了「默认必须是 false，要和主进程的 let roaming = false 一致」。"
+    },
+
+    "win:wander": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.wander()",
+      "args": {},
+      "returns": { "ok": { "type": "boolean" } },
+      "side_effects_zh": "立刻随机挑一个屏幕底部的落点并走过去（约 1.2~2.6 秒）。⚠️ 若 roaming 为 false，wanderOnce() 会直接 return 什么也不做 —— 也就是说「随便走走」这个菜单项在漫游关闭时**点了没反应**。见 INCONSISTENCIES.md 第 30 条。"
+    },
+
+    "win:home": {
+      "group": "win",
+      "exposed_as": "window.deepprof.win.home()",
+      "args": {},
+      "returns": { "ok": { "type": "boolean" } },
+      "side_effects_zh": "停止移动并把窗口拉回屏幕右下角（工作区右边 − 40px，底边对齐）。这是「找不到小人」时的兜底恢复手段，托盘菜单与快捷键 Ctrl+Alt+Shift+D 也能触发。"
+    },
+
+    "tts:selftest": {
+      "group": "tts",
+      "exposed_as": "window.deepprof.tts.selftest()",
+      "args": {},
+      "returns": {
+        "ok": { "type": "boolean", "meaning_zh": "神经语音是否可用。" },
+        "detail": { "type": "string", "meaning_zh": "成功时的说明。" },
+        "reason": { "type": "string", "meaning_zh": "失败原因（前 200 字）。" }
+      },
+      "side_effects_zh": "主进程起一次 `python tools/tts/say.py --selftest`（超时 15 秒），并把结果打到终端。",
+      "note_zh": "⚠️ **失败一律不抛异常**，只返回 { ok:false, reason }。前端据此判断要不要显示「神经语音不可用」。"
+    },
+
+    "tts:synthesize": {
+      "group": "tts",
+      "exposed_as": "window.deepprof.tts.synthesize(text)",
+      "args": { "text": { "type": "string", "required": true, "meaning_zh": "要合成的文本。**超过 600 字会被主进程截断**（桌宠是一次对话，不是听书；也避免合成卡太久）。空文本直接返回 { ok:false, reason:'empty text' }。" } },
+      "returns": {
+        "ok": { "type": "boolean" },
+        "engine": { "type": "string", "meaning_zh": "成功时为 'edge-tts'。" },
+        "audio": { "type": "string", "meaning_zh": "成功时为 `data:audio/mpeg;base64,...`。渲染进程直接 new Audio(...) 播放，不用碰文件系统。" },
+        "reason": { "type": "string", "meaning_zh": "失败原因。" }
+      },
+      "side_effects_zh": "主进程把文本写进**临时文件**（不走命令行参数 —— 回复里可能有引号、换行，走命令行迟早被转义问题坑到），调 `python tools/tts/say.py --text-file ... --out ...`，读回 mp3，转 base64，最后**在 finally 里删掉两个临时文件**。",
+      "timeout_zh": "20 秒。",
+      "python_note_zh": "用哪个 python 由 `DEEPPROF_PYTHON` 环境变量决定，默认 `python`。",
+      "csp_note_zh": "⚠️ 这条通道依赖 CSP 里有 `media-src data:`（见 main/index.js 的 applyCsp）。不加的话生产环境会被 CSP 拦掉，而且是**静默失败**（音频元素直接 error），很难查。",
+      "fallback_zh": "渲染端（tts.js）的 speak() 顺序是：① 先试神经语音；② 失败/不可用则退回 Chromium 内置系统语音；③ 系统语音也没有则回调 'unsupported'。**对方机器上没装 Python、没装 edge-tts、或者没网，桌宠都必须还能说话。**"
+    }
+  },
+
+  "event_channels": {
+    "_说明": "主进程 → 渲染进程的单向推送。preload 暴露为订阅函数，返回取消订阅的闭包（App.jsx 在 useEffect 清理里调用）。共 2 条。",
+
+    "runtime:event": {
+      "exposed_as": "window.deepprof.onEvent(handler) → unsubscribe()",
+      "payload": "完整的 RuntimeEvent 对象，字段定义见 events.json 的 envelope 段（8 个字段）。",
+      "meaning_zh": "⭐ 这是渲染进程**唯一**的事件入口。所有后端状态变化都必须走这条通道，不得为某个功能另开一条专用通道（§4.4「UI 不直连 Tool、Memory 或 Provider；所有动作由 Runtime 接入并产生事件」）。",
+      "listener_note_zh": "preload 内部把 handler(evt) 包在 (_e, evt) => handler(evt) 里，**剥掉了 Electron 的 event 首参**，所以 handler 直接拿到事件对象。",
+      "consumer_note_zh": "App.jsx 的 handleEvent 先做**双重去重**（event_id + sequence），再按 type 分支处理，并把每条事件追加进事件日志（面板只保留最近 200 条）。"
+    },
+
+    "pet:walk": {
+      "exposed_as": "window.deepprof.onWalk(handler) → unsubscribe()",
+      "payload": {
+        "walking": { "type": "boolean", "meaning_zh": "是否正在走动。" },
+        "dir": { "type": "integer", "enum": [1, -1], "meaning_zh": "朝向：1 朝右，-1 朝左。驱动角色翻面。" }
+      },
+      "meaning_zh": "主进程漫游时的走路状态通知，用来播放走路动画与翻面。",
+      "note_zh": "⚠️ 这条通道**不属于** Runtime 事件流 —— 它由主进程的漫游逻辑直接发出（glideTo / stopMoving），不经过 runtime:event，也不由后端产生。后端不要试图生产它。见 INCONSISTENCIES.md 第 22 条。",
+      "param_naming_defect_zh": "⚠️ **仍未修**：preload 里写成 `const listener = (_e, walking) => handler(walking)`，形参名叫 walking 但实际收到的是 {walking, dir} 对象。App.jsx 的订阅回调为此写了对象/布尔双兼容分支（历史遗留）。功能上没问题，但建议把形参改名为 payload，并删掉 App.jsx 里的布尔兼容分支。"
+    }
+  },
+
+  "window_behavior": {
+    "_说明": "⚠️ 本节是 1.1.0 新增的。这些行为**从 IPC 签名上看不出来**，但对使用者和验收都很关键，写在这里避免每次都被重新发现。",
+    "click_through": {
+      "怎么工作": "主进程 startThroughWatch() 起一个 **50ms 的 setInterval**，每次调 screen.getCursorScreenPoint() 拿到光标屏幕坐标，换算到窗口坐标，再查渲染端上报的命中区（矩形 + 64×64 alpha 掩码）判断是否压在角色身上。",
+      "决策": "ignore = forceThrough ? false : uiOpen ? false : !cursorOverPet()；只有值**发生变化**时才调 win.setIgnoreMouseEvents(ignore, { forward: true })。",
+      "为什么改成主进程轮询_zh": "原方案是渲染进程 setIgnoreMouseEvents(true, {forward:true})，指望系统把 mousemove 转发进页面再按命中与否切换。但这个转发在部分机器上**根本不生效**（本机实测就不行）—— 渲染端永远收不到鼠标移动，于是：① 点空白处的穿透失效（桌宠一直挡着后面的图标）；② 更糟的是角色变成点不动，只能靠看门狗整体关掉自动穿透。改成主进程主动问系统光标位置，**不依赖任何转发，所以一定可用**。",
+      "旧看门狗已移除_zh": "⚠️ 1.0.0 文档里提到的「3 秒看门狗」是旧方案的产物，**已随旧方案一起删除**。现在没有看门狗，因为轮询方案不依赖转发。"
+    },
+    "close_means_hide": {
+      "行为": "点窗口关闭 = **隐藏**，不是退出。main 的 win.on('close') 里拦截（若 reallyQuitting 为假则 preventDefault + hide）。",
+      "为什么": "用户误关窗口不该丢桌宠。",
+      "退出入口": "托盘菜单第一项「退出」、右键菜单「退出」（走 win:quit）、快捷键 Ctrl+Alt+Shift+X。所有退出路径都必须先立 reallyQuitting 标记。"
+    },
+    "tray_first_item_is_quit": {
+      "行为": "托盘右键菜单**第一项就是「退出」**，之后才是分隔线、显示/隐藏、归位、自动溜达。",
+      "为什么": "托盘是唯一在任何状态下都能退出的入口（窗口可能被拖到屏幕外、也可能被点穿透导致右键点不到）。这是项目的 P0 要求。",
+      "图标": "托盘图标是角色自己的脸（base64 内嵌，避免打包后路径失效）。⚠️ 曾用 1×1 透明图占位，结果托盘里根本看不见、用户既找不到小人也没法退出。"
+    },
+    "global_shortcuts": {
+      "Ctrl+Alt+Shift+D": "归位（把小人叫回屏幕底边）。",
+      "Ctrl+Alt+Shift+X": "退出。",
+      "note": "注册失败不致命（可能被别的程序占用），托盘 + 右键菜单仍是可靠出口。启动时终端会打印这两个快捷键的注册结果 ✅/❌。"
+    }
+  },
+
+  "future_channels": {
+    "_说明": "接真后端时需要新增、但**当前不存在**的通道。列出来是为了让双方一次对齐，避免临时加通道绕开契约。",
+    "items": [
+      {
+        "channel": "session:connect",
+        "why_zh": "真实链路需要建立 WebSocket / SSE 连接并携带 learner_id。当前 Mock 无连接概念，session_id 在主进程构造时生成。",
+        "suggested_args": { "learner_id": "string", "endpoint": "string（可选，默认读配置）" },
+        "note_zh": "§18.2 的 SessionRequest 要求 session_id, learner_id, request_id, content 四字段，而**前端目前只有 session_id 与 content** —— 没有 learner_id、没有 request_id。见 INCONSISTENCIES.md 第 12 条。"
+      },
+      {
+        "channel": "profile:update-preference",
+        "why_zh": "§16.4 交接项「向数据组提交经用户授权的偏好更新」目前没有任何通道。",
+        "suggested_args": { "preferences": "object（deepprof.preference.v1）", "user_authorized": "boolean(true)" },
+        "note_zh": "对应 events.json 的 proposed_events.profile.preference.update。⚠️ 前端侧的授权**UI 已经有了**（面板里的 consent-box，能预览/撤回/清空），缺的只是把 exportForDataTeam() 的结果发出去的那条通道。"
+      },
+      {
+        "channel": "tool:approve",
+        "why_zh": "§13.3「高风险动作需显式审批」+ §5.4 声明的 tool.approved 事件。前端需要一个审批弹窗与回传通道。",
+        "suggested_args": { "call_id": "string", "approved": "boolean" }
+      },
+      {
+        "channel": "tts:speak / tts:stop",
+        "why_zh": "⚠️ 这条在 1.0.0 里写着「preload 尚未暴露对应通道」，**已经过时**：现在有 tts:synthesize / tts:selftest 了。剩余待办是**移到服务端 / 或改为流式**：当前是「整段合成 → data URL → 渲染进程播放」，「可中断」靠渲染端 pause + 丢弃 audioEl。若音频改由主进程流式推送，需要新增 start/stop 成对通道，并把 stop 做成幂等。"
+      },
+      {
+        "channel": "capability:status（建议）",
+        "why_zh": "🔴 v0.4.1 §7.3 要求装配/绑定失败显式暴露（no_binding / capability_not_found / invalid_request / error(template_not_found)），且刻意选择让学生看到**空回复**。但当前事件流里**没有任何字段承载 CapabilityResult.status**，桌宠无法区分「能力没装配」和「模型真的没话说」—— 两种情况都会表现成「什么都不说」。",
+        "suggested_args": { "trace_id": "string", "action": "string", "capability": "string", "status": "string", "missing_fields": "string[]（仅 invalid_request）" },
+        "note_zh": "建议的落地方式不必是新通道，而是**扩 pedagogy.decision 的字段**（capability_status / capability）—— 已在 events.json 里登记。列在这里是因为若后端选择「结果另发一条事件」，前端需要知道该订阅什么。"
+      }
+    ]
+  },
+
+  "not_exposed_zh": {
+    "_说明": "明确**不**暴露给渲染进程的能力，改动时不得放开。",
+    "items": [
+      "裸 ipcRenderer / ipcMain —— 绝不暴露。",
+      "任何模型 API 密钥或 Provider 配置。",
+      "文件系统访问（fs）—— 包括 TTS 通道：临时文件的读写全部在主进程完成，渲染端只拿到 base64 音频。",
+      "任意通道名的动态 IPC（没有类似 invoke(channel, ...) 的通用方法）。",
+      "模型调用的直接入口 —— 渲染进程只能通过 session:send 请求一轮对话，不能指定 provider 或 model。"
+    ]
+  },
+
+  "exposed_members_zh": {
+    "_说明": "window.deepprof 的完整成员清单。**18 个成员 = 5 顶层 + 11 win + 2 tts**（顶层 5 个里含 2 个订阅函数 onEvent / onWalk，它们不是 invoke 通道）。",
+    "top_level": ["sendMessage", "cancel", "reconnect", "onEvent", "onWalk"],
+    "win": ["setIgnoreMouse", "setHitRegion", "setUiOpen", "moveBy", "dragState", "setChatOpen", "setRoaming", "wander", "home", "setAlwaysOnTop", "quit"],
+    "tts": ["synthesize", "selftest"],
+    "counts": { "顶层": 5, "win": 11, "tts": 2, "合计成员": 18, "invoke 通道": 16, "推送通道": 2 }
+  }
+}

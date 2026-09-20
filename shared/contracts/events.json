@@ -1,0 +1,1010 @@
+{
+  "contract": "deepprof.events",
+  "version": "1.2.0",
+  "frozen_at": "2026-09-20",
+  "status": "frozen-draft",
+  "owner": "张钧翔（桌宠前端）",
+  "co_owner": "刘俊鹏（Runtime / api，事件生产方）",
+  "source_of_truth": "desktop/src/main/index.js 的 MockRuntime（makeEvent + 全部 emitEvent 调用点，2026-09-19 15:23 状态）",
+  "design_ref": "DESIGNv0.4.1.md §5.4（事件模型）、§6.2（决策节点与绑定表）、§6.4（策略图状态）、§7.1（RuntimePort / PedagogicalDecision / CapabilityResult）、§7.2（主会话链路）、§18.2（交接字段）",
+  "design_baseline": {
+    "version": "v0.4.1",
+    "date": "2026-09-19",
+    "note_zh": "设计基线已于 2026-09-19 升到 v0.4.1（接口修订版，D-7）。上一版对齐目标是 v0.4。本次对齐的主要变化见 changelog_zh。",
+    "previous_baseline": "DESIGNv0.4.md v0.4（2026-09-17）"
+  },
+  "changelog_zh": {
+    "1.1.0 -> 1.2.0": [
+      "对账 Main 分支（RockeyRoc/DeepProf @ a3267f9）的**真实后端**，补齐事件缺口。真值来源：runtime/core/events.py 的 EventType 枚举 + api/routes/sessions.py 的收尾帧合成逻辑。",
+      "新增 agent.cancelled：后端把「取消」定义成**独立事件类型**（runtime/core/agent.py 捕获 asyncio.CancelledError 时发出），与 agent.failed 是两条不同路径。前端 App.jsx 已同步补上处理（两个 case 共用一段，case 直落）。⚠️ 原 agent.failed 的 when_zh 写着「是取消状态的唯一表达方式」，那是照 Mock 写的，与实现不符，已改。",
+      "新增 pedagogy.result：api 层合成的收尾帧，承载 §16.3「交前端的三件套」（response_text / action / emotion）。此前契约**完全没记**，但 App.jsx 早在消费它 —— 漏记的代价是照契约实现的人会丢掉唯一能拿到回复正文的通路。",
+      "plugin.* 由 3 条补到 6 条（补 installed / approved / uninstalled），并**修正 payload 字段名**：原写作 plugin_id + message，真后端实际是 plugin + version + status + error（runtime/plugins/lifecycle.py 的 _emit()）。前端不消费 plugin.*，因此没暴露成故障，但契约是给集成方看的，字段名错会直接让对接方写错解析代码。",
+      "新增 _插件事件公共payload 段，登记 6 条 plugin 事件共用的形状。",
+      "对账结果：契约 30 条事件 = 后端 EventType(29) + api 合成(1)，**双向无缺口**。余下 3 条 proposed_events（emotion.tagged / affinity.updated / profile.preference.update）仍为未落地的提案。",
+      "🔴 修正 pedagogy.result.action 的取值写法：原文写成 PascalCase（Assess/Teach/…），**是错的**（照 Mock 抄的）。真后端 graph 的动作常量全小写（ACTION_TEACH = \"teach\"），节点原样写进 state、api 原样交给前端。",
+      "🔴 修正 pedagogy.node.entered.node 的断言：原文写「节点名 PascalCase，与 §6.2 一致」，对 Mock 成立、**对真后端不成立** —— 真后端 nodes/hint.py 写的是 NODE = \"hint\"（全小写）。后果很重：前端 NODE_TO_ANIMATION 的键是 PascalCase，对真后端一个都匹配不上，全部静默退回 idle。已在 petAnimations.js 加 animationForNode() 做归一化查表（吃掉大小写与下划线），两套都认。⚠️ 两套命名并存本身仍未定论（见问题清单）。",
+      "同处修正 pedagogy.node.entered.action 字段里「前端按 node 查表，不认 action」的说法 —— 实际上 App.jsx 的 pedagogy.result 分支就是拿 payload.action 当节点名查表的（该事件只有 action、没有 node）。",
+      "⚠️ 尚未解决的 Mock ↔ 后端分歧：Mock 的 cancel() 发 agent.failed({reason:'cancelled'})，真后端发 agent.cancelled。前端现在两个都接、表现一致，但本文件的 source_of_truth 声称「Mock 是事实标准」，这一点已经不成立，待与刘俊鹏确认后统一（见 agent.cancelled 条目的 mock_divergence_zh）。"
+    ],
+    "1.0.0 -> 1.1.0": [
+      "对齐 DESIGNv0.4.1。",
+      "envelope.sequence 由「未实现」改为「已实现」：main/index.js 的 makeEvent() 现在产出 sequence（进程内单调递增）。前端 App.jsx 已用 sequence + event_id 双重去重，实现 §16.4 验收项「断线重连不重复展示」。",
+      "pedagogy.decision 新增 v0.4.1 §5.4 / §7.1 要求的字段：capability、capability_status、evidence_sufficient、evidence_count、attempt_count、wrong_streak、hint_level、turn_count、max_turns、params、answer_leaked（均 implemented:false，前端不消费，后端未实现）。",
+      "新增 pedagogical_decision_contract 段，登记 §7.1 的 PedagogicalDecision / CapabilityResult 两个契约对象（这两个对象经 RuntimePort.execute 传递，**目前不经过事件流**，登记在此是为了让前端知道将来会以什么形状出现）。",
+      "typical_sequences 全面重写：Mock 现在会走完 6 个教学节点（Assess→Teach→Ask→Hint→Correct→UpdateProfile），事件顺序与 v0.4 时代完全不同。",
+      "consumer_checklist 补充 v0.4.1 的新增要求（绑定失败必须显式、hint 不得调模型、决策事件不得含学生正文）。"
+    ]
+  },
+  "summary_zh": "DeepProf 前后端之间的事件契约。所有事件由后端 Runtime 生产，经主进程转发给渲染进程消费。本文件是 Mock 代码的事实标准快照。⚠️ 事实标准是代码：与 DESIGNv0.4.1 冲突处以本文件为准，冲突点逐条记在 INCONSISTENCIES.md。",
+
+  "transport": {
+    "_说明": "事件从后端到桌宠的传输链路。当前 Mock 阶段只有第 2 段是实存的。",
+    "chain_zh": [
+      "① 后端 FastAPI 产生事件（未实现，刘俊鹏负责）",
+      "② 主进程 MockRuntime 产生事件（已实现，将来替换为 ①）",
+      "③ 主进程 win.webContents.send('runtime:event', event)（已实现）",
+      "④ preload 通过 window.deepprof.onEvent(handler) 暴露给渲染进程（已实现）",
+      "⑤ App.jsx handleEvent 消费（已实现）"
+    ],
+    "ipc_channel": "runtime:event",
+    "ordering": "同一 session_id 内按 sequence 严格递增；sequence 是权威顺序（§18.2「流式重连按 sequence 恢复」）。渲染端同时按 event_id 与 sequence 双重去重。",
+    "dedup_zh": "渲染端 App.jsx 的 handleEvent 维护两张网：① seenIds（Set，event_id 命中即丢，超过 400 条清空）；② lastSeq（{session_id: 已处理到的最大 sequence}，sq <= last 即丢）。真后端只要保证其中之一即可去重，两张都留着是为了容错。"
+  },
+
+  "envelope": {
+    "_说明": "所有事件共有的外层字段。DESIGNv0.4.1 §5.4 的写法是「事件采用追加写入（append-only）并携带 event_id、session_id、trace_id、timestamp、type、payload 与 source」（7 个，不含 sequence）；§18.2 的 RuntimeEvent 行写的是「event_id, session_id, trace_id, sequence, type, payload」（6 个，不含 timestamp/source）。**两处在 v0.4.1 里仍然不一致，谁都不完整**（见 INCONSISTENCIES.md 第 13 条）。代码实际产出 8 个字段 —— 是两处的并集，本契约以此为准。",
+    "fields": {
+      "event_id": {
+        "type": "string",
+        "required": true,
+        "format": "evt_<base36时间戳>_<自增序号>",
+        "code_example": "evt_m1a2b3c4d_7",
+        "meaning_zh": "事件唯一标识。数据组用它做幂等写入（§16.5 验收项「重复 event_id 不重复写入」），后端必须保证全局唯一。",
+        "note_zh": "后端实现建议改用 UUIDv7 或 snowflake，只要唯一即可；前端不做格式校验。"
+      },
+      "session_id": {
+        "type": "string",
+        "required": true,
+        "format": "sess_<base36时间戳>_<序号>",
+        "code_example": "sess_m1a2b3c4d_1",
+        "meaning_zh": "会话标识。Mock 中为进程级常量，整个进程生命周期内不变（即多轮对话共用一个 session_id）。"
+      },
+      "trace_id": {
+        "type": "string",
+        "required": true,
+        "format": "trace_<base36时间戳>_<序号>",
+        "code_example": "trace_m1a2b3c4d_9",
+        "meaning_zh": "一次「用户发问到回答结束」的追踪标识，用于把模型、工具、记忆、教学决策串成一条可回放的轨迹（§12「轨迹可审计」）。",
+        "warning_zh": "⚠️ 契约要求：trace_id 不得为 null。当前 Mock 在 reconnect() 路径下会发出 trace_id=null 的事件（见 INCONSISTENCIES.md 第 8 条）。"
+      },
+      "timestamp": {
+        "type": "string",
+        "required": true,
+        "format": "ISO 8601 UTC，毫秒精度，带 Z 后缀",
+        "code_example": "2026-09-19T04:31:07.812Z",
+        "meaning_zh": "事件产生时刻，由生产方打戳。"
+      },
+      "type": {
+        "type": "string",
+        "required": true,
+        "meaning_zh": "事件类型，取值必须是本文件 events 段中定义的键名之一。"
+      },
+      "payload": {
+        "type": "object",
+        "required": true,
+        "meaning_zh": "事件载荷。字段定义见本文件 events 段；未在契约中声明的字段，消费方必须忽略而不是报错（向后兼容原则）。"
+      },
+      "source": {
+        "type": "string",
+        "required": true,
+        "enum": ["runtime", "graph", "provider", "tool", "memory", "plugin", "renderer"],
+        "default": "runtime",
+        "meaning_zh": "事件来源子系统，用于日志里区分「谁发的」。",
+        "note_zh": "Mock 只用到 runtime 和 renderer 两个值。枚举中其余值是为后端预留的建议取值，后端首次实现时请沿用这套命名。"
+      },
+      "sequence": {
+        "type": "integer",
+        "required": true,
+        "implemented": true,
+        "code_location": "desktop/src/main/index.js 的 makeEvent()：let sequence = 0; ... sequence: ++sequence",
+        "meaning_zh": "事件序号。§18.2 把它列为 RuntimeEvent 必需字段；前端靠它实现 §16.4 验收项「断线重连不重复展示」（重连后丢弃 sequence <= 已处理最大值的补发事件）。",
+        "semantics_zh": "契约要求：在**同一 session_id 内**从 1 开始单调递增、连续、不跳号。渲染端按 session_id 分别记录最大 sequence。",
+        "warning_zh": "⚠️ 两个与契约不符的细节（见 INCONSISTENCIES.md 第 1 条）：① Mock 用的是**进程级全局计数器**，不是按 session 分组的 —— 当前只有一个 session_id 所以等价，一旦后端的 session_id 会变（重连换会话），前端 lastSeqRef 按 session_id 分桶仍能正确工作，但 Mock 的序号在新 session 里不会从 1 重来。② §5.4 的 envelope 清单里**依然没有 sequence**（v0.4.1 未修正这条自相矛盾）。",
+        "todo_zh": "后端实现时按 session_id 分组计数。前端已就绪，无需改动。"
+      }
+    }
+  },
+
+  "events": {
+    "session.started": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "一轮对话开始时。Mock 在每次 run() 开头都发一次。",
+      "payload": {
+        "resumed": {
+          "type": "boolean",
+          "required": true,
+          "meaning_zh": "本次是否为恢复既有会话。",
+          "warning_zh": "⚠️ Mock 中恒为 false（硬编码），即使这是同一 session_id 的第 N 轮。后端应给出真实值。"
+        }
+      },
+      "example": { "resumed": false },
+      "renderer_effect_zh": "App.jsx：重置流式缓冲、清空气泡、进入 loading 状态、打断正在朗读的语音。"
+    },
+
+    "session.resumed": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer"],
+      "when_zh": "断线后重新连上、恢复既有会话时。Mock 的 reconnect() 发一条。",
+      "payload": {
+        "resumed_from": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "从哪个 session_id 恢复。",
+          "warning_zh": "⚠️ Mock 传的是 this.sessionId，即当前会话自己，语义上等于「没换会话」。后端若支持跨会话恢复，这里应是旧 session_id。"
+        }
+      },
+      "example": { "resumed_from": "sess_m1a2b3c4d_1" },
+      "renderer_effect_zh": "App.jsx：状态置为 reconnecting，气泡显示「连接中断，重连中…」，表情切思考。"
+    },
+
+    "session.compacted": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "上下文窗口超限、Session 被压缩时（§5.1 Session 的 compact 操作）。",
+      "payload": {
+        "reason": { "type": "string", "required": false, "meaning_zh": "压缩原因。" }
+      },
+      "example": { "reason": "cancelled" },
+      "warning_zh": "⚠️ **仍未修复**：Mock 依然把它用于「用户取消本轮」，与 compact（上下文压缩）语义无关。见 INCONSISTENCIES.md 第 6 条。后端不要沿用这个用法。"
+    },
+
+    "session.ended": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "会话正常结束（用户关闭桌宠 / 主动结束会话 / 服务端超时回收）。",
+      "payload": {
+        "reason": { "type": "string", "required": false, "meaning_zh": "结束原因：user_closed | timeout | error。" }
+      },
+      "renderer_effect_zh": "建议：停止朗读、收起气泡、停止漫游。当前无生产者，前端不处理。"
+    },
+
+    "agent.started": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer"],
+      "when_zh": "一个 Agent 实例（非单轮）开始运转时。§5.4 已声明，Mock 未实现。",
+      "payload": {}
+    },
+
+    "agent.turn.started": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer"],
+      "when_zh": "一轮「模型—工具」循环开始，即收到用户输入之后。",
+      "payload": {
+        "input": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "用户这一轮的原始输入文本（未脱敏的原文）。"
+        }
+      },
+      "example": { "input": "帮我讲讲数据库第三范式" },
+      "renderer_effect_zh": "App.jsx：与 session.started 同一处理分支 —— 进入 loading、清空流式缓冲、打断上一轮语音。"
+    },
+
+    "agent.turn.completed": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "本轮正常结束。",
+      "payload": {
+        "status": {
+          "type": "string",
+          "required": true,
+          "enum": ["ok", "failed", "cancelled"],
+          "meaning_zh": "本轮终态。Mock 只发 ok。",
+          "note_zh": "枚举中的 failed / cancelled 为契约约定值，后端实现时若走 agent.failed 分支就不必再发本事件。"
+        }
+      },
+      "example": { "status": "ok" },
+      "renderer_effect_zh": "App.jsx：状态回到 idle，气泡 5 秒后自动收起。"
+    },
+
+    "agent.failed": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "本轮失败。⚠️ 原写作「本轮失败或被取消，是取消状态的**唯一**表达方式」—— 那是照着 Mock 写的；真后端取消走的是独立事件 agent.cancelled（见下一条）。前端两个都接。",
+      "payload": {
+        "reason": {
+          "type": "string",
+          "required": true,
+          "enum": ["cancelled", "provider", "network", "tool", "policy", "unknown"],
+          "meaning_zh": "失败大类。",
+          "note_zh": "cancelled / provider / network 三个值在 Mock 中实际使用；tool / policy / unknown 为契约预留。前端按 reason === 'cancelled' 判定取消，其余一律按错误展示。"
+        },
+        "message": {
+          "type": "string",
+          "required": false,
+          "meaning_zh": "给用户看的中文说明。仅 cancelled 场景在 Mock 中出现。"
+        },
+        "retryable": {
+          "type": "boolean",
+          "required": false,
+          "meaning_zh": "是否可重试。Mock 在 provider / network 场景传 true。前端目前未使用该字段（一律显示「可以重试」）。"
+        }
+      },
+      "example": { "reason": "provider", "retryable": true },
+      "renderer_effect_zh": "App.jsx：打断朗读；reason === 'cancelled' 时把已流式输出的半截文本追加「（已中断）」入消息列表并置 cancelled 状态；否则置 error 并插入一条系统消息。"
+    },
+
+    "agent.cancelled": {
+      "implemented": false,
+      "backend_implemented": true,
+      "frontend_consumed": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "本轮被取消（用户中断 / 超时）。真后端 `runtime/core/agent.py` 捕获 asyncio.CancelledError 时发**本事件**，与 agent.failed 是两条不同的路径。",
+      "payload": {
+        "reason": {
+          "type": "string",
+          "required": true,
+          "enum": ["cancelled"],
+          "meaning_zh": "取消原因。后端当前只发 cancelled 一个值。",
+          "note_zh": "形状与 agent.failed 的 reason 一致，所以前端两个 case 可以共用同一段处理（case 直落，不复制逻辑）。"
+        }
+      },
+      "example": { "reason": "cancelled" },
+      "renderer_effect_zh": "App.jsx：与 agent.failed 共用一段 —— 打断朗读；把已流式输出的半截文本追加「（已中断）」入消息列表并置 cancelled 状态。",
+      "note_zh": "⚠️ 2026-09-20 由张钧翔补记。对账 Main 上 `runtime/core/events.py` 的 EventType 时发现：后端把 AGENT_CANCELLED 定义成独立事件类型。在此之前前端只监听 agent.failed，真后端取消一轮时会走到 default 分支什么都不做 —— 状态**永久卡在 streaming**、朗读也不会停，而「流式文本与语音可停止」正是 §16.4 的验收项。前端处理已同步补上。",
+      "mock_divergence_zh": "⚠️ 仍存在的一处 Mock ↔ 后端分歧：Mock 的 cancel() 发的是 agent.failed({reason:'cancelled'})，真后端发 agent.cancelled。前端现在两个都接，所以**表现一致**；但 Mock 作为本契约的事实标准（见 source_of_truth）已与后端不符。是否把 Mock 也改成发 agent.cancelled，待与刘俊鹏确认后统一。"
+    },
+
+    "model.requested": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "向 Provider 发起模型调用之前。",
+      "payload": {
+        "provider": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "Provider 名。Mock 固定为 deepseek。",
+          "note_zh": "建议枚举：deepseek | openai | qwen-local（见 DESIGNv0.4.1 §8 LLM Provider 行）。"
+        },
+        "model": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "模型标识。Mock 固定为 deepseek-chat。"
+        }
+      },
+      "example": { "provider": "deepseek", "model": "deepseek-chat" },
+      "renderer_effect_zh": "App.jsx：维持 loading 状态（气泡显示「思考中…」）。"
+    },
+
+    "model.stream.delta": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer"],
+      "when_zh": "模型流式吐字期间，每个分片一次。Mock 每 22ms 发一次、每次前进 4 个字符（`j += 4`；旧版是 30ms / 3 字符）。⚠️ 一轮里 6 个教学节点**各发一串 delta**，共 6 段连续流，段间有 800~900ms 的 dwell 停顿（让动画播得出来）。",
+      "payload": {
+        "delta": {
+          "type": "string",
+          "required": true,
+          "semantics": "cumulative",
+          "meaning_zh": "⚠️ 截至当前的**累计全文**，不是增量片段。",
+          "detail_zh": "Mock 实现为 full.slice(0, i)，i 为已产出字符数。即第 1 片是「你」，第 2 片是「你问」，第 3 片是「你问的」……",
+          "warning_zh": "⚠️ 这是本契约里最容易踩的坑。字段名叫 delta，但语义是累计值。App.jsx 用 streamRef.current = payload.delta 直接**覆盖**渲染，与之自洽。若后端按「增量片段」实现（只发新增的几个字），前端将只显示最后几个字。后端必须发累计值，或前后端同时改用增量语义并同步修改 App.jsx。见 INCONSISTENCIES.md 第 2 条。"
+        },
+        "index": {
+          "type": "integer",
+          "required": true,
+          "meaning_zh": "已产出的**字符数**（不是分片序号）。可用于去重与断点续传判断。",
+          "warning_zh": "⚠️ 字段名叫 index 但语义是字符偏移量，容易误解为分片序号。"
+        }
+      },
+      "example": { "delta": "你问的是「帮我讲讲数据库第三范式」", "index": 18 },
+      "renderer_effect_zh": "App.jsx：状态置 streaming，覆盖气泡文本并显示光标动画；RigPet/FramePet 收到 talking=true 播放说话动画。"
+    },
+
+    "model.completed": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "模型输出完毕。",
+      "payload": {
+        "text": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "完整回复文本。",
+          "note_zh": "✅ 前端的取法已改（原先的缺陷已修）：App.jsx 现在是 `const reply = streamRef.current || payload.text || ''` —— **优先用累积的流式缓冲，为空时退回本字段**。所以「跳过 delta 直接发 completed」现在**也会正常显示并朗读**（「重连」路径正是靠这条兜底才显示得出「会话已恢复，可以继续。」）。后端仍建议保持 delta 与 completed 成对，但不再是硬前提。见 INCONSISTENCIES.md 第 17 条（已修复）。"
+        }
+      },
+      "example": { "text": "你问的是「帮我讲讲数据库第三范式」对吧？我先不急着给答案——你自己是怎么理解这个问题的？" },
+      "renderer_effect_zh": "App.jsx：把累积文本（或 payload.text）入库为 pet 消息、触发 TTS 自动朗读、状态回 idle、安排气泡 5 秒后隐藏、好感度按 chat 计一次加成。",
+      "multi_emit_note_zh": "⚠️ Mock 现在**一轮只发一次** model.completed（携带 6 个节点文本拼接后的全文）。中间节点只发 node.entered + stream.delta。这样设计是为了语音只念一次 —— 若每个节点都发 completed，speak() 会先 cancel 前一段，听感变成断断续续的碎片。"
+    },
+
+    "model.failed": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "模型调用失败。",
+      "payload": {
+        "code": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "错误码。Mock 用过 RATE_LIMIT（限流）与 CONN_RESET（连接中断）。",
+          "note_zh": "建议后端沿用大写下划线风格，并在本契约中继续补充枚举。前端不解析 code，只把 message 展示给用户。"
+        },
+        "message": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "给用户看的中文错误说明。"
+        }
+      },
+      "example": { "code": "RATE_LIMIT", "message": "模型服务限流" },
+      "renderer_effect_zh": "App.jsx：状态置 error，插入一条 role='sys' 的消息「模型失败：{message || code}」。"
+    },
+
+    "memory.read": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "图节点读取记忆时。Mock 在 Assess 节点进入后发一次（每轮仅 1 条）。",
+      "v041_status_zh": "⚠️ v0.4.1 §6.2 把「读长期学情记忆」正式绑定给 `recall` 动作（capability = `read_memory`，说明为「读该学习者的长期学情记忆；身份取自调用上下文，检索口径来自绑定」），§7.2 主链路也写成「决策 recall → read_memory 能力」。Mock 没有 recall 决策、也没有 recall→read_memory 这层绑定，只是硬发了一条 memory.read。",
+      "payload": {
+        "query": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "查询标识。Mock 传字符串 'recent_mistakes'（近期错题）。",
+          "warning_zh": "⚠️ **仍未修复**：§7.1 RuntimePort 定义 read_memory(query: dict, ctx) 接收的是**结构化 dict**，Mock 这里发的是个字符串。后端应发结构化查询对象，见 INCONSISTENCIES.md 第 10 条。"
+        },
+        "records": {
+          "type": "array",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §6.4：「学情记忆同理：读回来的记录只在当次解释（取 `record_id` 与误解标签），**不写进状态正文**」。因此读到的记忆若出现在事件里，应只保留可定位引用（record_id + 误解标签），不含记录正文。",
+          "todo_zh": "后端补（若要把读到的记忆写进轨迹）。"
+        }
+      },
+      "example": { "query": "recent_mistakes" },
+      "renderer_effect_zh": "App.jsx：无处理（default 分支）。仅记录进事件日志面板。"
+    },
+
+    "memory.write": {
+      "implemented": true,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "图节点写入记忆时。Mock 在本轮最后一条 node.exited 之后发一次（每轮仅 1 条）—— ⚠️ 它跟任何一个 node 都没有从属关系，是「收尾时顺手发的」。",
+      "v041_status_zh": "⚠️ v0.4.1 §6.2 把写学情绑定给 `update_profile` 动作（capability = `write_memory`），并明确「记录由**节点构造**（来源/置信度/过期策略/可撤回），绑定只声明『写进去』」。也就是说 source / confidence / ttl / revocable 这四个字段的责任在**节点侧**，不在绑定侧 —— 与下面标 implemented:false 的三个字段对上。",
+      "payload": {
+        "dimension": {
+          "type": "string",
+          "required": true,
+          "enum": ["session_log", "working", "long_term_learning", "episodic", "affective"],
+          "meaning_zh": "记忆维度，对应 §5.5 的五类记忆。Mock 使用 'episodic'（关键学习事件与干预结果）。",
+          "note_zh": "枚举值为契约约定；session_log 一般由 Session 追加式日志隐式产生，不一定作为 memory.write 发出。"
+        },
+        "key": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "记忆条目键名，如 'db_normalization'（数据库规范化知识点）。"
+        },
+        "source": {
+          "type": "string",
+          "required": true,
+          "implemented": false,
+          "meaning_zh": "⚠️ 记忆来源（哪条事件、哪个节点推出的）。§5.5 要求「任何长期记忆写入都必须包含来源、置信度、过期策略和可撤回标记」。",
+          "todo_zh": "后端补。数据组（谢浪）的 MemoryStore 需要它做审计。"
+        },
+        "confidence": {
+          "type": "number",
+          "required": true,
+          "implemented": false,
+          "range": "0.0 ~ 1.0",
+          "meaning_zh": "⚠️ 置信度。同上 §5.5 要求。",
+          "todo_zh": "后端补。"
+        },
+        "ttl": {
+          "type": "string",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ 过期策略。同上 §5.5 要求。可取 ISO 时长或绝对时间戳。",
+          "todo_zh": "后端补。"
+        },
+        "revocable": {
+          "type": "boolean",
+          "required": true,
+          "implemented": false,
+          "meaning_zh": "⚠️ 可撤回标记。对应 §13.2「长期记忆可查看、可纠正、可删除、可关闭」。",
+          "todo_zh": "后端补。"
+        }
+      },
+      "example": { "dimension": "episodic", "key": "db_normalization" },
+      "renderer_effect_zh": "App.jsx：无处理（default 分支）。仅记录进事件日志面板。"
+    },
+
+    "pedagogy.node.entered": {
+      "implemented": true,
+      "producer": "graph",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "教学策略图进入一个节点（§6.2 教学决策节点）。桌宠的表情与动作主要靠这个事件驱动。",
+      "payload": {
+        "node": {
+          "type": "string",
+          "required": true,
+          "enum": ["Assess", "Teach", "Ask", "Hint", "Correct", "Test", "UpdateProfile", "Reflect"],
+          "meaning_zh": "节点名。语义与 §6.2 表格一致，但⚠️ **写法有两套，见下**。",
+          "note_zh": "✅ Reflect 已补进 petAnimations.js 的 NODE_TO_ANIMATION（→ 'think'），原先「后端一发就静默退回 idle」的缺口已修。⚠️ 但静默兜底机制本身还在（resolveAnimation 末尾的 || 'idle'），且 petState.js 的 NODE_TO_EXPRESSION（死代码）与 NODE_TO_LIVE2D 仍然没有 Reflect。见 INCONSISTENCIES.md 第 3 条。",
+          "warning_zh": "⚠️ 2026-09-20 由张钧翔补记：本字段原先断言「节点名 PascalCase，与 §6.2 表格一致」，**那是照 Mock 写的，对真后端不成立**。真后端 graph 里节点名是全小写：`graph/education/nodes/hint.py` 写 `NODE = \"hint\"`、`correct.py` 写 `NODE = \"correct\"`，然后 `emit_entered(port, state, NODE, ...)` 原样发出；`pedagogy.decision` / `pedagogy.node.exited` 同理。而 Mock（`desktop/src/main/index.js`）发的是 `'Assess'`（PascalCase）。后果：前端 NODE_TO_ANIMATION 的键是照 Mock 写的 PascalCase，**对真后端一个都匹配不上**，全部落进 `|| 'idle'` —— 不报错、不崩溃、只是表情不对。已在 petAnimations.js 加 `animationForNode()` 做归一化查表（吃掉大小写与下划线），两套写法都认。",
+          "open_question_zh": "两套命名并存本身仍未定论：后端要不要统一成 PascalCase？还是前端契约改成小写？需与刘俊鹏 / 孙一新确认。"
+        },
+        "action": {
+          "type": "string",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §7.1 的 PedagogicalDecision 用 `action` 表示「教学动作或信息请求名」，取值来自 §6.2 绑定表的动作列（teach / correct / ask / hint / test / reflect / end / assess / recall / diagnose / update_profile），**小写下划线**。",
+          "correction_zh": "⚠️ 2026-09-20 由张钧翔修正：原文接着写「而事件流的 node 是**首字母大写**的节点名（Teach / UpdateProfile）」—— 这对 Mock 成立，**对真后端不成立**：真后端 graph 的节点名也是全小写（`nodes/hint.py` 的 `NODE = \"hint\"`）。所以真后端下 node 与 action **是同一种写法**，并不构成双轨。（Mock 才是那个不一样的。）",
+          "todo_zh": "后端若要在事件里带上动作名，请与 node 分开两个字段，不要复用。",
+          "render_actual_zh": "⚠️ 前端实情与原文描述不符：App.jsx 的 `pedagogy.result` 分支里 `if (payload.action) setNode(payload.action)` —— **它就是用 action 当节点名查表的**（因为该事件只有 action、没有 node）。原文「前端按 node 查表，不认 action」不准确。归一化查表已让这两条路都能走通。",
+          "warning_zh": "⚠️ 这是 v0.4.1 引入的一处新的命名双轨制（节点名 PascalCase vs 动作名 snake_case），文档未说明二者映射关系。见 INCONSISTENCIES.md 第 29 条。"
+        }
+      },
+      "example": { "node": "Assess" },
+      "renderer_effect_zh": "App.jsx：setNode(payload.node)；动画与表情由 resolveAnimation / resolveLive2D 按「状态 > 节点」优先级解析（petAnimations.js、petState.js）。"
+    },
+
+    "pedagogy.decision": {
+      "implemented": true,
+      "producer": "graph",
+      "consumer": ["renderer", "storage"],
+      "v041_status_zh": "🔴 **v0.4.1 把本事件提升为「实验复盘的主要依据」（§5.4：`pedagogy.decision` 是 §3.4 研究问题 4 的主要依据）**，并给出了它必须携带的字段清单。Mock 当前只发了 `next` 与 `reason` 两个字段，v0.4.1 要求的那批字段**一个都没有**。这是本次对齐后**最大的一处未实现**。",
+      "when_zh": "图做出分支决策时，即从当前节点选定下一个节点。Mock 在 Assess 节点进入后发一次（每轮仅 1 条）。",
+      "payload": {
+        "next": {
+          "type": "string",
+          "required": true,
+          "implemented": true,
+          "meaning_zh": "下一个节点的名字，取值同 pedagogy.node.entered.node。",
+          "warning_zh": "⚠️ §6.4「策略图状态」里对应字段叫 next_action，v0.4.1 **没有修正**这处命名不一致（仍写作 next_action）。契约以代码为准，定为 next。另：v0.4.1 §7.1 的 PedagogicalDecision 契约里字段名是 `action`（不是 next、也不是 next_action）—— 三处三个名字。见 INCONSISTENCIES.md 第 7 条。"
+        },
+        "reason": {
+          "type": "string",
+          "required": false,
+          "implemented": true,
+          "meaning_zh": "决策理由（中文，给人看，用于可解释性复盘与事件日志展示）。Mock 传「先确认先验知识」。"
+        },
+        "node": {
+          "type": "string",
+          "required": true,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4：「它记录**节点**、动作、reason、依据……」。当前 Mock 没有 node 字段 —— 前端只能从紧邻的 pedagogy.node.entered 推断是哪个节点做的决策。",
+          "todo_zh": "后端补。"
+        },
+        "capability": {
+          "type": "string",
+          "required": true,
+          "implemented": false,
+          "meaning_zh": "⚠️ **v0.4.1 新增**。本轮**实际执行了哪个能力**（§5.4：「以及本轮实际执行了哪个能力」）。取值来自 §6.2 绑定表的 capability 列：render_template / invoke_skill / retrieve_evidence / generate_grounded / read_memory / write_memory。",
+          "why_zh": "§5.4 的原话：「因此『策略判了什么』与『执行做成了什么』在同一条轨迹里**可分别核对**」—— 这是 v0.4.1 把「图只出决策、Runtime 按绑定表执行」这个架构改动**变得可验证**的关键字段。没有它，评审时无法证明某个动作真的走了声明的能力。",
+          "todo_zh": "后端补。前端不消费（仅进事件日志），但教师评审要看。"
+        },
+        "capability_status": {
+          "type": "string",
+          "required": true,
+          "implemented": false,
+          "meaning_zh": "⚠️ **v0.4.1 新增**。该能力的执行结果状态。取值同 CapabilityResult.status：success / insufficient_evidence / no_binding / capability_not_found / invalid_request / error。",
+          "why_zh": "§7.3 要求装配与绑定失败必须显式：组合根漏装配 → no_binding；绑定写错能力名 → capability_not_found；绑定引用不存在的字段 → invalid_request；选不到模板 → error(template_not_found)。§7.3 还给了一条产品决策：「失败的学生可见表现因此是『空回复』……装配错误是部署缺陷，应当响亮地暴露，而不是用一句安慰话遮住」。**前端目前无法知道一条失败的能力调用**，因为没有任何事件承载它。",
+          "todo_zh": "后端补。"
+        },
+        "evidence_sufficient": {
+          "type": "boolean",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 列的「依据」字段之一：本轮评估结论（§7.1 决策契约里同名）。据此决定是否发起检索、是否追加「不含引用」说明。",
+          "todo_zh": "后端补。"
+        },
+        "evidence_count": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 的「依据」字段：检索到的可定位证据条数。",
+          "todo_zh": "后端补。"
+        },
+        "attempt_count": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 的「依据」字段：同一知识点上的尝试次数（§6.4 图状态同名）。",
+          "todo_zh": "后端补。"
+        },
+        "wrong_streak": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 的「依据」字段：连续答错次数。Reflect 节点的触发条件之一（§6.2「多轮无进展」）。",
+          "todo_zh": "后端补。"
+        },
+        "hint_level": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 的「依据」字段：提示级别（§6.4 图状态同名）。§6.2 绑定表把 hint 描述为「提示强度是实验自变量，不能因换模型而漂移」，所以这个值有实验意义。",
+          "todo_zh": "后端补。前端目前拿不到它，也就无法做「轻提示 vs 强提示」的差异化表现。"
+        },
+        "turn_count": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 的「依据」字段：本轮已是第几轮对话。",
+          "todo_zh": "后端补。"
+        },
+        "max_turns": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4 的「依据」字段：最大轮次上限（§7.3「图循环超限：触发 Reflect 或结束节点，避免无限提问」，§16.3 验收项「图不能形成无限追问」）。",
+          "todo_zh": "后端补。"
+        },
+        "params": {
+          "type": "object",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §7.1：执行所需补充输入。**学生正文只在这里**（§6.4、§13.2）。",
+          "privacy_zh": "🔒 隐私纪律（v0.4.1 §5.4 新增）：「决策事件的载荷里**不得包含学生正文** —— 学生文本只出现在决策的 `params` 里（供能力层使用），事件只记长度与依据字段」。因此 `params` **不应出现在落盘的事件里**。当前 Mock 没有 params 字段，天然合规；后端若照 §7.1 把 params 一起 emit 出去，就会违反这条纪律。",
+          "todo_zh": "后端：不要把 params 写进事件。"
+        },
+        "params_length": {
+          "type": "integer",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ v0.4.1 §5.4「事件只记长度与依据字段」中所说的「长度」。建议发学生正文的字符数，供复盘观察输入规模，同时不泄露内容。",
+          "todo_zh": "后端补。这是契约对 §5.4 那句话的可执行化建议（文档没给字段名）。"
+        },
+        "answer_leaked": {
+          "type": "boolean",
+          "required": false,
+          "implemented": false,
+          "meaning_zh": "⚠️ **v0.4.1 新增**。§5.4：「`hint` / `test` 还额外声明 `answer_leaked`，用于核查『是否过早泄露答案』」。",
+          "scope_zh": "仅 hint 与 test 两个动作需要携带。这与 §6.3 教育能力要求（Socratic「避免过早泄露答案」）和 §7.1 决策契约的 reveal_answer（「提示与追问恒为 False」）相互印证。",
+          "todo_zh": "后端补。**这是教师评审会直接查的字段** —— §16.7 唐欢容的评审项包含「提问、提示、纠错与引用质量」。"
+        }
+      },
+      "example": { "next": "Teach", "reason": "先确认先验知识" },
+      "example_v041_target": {
+        "node": "Assess",
+        "action": "teach",
+        "next": "Teach",
+        "reason": "先确认先验知识",
+        "capability": "generate_grounded",
+        "capability_status": "success",
+        "evidence_sufficient": true,
+        "evidence_count": 3,
+        "attempt_count": 1,
+        "wrong_streak": 0,
+        "hint_level": 0,
+        "turn_count": 1,
+        "max_turns": 12,
+        "params_length": 18,
+        "answer_leaked": false,
+        "_note_zh": "上例**不是**当前实现，而是本契约建议后端产出的形状（字段齐备后的样子）。前端目前只读 next 与 reason。"
+      },
+      "renderer_effect_zh": "App.jsx：无处理（default 分支）。仅记录进事件日志面板。⚠️ 这正是一件值得前端后续补的事：v0.4.1 说本事件是可解释性的主要依据，而界面上完全看不到它。"
+    },
+
+    "pedagogy.node.exited": {
+      "implemented": true,
+      "producer": "graph",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "教学策略图离开一个节点。",
+      "payload": {
+        "node": {
+          "type": "string",
+          "required": true,
+          "meaning_zh": "被离开的节点名。"
+        }
+      },
+      "example": { "node": "Assess" },
+      "renderer_effect_zh": "App.jsx：无处理（default 分支）。仅记录进事件日志面板。",
+      "note_zh": "✅ 顺序问题已修：Mock 现在把最后一条 node.exited 排在 memory.write / model.completed / agent.turn.completed **之前**，「本轮已结束」不再早于「节点已退出」。见 INCONSISTENCIES.md 第 9 条（已修复）。"
+    },
+
+    "pedagogy.result": {
+      "implemented": false,
+      "backend_implemented": true,
+      "frontend_consumed": true,
+      "producer": "api",
+      "consumer": ["renderer"],
+      "when_zh": "教学策略图跑完一轮时的**收尾帧**，承载 §16.3「交前端的三件套」（response_text / action / emotion，附 citations）。由 api 层合成，**不落事件库** —— 事件库里只留决策与依据，不复制正文（§13.2）。",
+      "source_of_truth_note_zh": "api/routes/sessions.py 的 `_RESULT_EVENT_TYPE = \"pedagogy.result\"` 与 `_result_frame()`。它**不在** runtime/core/events.py 的 EventType 枚举里，是 api 层额外造的。",
+      "transport_note_zh": "它以 SSE 的 `event: done` 发出（sessions.py 的 `_SSE_EVENT_NAMES` 显式把它映射到 done），但 payload 里的 `type` 仍是 \"pedagogy.result\"。⚠️ 前端按 payload 的 type 分发，**不要**按 SSE 事件名分发，否则会把收尾帧当成普通 done 丢掉。",
+      "payload": {
+        "session_id": { "type": "string", "required": true, "meaning_zh": "会话标识。" },
+        "trace_id": { "type": "string", "required": true, "meaning_zh": "本轮 trace，用于与文本流对齐。" },
+        "action": {
+          "type": "string",
+          "required": true,
+          "enum": ["teach", "ask", "hint", "correct", "test", "reflect", "assess", "update_profile", "recall", "diagnose", "end"],
+          "meaning_zh": "本轮教学动作，**全小写 / 下划线分隔**（`teach`、`update_profile`…）。",
+          "note_zh": "⚠️ 2026-09-20 由张钧翔修正。本条最初被写成 PascalCase（Assess/Teach/…），**是错的** —— 照 Mock 的写法抄的。真后端 graph 的动作常量全小写（`graph/education/policies/__init__.py` 的 `ACTION_TEACH = \"teach\"`），节点把它原样写进 state，`_result_frame` 又原样交给前端，所以到手的就是小写。",
+          "render_note_zh": "前端不能直接 `NODE_TO_ANIMATION[action]` 查表 —— 那张表的键是 PascalCase。petAnimations.js 的 `animationForNode()` 会做归一化（吃掉大小写与下划线）后查，两套写法都认。"
+        },
+        "response_text": { "type": "string", "required": true, "meaning_zh": "回复正文。⚠️ 字段名是 response_text，而 Mock 的 model.completed 用的是 text —— 两条路都要接，否则接真后端时回复会静默消失。" },
+        "emotion": { "type": "string", "required": true, "meaning_zh": "情感标签。喂 EMOTION_TO_ANIMATION（该表同时认 graph 与 pet/emotion.py 两套词表）。" },
+        "citations": { "type": "array", "required": true, "meaning_zh": "教材证据定位。前端**暂无对应 UI**。" },
+        "next_action": { "type": "string", "required": false, "meaning_zh": "下一轮教学动作。前端暂无 UI。" },
+        "turn_count": { "type": "integer", "required": false, "meaning_zh": "轮次计数。前端暂无 UI。" },
+        "hint_level": { "type": "integer", "required": false, "meaning_zh": "已给出的提示级别（0 = 未给）。前端暂无 UI。" },
+        "misconceptions": { "type": "array", "required": false, "meaning_zh": "疑似错误概念。前端暂无 UI。" },
+        "evidence_sufficient": { "type": "boolean", "required": false, "meaning_zh": "证据是否充分。前端暂无 UI。" },
+        "strategy_note": { "type": "string", "required": false, "meaning_zh": "本轮策略备注，复盘用。" }
+      },
+      "example": { "action": "Teach", "emotion": "explaining", "response_text": "……", "citations": [] },
+      "renderer_effect_zh": "App.jsx：已实现（case 'pedagogy.result'）—— 收下 emotion / action，把 response_text 入消息列表并按需朗读，置 idle，气泡延时收起。",
+      "note_zh": "⚠️ 2026-09-20 由张钧翔补记。本事件此前**完全没写进契约**，但 App.jsx 早在消费它（那里的注释还准确抄了 payload 形状）。契约漏记的代价：后来人照契约实现前端，会直接漏掉唯一能拿到回复正文的通路 —— 后端发了、前端没反应，又是静默失败。"
+    },
+
+    "tool.requested": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "图节点请求调用工具（§5.3 Tools）。",
+      "payload": {
+        "tool": { "type": "string", "required": true, "meaning_zh": "工具名，如 retrieve_textbook、save_mistake、read_profile。" },
+        "arguments": { "type": "object", "required": true, "meaning_zh": "工具参数，须通过 schema 校验。" },
+        "call_id": { "type": "string", "required": true, "meaning_zh": "本次调用标识，用于与后续 tool.completed / tool.failed 关联。" }
+      }
+    },
+
+    "tool.approved": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer"],
+      "when_zh": "高风险工具获得用户审批通过（§13.3「高风险动作需显式审批」）。",
+      "payload": {
+        "call_id": { "type": "string", "required": true, "meaning_zh": "对应的工具调用标识。" },
+        "approved": { "type": "boolean", "required": true, "meaning_zh": "是否批准。" }
+      },
+      "renderer_effect_zh": "建议：后端实现审批时，前端需要一个弹窗确认 UI，届时需新增一条 renderer → main 的 IPC（当前 preload 未暴露任何审批接口）。"
+    },
+
+    "tool.started": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "工具开始执行。",
+      "payload": { "call_id": { "type": "string", "required": true, "meaning_zh": "工具调用标识。" } }
+    },
+
+    "tool.completed": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "工具执行成功。",
+      "payload": {
+        "call_id": { "type": "string", "required": true, "meaning_zh": "工具调用标识。" },
+        "result": { "type": "object", "required": true, "meaning_zh": "结构化结果。" },
+        "duration_ms": { "type": "integer", "required": false, "meaning_zh": "耗时，用于性能观测。" }
+      }
+    },
+
+    "tool.failed": {
+      "implemented": false,
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "when_zh": "工具执行失败（§7.3「Tool 失败：Runtime 返回结构化错误，Graph 选择重试、替代工具或解释限制」）。",
+      "payload": {
+        "call_id": { "type": "string", "required": true, "meaning_zh": "工具调用标识。" },
+        "code": { "type": "string", "required": true, "meaning_zh": "错误码。" },
+        "message": { "type": "string", "required": false, "meaning_zh": "中文说明。" }
+      }
+    },
+
+    "plugin.installed": {
+      "implemented": false,
+      "backend_implemented": true,
+      "producer": "plugin",
+      "consumer": ["storage"],
+      "when_zh": "插件安装完成并登记（§5.2 生命周期 install → approve → start → stop → uninstall）。",
+      "payload": { "$ref_zh": "见下方 _插件事件公共 payload" }
+    },
+
+    "plugin.approved": {
+      "implemented": false,
+      "backend_implemented": true,
+      "producer": "plugin",
+      "consumer": ["storage"],
+      "when_zh": "插件通过信任裁定（§13.3 高风险动作需显式审批的前置环节）。",
+      "payload": {
+        "$ref_zh": "公共 payload，另加裁定的完整结果（见下）",
+        "trust_decision": { "type": "object", "required": false, "meaning_zh": "信任裁定结果，runtime/plugins/lifecycle.py 里由 decision.to_dict() 展开并入 payload（不是嵌套在 trust_decision 键下，这里是概念性标记）。" }
+      }
+    },
+
+    "plugin.started": {
+      "implemented": false,
+      "backend_implemented": true,
+      "producer": "plugin",
+      "consumer": ["storage"],
+      "when_zh": "插件挂载并启动（§5.2 生命周期 install → approve → start → stop → uninstall）。",
+      "payload": { "$ref_zh": "见下方 _插件事件公共 payload" }
+    },
+
+    "plugin.failed": {
+      "implemented": false,
+      "backend_implemented": true,
+      "producer": "plugin",
+      "consumer": ["storage"],
+      "when_zh": "插件崩溃或被隔离（§7.3「Plugin 崩溃：隔离插件、记录事件并回退到核心能力」）。",
+      "payload": {
+        "$ref_zh": "公共 payload，status 为 \"failed\"，error 里带结构化错误",
+        "error": { "type": "object", "required": false, "meaning_zh": "结构化错误对象。⚠️ 不是字符串 message —— 见下方公共 payload 的修正说明。" }
+      }
+    },
+
+    "plugin.stopped": {
+      "implemented": false,
+      "backend_implemented": true,
+      "producer": "plugin",
+      "consumer": ["storage"],
+      "when_zh": "插件停止。",
+      "payload": { "$ref_zh": "见下方 _插件事件公共 payload" }
+    },
+
+    "plugin.uninstalled": {
+      "implemented": false,
+      "backend_implemented": true,
+      "producer": "plugin",
+      "consumer": ["storage"],
+      "when_zh": "插件卸载（生命周期终点；卸载前会先 stop、并撤销它注册的服务）。",
+      "payload": { "$ref_zh": "见下方 _插件事件公共 payload" }
+    },
+
+    "_插件事件公共payload": {
+      "_说明_zh": "上述 6 条 plugin.* 事件共用同一个 payload 形状 —— 真后端 runtime/plugins/lifecycle.py 的 `_emit()` 统一构造：`{\"plugin\": id, \"version\": v, \"status\": s, \"error\": e, **(extra or {})}`。",
+      "修正说明_zh": "⚠️ 2026-09-20 由张钧翔修正。本契约原先把三条 plugin 事件的字段写成 `plugin_id`（string）与 `message`（string），与真后端**对不上**：实际字段名是 `plugin`，且每条都带 `status` 和 `error`。前端目前不消费 plugin.*（consumer 只有 storage），所以没暴露成故障，但契约是给集成方看的，字段名错会直接导致对接方写错解析代码。",
+      "payload": {
+        "plugin": { "type": "string", "required": true, "meaning_zh": "插件唯一 id。⚠️ 字段名是 plugin，**不是** plugin_id。" },
+        "version": { "type": "string", "required": true, "meaning_zh": "插件版本。" },
+        "status": {
+          "type": "string",
+          "required": true,
+          "enum": ["installed", "started", "stopped", "failed"],
+          "meaning_zh": "插件当前状态。取自 runtime/plugins/lifecycle.py 的 STATUS_* 常量。"
+        },
+        "error": { "type": "object|null", "required": true, "meaning_zh": "结构化错误对象，无错时为 null。" }
+      },
+      "example": { "plugin": "example_echo", "version": "0.1.0", "status": "started", "error": null },
+      "source_of_truth_note_zh": "runtime/plugins/lifecycle.py：`_emit()` + `PLUGIN_APPROVED/INSTALLED/UNINSTALLED` 等调用点；枚举定义在 runtime/core/events.py。"
+    }
+  },
+
+  "proposed_events": {
+    "_说明": "以下事件/字段在代码和 DESIGNv0.4.1 中都还不存在，是本次梳理契约时发现的**功能性缺口**。列在这里是为了让后端一次把字段留出来，避免将来加情感与好感度时又要改一次前端。未标注 implemented 的一律视为未实现，前端目前不消费。",
+
+    "emotion.tagged": {
+      "implemented": false,
+      "producer": "graph",
+      "consumer": ["renderer"],
+      "why_zh": "DESIGNv0.4.1 §7.2 主链路写着「Runtime 流式输出文本与情感标签 → 交互层驱动桌宠表达」，§3.2 宠物侧要求「语音与情感反馈」，§16.4 标题也含「情感反馈」。但 §5.4 事件模型里没有任何情感标签事件，Mock 里也没有任何情感字段 —— 桌宠的表情完全是前端自己根据 status + node 猜的（petState.js）。这是文档写了、代码没落的最典型缺口。",
+      "payload": {
+        "emotion": {
+          "type": "string",
+          "required": true,
+          "enum": ["neutral", "thinking", "happy", "curious", "sorry", "encouraging", "error"],
+          "meaning_zh": "情感标签。建议取值与 petState.js 现有表情名对齐，便于直接映射。"
+        },
+        "intensity": { "type": "number", "required": false, "range": "0.0 ~ 1.0", "meaning_zh": "强度，供前端调形变幅度。" },
+        "trace_id": { "type": "string", "required": true, "meaning_zh": "归属的轮次，用于与文本流对齐。" }
+      }
+    },
+
+    "affinity.updated": {
+      "implemented": false,
+      "backend_progress_zh": "✅ 2026-09-20 由张钧翔补：后端骨架 `pet/affinity.py`（§16.4 归属张钧翔）已加上 `to_event_payload()`，产出的正是本事件的 payload 形状 —— `{learner_id, affinity(float), stage(英文键), source, updated_at}`。原 `to_dict()` 保留不动（它用 value/level 那套名字，前端读不到 —— 这正是「字段名对不上」的具体形态）。档位阈值与前端 petStats.js 的 STAGES **完全一致**（0/20/50/80），只是中文叫法不同：这里「信任 / 亲密」对应前端的 close / attached。",
+      "still_open_zh": "⚠️ 两处**仍未对齐**，没有单方面改，记录在此：(1) **初值** —— pet/affinity.py 取 settings.affinity_init（默认 30），petStats.js 从 4 开始，两边一开始就不在同一档；(2) **谁算** —— 本骨架 source 恒为 \"unbound\"（没有接任何事件源），而前端已在本地按互动与时间自行计算。契约写 producer=runtime，但「前端算了报上去」还是「后端算了推下来」这条链路尚无结论。",
+      "partially_implemented_zh": "⚠️ 前端**本地**已实现（desktop/src/renderer/src/petStats.js，localStorage 持久化，键名 deepprof.petStats.v1），但**后端事件仍不存在**。本事件描述的是「后端把好感度变化推给前端」这条链路，目前前端是自己算自己的，两端没有对齐。详见 INCONSISTENCIES.md 第 5 条。",
+      "frontend_progress_zh": "2026-09-19 下午的进展：App.jsx 里已经有**授权面板 UI**（面板底部「未授权上报 / ⚠ 已授权上报」按钮 + 可展开的 consent-box，能预览 exportForDataTeam() 的 JSON、能撤回授权、能清空记录），以及**摸头台词按好感度阶段变化**（persona.js 的 LINES.pat 四档）。所以缺口从「没有 UI」收窄为「**没有通道**」—— exportForDataTeam() 依然没有任何调用方把结果发出去。",
+      "producer": "runtime",
+      "consumer": ["renderer", "storage"],
+      "why_zh": "§16.4 任务书写明模块职责含「好感度交互」与「情感反馈」。§3.2 宠物侧也要求「好感度与主动陪伴」。",
+      "payload": {
+        "learner_id": { "type": "string", "required": true, "meaning_zh": "学生标识。注意前端目前连 learner_id 都还没有（见 INCONSISTENCIES.md 第 12 条）。" },
+        "affinity": { "type": "number", "required": true, "range": "0 ~ 100", "meaning_zh": "好感度当前值。与 petStats.js 一致：0~100 的浮点数，便于展示进度条。" },
+        "mood": { "type": "number", "required": false, "range": "0 ~ 100", "meaning_zh": "心情。petStats.js 已在本地维护该维度。" },
+        "energy": { "type": "number", "required": false, "range": "0 ~ 100", "meaning_zh": "精力。petStats.js 已在本地维护该维度。" },
+        "stage": {
+          "type": "string",
+          "required": false,
+          "enum": ["stranger", "familiar", "close", "attached"],
+          "meaning_zh": "好感度阶段。**取值必须与 petStats.js 的 STAGES 表一致**（阈值分别是 0 / 20 / 50 / 80）。",
+          "note_zh": "该枚举来自 petStats.js 的 STAGES，不是文档定义。若后端自行定义阶段名，前端需要维护一张转换表。"
+        },
+        "delta": { "type": "number", "required": false, "meaning_zh": "本次增量，可为负。" },
+        "reason": {
+          "type": "string",
+          "required": false,
+          "enum": ["pat", "tap", "chat", "decay", "other"],
+          "meaning_zh": "变动原因。前三个值与 petStats.js 的 GAIN 表键名一致（摸头 / 点击 / 完成一轮对话）。",
+          "note_zh": "petStats.js 还实现了随时间自然衰减（affinityDecayPerHour: 0.4），对应 'decay'。"
+        },
+        "user_authorized": {
+          "type": "boolean",
+          "required": true,
+          "meaning_zh": "是否经用户授权记录。对应 §16.4 交接项「向数据组提交**经用户授权的**偏好更新」与 §13.2 隐私要求。",
+          "note_zh": "petStats.js 已实现对应的 consent 开关，且**默认关闭**。后端落盘前必须校验此字段。"
+        }
+      }
+    },
+
+    "profile.preference.update": {
+      "implemented": false,
+      "producer": "renderer",
+      "consumer": ["runtime", "storage"],
+      "direction_zh": "⚠️ 方向相反：这是**前端 → 后端**的请求，不是后端推给前端的事件。§16.4 交接项「向数据组提交经用户授权的偏好更新」目前没有任何通道。",
+      "payload": {
+        "learner_id": { "type": "string", "required": true, "meaning_zh": "学生标识。" },
+        "preference": {
+          "type": "object",
+          "required": true,
+          "schema_ref": "deepprof.preference.v1",
+          "meaning_zh": "由 petStats.js 的 exportForDataTeam(s) 产出的对象，**已自带 schema 标识**。前端只应在 s.consent === true 时调用它。",
+          "fields": {
+            "schema": { "type": "string", "const": "deepprof.preference.v1", "meaning_zh": "载荷版本标识。后端应据此做版本分发。" },
+            "affinity": { "type": "number", "meaning_zh": "好感度，保留一位小数。" },
+            "mood": { "type": "integer", "meaning_zh": "心情。" },
+            "energy": { "type": "integer", "meaning_zh": "精力。" },
+            "stage": { "type": "string", "meaning_zh": "好感度阶段 key。" },
+            "counts": { "type": "object", "meaning_zh": "{pat, tap, chat} 互动次数。" },
+            "daysSinceBorn": { "type": "integer", "meaning_zh": "角色创建至今的天数。" },
+            "note": { "type": "string", "meaning_zh": "固定说明：仅互动统计，不含对话内容。" }
+          },
+          "privacy_note_zh": "petStats.js 已明确保证该载荷**不含任何对话内容**，只有互动次数与状态值。后端应保持这一边界，不要通过此通道索取对话文本。"
+        },
+        "user_authorized": { "type": "boolean", "required": true, "meaning_zh": "必须为 true 才允许后端落盘。前端侧对应 petStats.js 的 consent 字段。" },
+        "trace_id": { "type": "string", "required": false, "meaning_zh": "若由某轮对话触发，关联该轮。" }
+      },
+      "todo_zh": "后端需要新增一个接收端点（建议 POST /profile/preference），前端需要新增一条 IPC 通道（当前 preload 只有 session:send / cancel / reconnect 三条会话通道）。**特别提示**：petStats.js 的 exportForDataTeam() 目前**没有任何调用方把它发出去** —— 数据出不了本机，这份 schema 是一条断头路。"
+    }
+  },
+
+  "pedagogical_decision_contract": {
+    "_说明": "⚠️ 下面两个对象是 DESIGNv0.4.1 新增的正式契约（§7.1），它们**经 RuntimePort.execute 在「图 ↔ Runtime」之间传递，不走事件流**，所以严格说不属于本文件的范围。登记在这里的唯一理由：前端将来若要展示「这一步到底做了什么能力、成功了没有」，唯一的数据来源就是把它们（或其摘要）落成 pedagogy.decision 的 capability / capability_status 字段。也就是说 —— 前端要看到 §7.3 的失败语义，前提是后端把它转写成事件。",
+    "design_ref": "DESIGNv0.4.1 §7.1（RuntimePort / RuntimeHost / 决策契约 / 结果契约）、§7.3（失败与回退）",
+    "RuntimePort_zh": "窄面，教学图唯一可依赖的能力面：`execute(request, ctx)` + `emit(event)`。v0.4.1 把原先平铺在同一协议上的方法收窄成这两个，理由是「图节点可以随手调用，边界只能靠自觉」。emit 留在窄面的理由是：事件轨迹是图**自己的可观测行为**（§3.4 可解释性分析的数据源），不是「调用某个教学能力」，因此不包装成决策。",
+    "RuntimeHost_zh": "宽面，Runtime 能力实现可用：invoke_skill / call_tool / generate / read_memory / write_memory。图节点**拿不到**宽面。",
+    "PedagogicalDecision": {
+      "owner": "graph/education/contracts.py（图侧，Runtime 不认识它）",
+      "fields": {
+        "action": "教学动作或信息请求名；决定绑定到哪个 capability",
+        "concept / level": "策略算出的产物（如 next_hint_level 的结果）",
+        "reveal_answer": "是否允许给出最终结论（提示与追问恒为 False）—— 与事件的 answer_leaked 是一对",
+        "require_evidence": "分发器前置条件：取不到可定位证据则不执行主能力、不调模型",
+        "require_student_reply": "循环控制，Runtime 不参与",
+        "evidence_sufficient": "本轮评估结论；据此决定是否发起检索、是否追加「不含引用」说明",
+        "params": "执行所需补充输入。**学生正文只在这里，且不得整体写进事件**（§6.4、§13.2）",
+        "reason": "决策依据，写入决策事件供复盘"
+      }
+    },
+    "CapabilityResult": {
+      "owner": "Runtime 回传给图",
+      "fields": {
+        "content": "面向学生的正文；可能为空（如只取状态的调用）",
+        "evidence": "教材证据的**可定位引用**，不含原文",
+        "records": "结构化记录（学情记忆等），供图侧解释而不进状态正文",
+        "status": "success / insufficient_evidence / no_binding / capability_not_found / invalid_request / error",
+        "capability / action": "这次实际执行了哪个动作、哪个能力（审计用）",
+        "error": "结构化错误（code + message）",
+        "metadata": "能力名、Skill 原状态、降级来源（degraded_from）、透传字段等"
+      },
+      "frontend_relevance_zh": "🔴 **前端目前完全看不到这个对象**。§7.3 明确要求「装配与绑定失败必须显式」，且刻意选择让学生看到**空回复**而不是安慰话（「装配错误是部署缺陷，应当响亮地暴露」）。对桌宠而言这意味着：将来某轮可能收到一个 content 为空、status 为 no_binding 的结果 —— 前端需要知道这时候该不该说话、该不该保持沉默。当前契约里**没有任何事件承载 status**，所以桌宠只能显示空回复，无法区分「能力没装配」和「模型真的没话说」。见 INCONSISTENCIES.md 第 25 条。"
+    },
+    "failure_status_zh": {
+      "_说明": "§7.3 的四种装配/绑定失败（v0.4.1 新增），均要求显式返回结构化状态，不允许静默兜底成自由发挥的文本。",
+      "no_binding": "组合根漏装配 → 正文为空；决策事件的 capability_status 与 /health 的 action_bindings 可见",
+      "capability_not_found": "绑定写错能力名 → 同上，并回传已注册能力清单",
+      "invalid_request": "绑定引用了请求里不存在的字段 → 回传 missing_fields，便于定位写错的占位符",
+      "error(template_not_found)": "选不到模板 / 兜底模板缺失 → 主能力执行前即失败，不产生半截回复"
+    }
+  },
+
+  "typical_sequences": {
+    "_说明": "各类场景的事件顺序（取自 2026-09-19 15:23 的 Mock 实测）。后端实现时应保持同等顺序。⚠️ 相比 v0.4 时代，正常一轮的结构变化很大：Mock 现在会走完 6 个教学节点（Assess→Teach→Ask→Hint→Correct→UpdateProfile），每个节点各自流式吐字。",
+    "normal_turn": [
+      "session.started {resumed:false}",
+      "agent.turn.started {input}",
+      "pedagogy.node.entered {node:'Assess'}",
+      "pedagogy.decision {next:'Teach', reason:'先确认先验知识'}   ← 紧随 Assess 进入",
+      "memory.read {query:'recent_mistakes'}",
+      "── 500ms ──",
+      "model.requested {provider:'deepseek', model:'deepseek-chat'}   ← 整轮**只发一次**",
+      "model.stream.delta {delta,index} × N   ← 第 1 段（Assess 文本，累计语义）；每 22ms 一片、每片 +4 字符",
+      "── 800ms dwell ──",
+      "pedagogy.node.exited {node:'Assess'}",
+      "pedagogy.node.entered {node:'Teach'}",
+      "model.stream.delta × N   ← 第 2 段（Teach 文本，**从空串重新累计**，不是接着上一段）",
+      "── 900ms dwell ──",
+      "pedagogy.node.exited {node:'Teach'}",
+      "pedagogy.node.entered {node:'Ask'}",
+      "model.stream.delta × N   ← 第 3 段",
+      "── 900ms dwell ──",
+      "pedagogy.node.exited {node:'Ask'}",
+      "pedagogy.node.entered {node:'Hint'}",
+      "model.stream.delta × N   ← 第 4 段",
+      "── 900ms dwell ──",
+      "pedagogy.node.exited {node:'Hint'}",
+      "pedagogy.node.entered {node:'Correct'}",
+      "model.stream.delta × N   ← 第 5 段",
+      "── 900ms dwell ──",
+      "pedagogy.node.exited {node:'Correct'}",
+      "pedagogy.node.entered {node:'UpdateProfile'}",
+      "model.stream.delta × N   ← 第 6 段",
+      "pedagogy.node.exited {node:'UpdateProfile'}   ← 最后一条 exited **先于**收尾事件（顺序已修正）",
+      "memory.write {dimension:'episodic', key:'db_normalization'}",
+      "model.completed {text}   ← 整轮**只发一次**，携带 6 段拼接后的全文",
+      "agent.turn.completed {status:'ok'}"
+    ],
+    "normal_turn_notes_zh": [
+      "⚠️ 6 段 delta 各自独立累计：第 2 段的第一片是 Teach 文本的第一个字符，**不是** Assess 全文 + 1 字符。前端 streamRef.current 是「被覆盖」语义，所以气泡里的文字会**逐段替换**而不是一路增长 —— 这与单段流式的表现不同，接真后端时要注意 §6.2 的建议是「中间节点只发 entered + delta」，若后端按「一段长流」实现，前端展现需另行确认。",
+      "⚠️ 一轮只发一次 model.requested、一次 model.completed、一次 pedagogy.decision、一次 memory.read、一次 memory.write，但发 6 次 node.entered / node.exited。这是 Mock 的简化，与 v0.4.1 §6.2「每个节点只产出决策」的粒度不一致（真实实现应是每个节点各带自己的 capability 与 capability_status）。",
+      "⚠️ 整轮时长约 9~10 秒（6 段文本 × 逐字 + 5 个 dwell），比 v0.4 时代的 1 秒长得多。"
+    ],
+    "cancel_turn": [
+      "...（已发出若干 model.stream.delta，可能停在 6 段中的任意一段）",
+      "agent.failed {reason:'cancelled', message:'本轮已取消'}   ← source='renderer'",
+      "session.compacted {reason:'cancelled'}                  ← 语义误用，见 INCONSISTENCIES.md 第 6 条（仍未修复）"
+    ],
+    "provider_error_turn": [
+      "session.started",
+      "agent.turn.started",
+      "pedagogy.node.entered {node:Assess}",
+      "model.requested",
+      "model.failed {code:RATE_LIMIT, message}",
+      "agent.failed {reason:provider, retryable:true}"
+    ],
+    "network_error_turn": [
+      "session.started",
+      "agent.turn.started",
+      "pedagogy.node.entered {node:Assess}",
+      "model.failed {code:CONN_RESET, message}",
+      "agent.failed {reason:network, retryable:true}"
+    ],
+    "reconnect": [
+      "session.resumed {resumed_from}            ← trace_id 仍为 null，见 INCONSISTENCIES.md 第 8 条",
+      "（900ms 后）model.completed {text:'会话已恢复，可以继续。'}   ← 无前置 stream.delta",
+      "agent.turn.completed {status:'ok'}"
+    ],
+    "reconnect_notes_zh": [
+      "✅ 那条恢复提示现在**能显示出来**了：App.jsx 在流式缓冲为空时退回 payload.text（原先的缺陷已修）。",
+      "⚠️ 连点 N 次「重连」会得到 N 条一模一样的提示并朗读 N 次 —— 这不是「重复展示同一条历史事件」，但说明去重能力只有在后端真的重发**同一 event_id / 同一 sequence** 时才生效。Mock 每次重连都产生新的 event_id 与新 sequence，所以去重网拦不住它。"
+    ]
+  },
+
+  "consumer_checklist_zh": {
+    "_说明": "后端（刘俊鹏）实现事件总线时的自检清单。✅ 标记的项已在前端侧就绪。",
+    "items": [
+      "envelope 八个字段全部产出（event_id / session_id / trace_id / sequence / timestamp / type / payload / source），event_id 全局唯一，trace_id 不得为 null。",
+      "✅ sequence 在**同一 session_id 内**从 1 起单调递增、连续不跳号（前端已按 session_id 分桶去重，无需前端改动）。",
+      "model.stream.delta 的 delta 发**累计全文**，index 发字符数（累计已产出字符数）。",
+      "model.stream.delta 与 model.completed 建议成对（前端已有 payload.text 兜底，不再强制）。",
+      "取消场景发 agent.failed {reason:'cancelled'}，**不要**用 session.compacted。",
+      "pedagogy.decision 用 next 而非 next_action；若同时带 action 字段，请注意它与 node 的命名体系不同（snake_case vs PascalCase）。",
+      "node.entered 与 node.exited 成对，且全部 exited 先于 agent.turn.completed（Mock 已符合）。",
+      "Reflect 节点若启用，需与前端同步补映射表（NODE_TO_ANIMATION 已含 Reflect，但 petState.js 的两张表仍缺）。",
+      "memory.write 补 source / confidence / revocable 三个字段（§5.5 与 §13.2 的合规要求；§6.2 说这四个字段由**节点**构造，不是绑定）。",
+      "【v0.4.1 新增】pedagogy.decision 携带 capability 与 capability_status，让「策略判了什么」与「执行做成了什么」可分别核对（§5.4）。",
+      "【v0.4.1 新增】pedagogy.decision 携带依据字段：evidence_sufficient / evidence_count / attempt_count / wrong_streak / hint_level / turn_count / max_turns。",
+      "【v0.4.1 新增】hint 与 test 的决策事件携带 answer_leaked，供核查「是否过早泄露答案」。",
+      "【v0.4.1 新增·隐私】决策事件载荷里**不得包含学生正文**；学生文本只出现在 decision.params（供能力层使用），事件只记长度与依据字段（§5.4、§6.4、§13.2）。**params 本身不要 emit 出去。**",
+      "【v0.4.1 新增】§7.3 的装配/绑定失败必须走结构化状态（no_binding / capability_not_found / invalid_request / error(template_not_found)），不得静默兜底成自由发挥的文本。",
+      "【v0.4.1 新增】若某个动作绑定到 render_template（hint / reflect / end），**绝不要调用模型** —— §6.2 明确「提示强度是实验自变量，不能因换模型而漂移」。",
+      "新增事件类型前先更新本文件并升版本号，不要直接上线。"
+    ]
+  }
+}

@@ -1,0 +1,289 @@
+{
+  "contract": "deepprof.pedagogy-actions",
+  "version": "1.1.0",
+  "frozen_at": "2026-09-19",
+  "status": "frozen-draft",
+  "owner": "张钧翔（桌宠前端）",
+  "co_owner": "孙一新（Pedagogical Graph，教学动作生产方）",
+  "source_of_truth": {
+    "_说明": "本文件的事实标准来自三处**代码**，不来自文档。文档有出入处以代码为准，出入点见 INCONSISTENCIES.md。",
+    "教学动作定义": "DESIGNv0.4.1 §6.2（教学决策节点表 + 动作→能力绑定表）+ desktop/src/renderer/src/App.jsx（消费）",
+    "PNG 动画映射": "desktop/src/renderer/src/petAnimations.js 的 NODE_TO_ANIMATION ← **当前唯一真正生效的 PNG 映射**",
+    "PNG 表情映射": "desktop/src/renderer/src/petState.js 的 NODE_TO_EXPRESSION ⚠️ 死代码，见下方警告",
+    "Live2D 映射": "desktop/src/renderer/src/petState.js 的 NODE_TO_LIVE2D ✅ 现在**已生效**（Live2D 可在右键菜单切换）"
+  },
+  "design_ref": "DESIGNv0.4.1 §6.2（教学决策节点 / 动作→能力绑定表）、§6.3（教育能力）、§6.4（策略图状态）、§7.1（PedagogicalDecision / CapabilityResult）、§7.3（失败与回退）、§16.3（孙一新任务与验收）",
+  "changelog_zh": {
+    "1.0.0 -> 1.1.0": [
+      "对齐 DESIGNv0.4.1。",
+      "✅ **Live2D 已启用**：App.jsx 的 mode 现在有 setter，右键菜单有「切到 Live2D（链路测试）」入口。1.0.0 里「Live2D 整条链路未启用，live2d 列不生效」的警告**已过期**，本版改为「已生效，但有两点注意」。",
+      "✅ **Reflect 已补映射**：NODE_TO_ANIMATION['Reflect'] = 'think'。原先「后端一发就静默退回 idle」的缺口已修。",
+      "✅ **Teach / Ask / Hint 已各自独立**：不再是共用一个 talk（视觉上无法区分）。Correct 也不再借用 sad，有了独立的 correct 素材。",
+      "❌ NODE_TO_EXPRESSION / resolveExpression / assetUrl 仍是死代码（全项目无人 import），expression 列仍不参与渲染。",
+      "❌ NODE_TO_LIVE2D 仍缺 Reflect（8 个节点只有 7 个键）。",
+      "新增 v041_bindings_reference 段：登记 §6.2 的**动作 → 能力绑定表**（capability / require_evidence / 是否调模型），这是 v0.4.1 最重要的新增内容 —— 它决定了「哪些动作会真的调模型」，也决定了 §7.3 的失败语义何时出现。",
+      "每个 action 新增 v041 字段：capability、require_evidence、answer_leaked、model_call。"
+    ]
+  },
+
+  "implementation_status_warning_zh": {
+    "_说明": "⚠️ 这一节会直接影响「改了没效果」的排查效率，务必先读。",
+    "NODE_TO_EXPRESSION_仍是死代码": "petState.js 导出的 NODE_TO_EXPRESSION / resolveExpression / assetUrl **全项目无人 import**（App.jsx 只 import 了 resolveLive2D）。PNG 桌宠实际由 petAnimations.js 的 NODE_TO_ANIMATION → ANIMATIONS[].frames 驱动。所以本文件 actions 里的 expression 与 expression_fallback 两列**当前不参与渲染**，只有 animation 列生效。见 INCONSISTENCIES.md 第 18 条（未修复）。",
+    "Live2D_已启用_但有两点注意": "✅ 已修：App.jsx 的 mode 现在有 setter（右键菜单「切到 Live2D（链路测试）」），Live2DPet 会真的渲染，live2d 列**已生效**。⚠️ 两个残留问题：① `resolveLive2D(status, node)` 的签名里**没有 pose 参数**，内部也没有任何走路分支 —— 而 resolveAnimation 有（`if (pose === 'walk') return 'walk'`）。所以 **Live2D 模式下漫游时没有走路动作**。② NODE_TO_LIVE2D 没有 Reflect 键，后端发 Reflect 时会落到默认值 {Idle,0,0}。见 INCONSISTENCIES.md 第 19 条（残留）与第 3 条。",
+    "结论": "改桌宠表现时，先改 petAnimations.js；改 petState.js 的 NODE_TO_EXPRESSION 之前先确认那张表有没有被接上（现在没有）。"
+  },
+
+  "contract_summary_zh": "教学动作（Pedagogical Action）是后端 Pedagogical Graph 决定「此刻该怎么教」后，通过 pedagogy.node.entered 事件告知前端的节点名。桌宠把它翻译成一个可解释的表情/动作，让学生不看文字也能感知到「老师在做什么」。",
+
+  "v041_bindings_reference": {
+    "_说明": "⚠️ 本节是 1.1.0 新增，取自 DESIGNv0.4.1 §6.2 的「动作 → 能力绑定表」（`graph/education/bindings.py`，纯数据、可 JSON 序列化）。**这张表由组合根注入 Runtime，前端不参与**，登记在这里有两个理由：① 它决定了「哪些动作会真的调模型」——直接关系到桌宠的 loading/talking 表现何时合理；② 它是教师评审（§16.7）的入口之一，桌宠作为表现层需要知道每个动作背后到底做了什么。",
+    "actions": {
+      "teach / correct": { "capability": "generate_grounded + retrieve_evidence", "require_evidence": true, "model_call": true, "note_zh": "`require_evidence=True`：先取可定位证据；**取不到就不调模型**，改用绑定里的「证据不足」表述（§7.3）。" },
+      "ask": { "capability": "invoke_skill(socratic)", "require_evidence": false, "model_call": true, "note_zh": "取不到问题则退回策略模板；证据不足时由绑定追加「不含引用」说明。" },
+      "hint": { "capability": "render_template", "require_evidence": false, "model_call": false, "note_zh": "🔴 **确定性渲染，绝不调用模型** —— §6.2 的原话是「提示强度是实验自变量，不能因换模型而漂移」（§3.4）。**这条对桌宠有直接影响**：hint 阶段不该出现 model.requested / stream.delta，也不该出现「正在思考」的加载态。" },
+      "test": { "capability": "invoke_skill(quiz)", "require_evidence": false, "model_call": true, "note_zh": "按 mode 取 Skill 结果的不同位置；按判分三态（对/错/判分缺失）选框架文案。需声明 answer_leaked。" },
+      "reflect / end": { "capability": "render_template", "require_evidence": false, "model_call": false, "note_zh": "换策略建议与收束语都是**可评审的固定文案**。" },
+      "assess": { "capability": "retrieve_evidence", "require_evidence": false, "model_call": false, "note_zh": "只取「有没有可定位证据」这个信号，供状态与输出方式使用（**不参与动作选择**）。" },
+      "recall": { "capability": "read_memory", "require_evidence": false, "model_call": false, "note_zh": "读该学习者的长期学情记忆；身份取自调用上下文，检索口径来自绑定。" },
+      "diagnose": { "capability": "invoke_skill(diagnosis)", "require_evidence": false, "model_call": true, "note_zh": "只问状态；**模型未接入（not_implemented）也记为调用成功**，据此退化为规则化观察（§18.1）。" },
+      "update_profile": { "capability": "write_memory", "require_evidence": false, "model_call": false, "note_zh": "记录由**节点**构造（来源/置信度/过期策略/可撤回），绑定只声明「写进去」。" }
+    },
+    "binding_fields_zh": {
+      "capability": "要执行的通用原语：render_template / invoke_skill / retrieve_evidence / generate_grounded / read_memory / write_memory",
+      "params": "原语参数；字符串中的 ${字段} 从决策取值（支持 a.b 路径，整串占位保留原类型）",
+      "evidence": "require_evidence=True 时先执行的能力；取不到可定位证据就不执行主能力",
+      "prefix / suffix": "围绕正文的段落（开头框架、结尾说明），未声明即不加",
+      "fallback": "主能力失败时的确定性兜底",
+      "insufficient_text": "证据不足时的确定性表述（不调用模型）",
+      "memo": "声明「同一轮内可复用结果」（仅只读且同轮内稳定的能力，目前只有证据检索）。默认不备忘 —— 写学情、调模型这类有副作用的能力绝不能缓存",
+      "template_forms": "prefix / suffix / fallback / insufficient_text 是同一套模板块，两种形态可混用：{template, values} 固定模板，或 {templates, select, values} 按取值选模板。声明了 select 却选不到模板时**必须显式失败**（静默少一段会让学生看到半截回复，而绑定作者以为自己配好了）。"
+    },
+    "memo_zh": "§6.4：Assess 的探路与 Teach / Correct 的取原文参数完全相同，应得同一结果，因此绑定声明 memo，由 Runtime 按 (trace_id, 能力, 参数) 在**单轮内**复用。好处有两层：不多花一次向量查询；更重要的是**不会出现「Assess 判证据充分、Teach 却说证据不足」的自相矛盾**。跨轮不复用（trace_id 每轮不同）；ctx 里没有 trace_id 时不备忘。",
+    "naming_warning_zh": "⚠️ 这张表里的动作名是 **snake_case**（teach / update_profile / diagnose），而事件流 pedagogy.node.entered 的 node 是 **PascalCase**（Teach / UpdateProfile）。v0.4.1 §7.1 的 PedagogicalDecision 用 `action`（snake_case），§6.4 的策略图状态用 `next_action`，代码用 `next`。**四处四个名字**，文档没有给出映射关系。见 INCONSISTENCIES.md 第 29 条。"
+  },
+
+  "actions": {
+    "Assess": {
+      "implemented": true,
+      "cn_name": "学情诊断",
+      "trigger_zh": "新问题、阶段切换或信息不足时",
+      "behavior_zh": "判断意图、先验知识与置信度",
+      "output_zh": "学习状态快照",
+      "pet_meaning_zh": "「我先听听你怎么想」—— 不急着给答案，先摸清底细。表情偏沉思",
+      "animation": "think",
+      "expression": "thinking",
+      "expression_fallback": "idle",
+      "live2d": { "motion": "Idle", "motionIndex": 0, "expression": 2 },
+      "v041": { "capability": "retrieve_evidence", "require_evidence": false, "model_call": false, "answer_leaked": null, "note_zh": "只取信号，不调模型。⚠️ Mock 实际上在这一节点后发了 model.requested 并流式吐字（Assess 段），与绑定表不符。" },
+      "mock_text_zh": "「你问的是「……」\n\n先别急着要结论 —— 我想先确认你的起点：这块你之前接触过吗？大概知道它在解决什么问题吗？」"
+    },
+
+    "Teach": {
+      "implemented": true,
+      "cn_name": "讲解",
+      "trigger_zh": "概念缺失且适合直接解释时",
+      "behavior_zh": "分层讲解并给出来源",
+      "output_zh": "讲解片段",
+      "pet_meaning_zh": "「我来给你讲讲」—— 稳稳地讲、节奏均匀。**不再是和 Ask/Hint 共用的通用说话态**",
+      "animation": "teach",
+      "expression": "teach",
+      "expression_fallback": "idle",
+      "live2d": { "motion": "Idle", "motionIndex": 1, "expression": 0 },
+      "v041": { "capability": "generate_grounded + retrieve_evidence", "require_evidence": true, "model_call": true, "answer_leaked": null, "note_zh": "require_evidence=True：取不到可定位证据就**不调模型**，改用「证据不足」表述。桌宠此时应表现为「没话说」而不是「在思考」—— 但当前没有事件能区分这两种情况。" },
+      "mock_text_zh": "「先把三范式串一遍……1NF / 2NF / 3NF ……一句话总结：拆到每个非主属性都直接依赖键、而且只依赖键，就到位了。」"
+    },
+
+    "Ask": {
+      "implemented": true,
+      "cn_name": "苏格拉底式提问",
+      "trigger_zh": "学生具备推理基础时",
+      "behavior_zh": "苏格拉底式追问",
+      "output_zh": "问题与预期认知目标",
+      "pet_meaning_zh": "「换你来想想」—— **歪着头、慢慢地**，等你回答的姿态。已与 Teach 区分开",
+      "animation": "ask",
+      "expression": "ask",
+      "expression_fallback": "idle",
+      "live2d": { "motion": "Idle", "motionIndex": 2, "expression": 3 },
+      "v041": { "capability": "invoke_skill(socratic)", "require_evidence": false, "model_call": true, "answer_leaked": null, "note_zh": "§6.3 明确 Socratic 的职责含「避免过早泄露答案」；§7.1 的 reveal_answer「提示与追问恒为 False」。" },
+      "mock_text_zh": "「那我考你一个。手上有张表：（学号, 课程号, 教师名）……它满足 3NF 吗？先别急着答，说说你的判断过程。」"
+    },
+
+    "Hint": {
+      "implemented": true,
+      "cn_name": "提示",
+      "trigger_zh": "尝试受阻但不宜直接给答案时",
+      "behavior_zh": "从轻到重给提示",
+      "output_zh": "提示级别与内容",
+      "pet_meaning_zh": "「给你个台阶」—— 小幅快弹，像在鼓励你。已与 Teach 区分开",
+      "animation": "hint",
+      "expression": "hint",
+      "expression_fallback": "idle",
+      "live2d": { "motion": "Tap", "motionIndex": 1, "expression": 4 },
+      "v041": { "capability": "render_template", "require_evidence": false, "model_call": false, "answer_leaked": "必填", "note_zh": "🔴 **绝不调用模型**（提示强度是实验自变量）。必须声明 answer_leaked。⚠️ **Mock 与这条直接冲突**：Mock 在 Hint 段照样逐字流式吐字、且一开始就发过 model.requested。见 INCONSISTENCIES.md 第 26 条。" },
+      "mock_text_zh": "「给你个抓手：先找出这张表的候选键（是「学号+课程号」），再看有没有哪个非主属性是绕了个弯才依赖到键上的……」",
+      "note_zh": "§6.4 图状态里有 hint_level 字段，v0.4.1 §5.4 把它列为 pedagogy.decision 的「依据」字段之一。**当前事件契约里没有把它暴露给前端**，所以桌宠无法做「轻提示 vs 强提示」的差异化表现。"
+    },
+
+    "Correct": {
+      "implemented": true,
+      "cn_name": "纠错",
+      "trigger_zh": "出现稳定错误或概念混淆时",
+      "behavior_zh": "指出冲突、解释原因、提供对比例",
+      "output_zh": "纠错记录",
+      "pet_meaning_zh": "「这里不对哦」—— 用**专门的 correct 表情**（温和地指出错误），不再借用「难过」",
+      "animation": "correct",
+      "expression": "correct",
+      "expression_fallback": "sorry",
+      "live2d": { "motion": "Tap", "motionIndex": 1, "expression": 5 },
+      "v041": { "capability": "generate_grounded + retrieve_evidence", "require_evidence": true, "model_call": true, "answer_leaked": null },
+      "fixed_zh": "✅ 这里曾有一个真实问题：早期没有 correct 素材，动画映射借用 'sad'（难过）。但「**你答错了**」（老师视角，要温和鼓励）和「**我掉线了**」（自身视角，要泄气）是两种完全不同的情绪。现在动画映射到独立的 correct 素材。⚠️ 残留：petState.js 的 FALLBACK 表仍是 correct → sorry，但那张表是死代码，不影响画面。",
+      "mock_text_zh": "「你答到一半了。这张表满足 2NF，但**不满足 3NF** —— 因为存在 课程号 → 教师名 这条传递依赖……」"
+    },
+
+    "Test": {
+      "implemented": true,
+      "cn_name": "测验",
+      "trigger_zh": "需要验证理解或间隔复习时",
+      "behavior_zh": "生成题目并评价作答",
+      "output_zh": "测验结果",
+      "pet_meaning_zh": "「来，做道题」—— 精神饱满的小幅快弹，让学生立刻意识到要作答了",
+      "animation": "quiz",
+      "expression": "quiz",
+      "expression_fallback": null,
+      "live2d": { "motion": "Tap", "motionIndex": 0, "expression": 6 },
+      "v041": { "capability": "invoke_skill(quiz)", "require_evidence": false, "model_call": true, "answer_leaked": "必填", "note_zh": "按判分三态（对/错/判分缺失）选框架文案。必须声明 answer_leaked。" },
+      "mock_text_zh": "「出个题验证一下：若有关系 R(学号, 姓名, 课程号, 成绩)，其中「学号→姓名」。① 它的候选键是什么？② 存在哪种依赖问题？③ 该怎么拆？」",
+      "note_zh": "⚠️ **Mock 从不发 Test 节点**。它只走 Assess→Teach→Ask→Hint→Correct→UpdateProfile 六条；Test 与 Reflect 在演示里只能靠聊天面板底部的**「教学动作」按钮排**手动驱动（纯前端置 node，不走事件流）。"
+    },
+
+    "UpdateProfile": {
+      "implemented": true,
+      "cn_name": "更新学情",
+      "trigger_zh": "节点完成或会话结束时",
+      "behavior_zh": "更新掌握度、错误模式与偏好",
+      "output_zh": "学情增量",
+      "pet_meaning_zh": "「这次你搞清楚了，我记下来了」—— 高兴表情，给正反馈。注意它同时是**向数据组写记忆**的触发点",
+      "animation": "happy",
+      "expression": "happy",
+      "expression_fallback": null,
+      "live2d": { "motion": "Tap", "motionIndex": 0, "expression": 1 },
+      "v041": { "capability": "write_memory", "require_evidence": false, "model_call": false, "answer_leaked": null, "note_zh": "记录由节点构造（来源/置信度/过期策略/可撤回），绑定只声明「写进去」。⚠️ Mock 的 memory.write 只带 dimension + key，四个合规字段一个都没有。" },
+      "mock_text_zh": "「好，这次的传递依赖和部分依赖你都过了一遍。我记了两个点……下次复习会优先带这两个点。」",
+      "note_zh": "命名统一用 PascalCase 的 UpdateProfile。⚠️ DESIGNv0.4.1 §4.1 表里**仍然**写作带空格的「Update Profile」（v0.4.1 未修正），以代码与 §6.2 的实际值为准。见 INCONSISTENCIES.md 第 14 / 17 条。"
+    },
+
+    "Reflect": {
+      "implemented": true,
+      "implemented_scope_zh": "**仅 PNG 动画映射已实现**（NODE_TO_ANIMATION['Reflect'] = 'think'）。expression 与 live2d 两列仍未补。",
+      "cn_name": "反思回退",
+      "trigger_zh": "多轮无进展、异常或策略失效时",
+      "behavior_zh": "选择回退、换策略或求助教师",
+      "output_zh": "策略调整",
+      "animation": "think",
+      "expression": null,
+      "expression_fallback": null,
+      "live2d": null,
+      "fixed_zh": "✅ **原先的高危缺口已修**：1.0.0 时 NODE_TO_ANIMATION 只有 7 个键、没有 Reflect，而 §6.2 定义了它、§16.3 验收项明确要求「加入最大轮次、退出与 **Reflect 回退**」——也就是说它一定会被发出来。解析函数末尾的 || 'idle' 兜底会让它**静默退回待机**：不报错、不崩溃、没有任何表现，联调时极难发现。现在 animation 已映射到 'think'。",
+      "why_think_zh": "为什么选 think 而不是 sad：Reflect 是**内部策略调整**，对学生应表现为「再想想」，不应表现成出错（sad），否则学生会误以为是自己答错了（§13.1 教育伦理：不能让纠错/回退被误解为对学生本人的负面评价）。",
+      "remaining_gap_zh": "⚠️ 两处仍缺：① petState.js 的 NODE_TO_EXPRESSION 没有 Reflect（死代码，不影响画面）；② NODE_TO_LIVE2D 没有 Reflect —— 切到 Live2D 模式后，后端发 Reflect 会落到默认值 {motion:'Idle', motionIndex:0, expression:0}（一个无表情的待机），**这就是一个新的静默失败**。",
+      "v041": { "capability": "render_template", "require_evidence": false, "model_call": false, "answer_leaked": null, "note_zh": "§6.2：reflect / end 换策略建议与收束语都是**可评审的固定文案**（render_template），不调模型。" },
+      "mock_text_zh": "⚠️ Mock **不发** Reflect 节点。演示入口：聊天面板底部「教学动作」按钮排里的 Reflect 按钮（纯前端置 node，不走事件流）。"
+    }
+  },
+
+  "status_mapping": {
+    "_说明": "运行状态 → 表现。**优先级高于教学节点**：状态非 idle 时，无论当前在哪个教学节点，都按状态表现。这是 App.jsx 里 resolveAnimation(pose, status, node) 与 resolveLive2D(status, node) 的实现逻辑。",
+    "source_of_truth": "desktop/src/renderer/src/petAnimations.js 的 STATUS_TO_ANIMATION + petState.js 的 STATUS_TO_EXPRESSION / STATUS_TO_LIVE2D",
+    "statuses": {
+      "idle": {
+        "cn_name": "待机",
+        "trigger_zh": "空闲，没有进行中的一轮",
+        "animation": null,
+        "expression": null,
+        "live2d": null,
+        "note_zh": "idle 不在映射表中 —— 它是「不覆盖教学节点映射」的意思。状态为 idle 时表现由当前教学节点决定，没有节点时才回落到 idle 动画/表情。"
+      },
+      "loading": {
+        "cn_name": "加载中 / 思考中",
+        "trigger_zh": "agent.turn.started 或 model.requested 之后，首个 model.stream.delta 之前",
+        "animation": "think",
+        "expression": "thinking",
+        "expression_fallback": "idle",
+        "live2d": { "motion": "Idle", "motionIndex": 2, "expression": 2 },
+        "bubble_zh": "气泡显示 persona.js 挑的一句 loading 台词（如「唔…我想想。」），**不是**「思考中…」这种系统提示语"
+      },
+      "streaming": {
+        "cn_name": "回复中",
+        "trigger_zh": "收到首个 model.stream.delta 之后",
+        "animation": null,
+        "expression": null,
+        "live2d": null,
+        "note_zh": "⚠️ streaming **不在** STATUS_TO_ANIMATION / STATUS_TO_EXPRESSION 中。它是靠 App.jsx 单独把 talking={status === 'streaming'} 传给宠物组件来驱动说话嘴型（RigPet.jsx / FramePet.jsx 的 talking 属性）实现的。因此流式期间的表情仍来自当前教学节点。这是容易漏掉的一处实现细节，后端不需要关心，但前端改动时要注意。",
+        "bubble_zh": "气泡显示流式文本 + 闪烁光标"
+      },
+      "error": {
+        "cn_name": "出错了",
+        "trigger_zh": "收到 model.failed，或 agent.failed 且 reason !== 'cancelled'",
+        "animation": "sad",
+        "expression": "error",
+        "expression_fallback": "sorry",
+        "live2d": { "motion": "Tap", "motionIndex": 0, "expression": 7 },
+        "bubble_zh": "气泡显示 persona.js 的 error 台词（如「啧，掉线了。要我再试一次吗？」）"
+      },
+      "cancelled": {
+        "cn_name": "已取消",
+        "trigger_zh": "收到 agent.failed 且 payload.reason === 'cancelled'",
+        "animation": "sad",
+        "expression": "sorry",
+        "expression_fallback": null,
+        "live2d": { "motion": "Idle", "motionIndex": 0, "expression": 4 },
+        "bubble_zh": "气泡显示 persona.js 的 cancelled 台词（如「行，那先停这儿。」）",
+        "note_zh": "⚠️ 取消是**用户主动**行为，语义上不该表现成难过（sad / sorry），与 error 视觉重复会让用户误以为出错。这一条 1.0.0 就记了，**至今未改**。见 INCONSISTENCIES.md 第 31 条。"
+      },
+      "reconnecting": {
+        "cn_name": "重连中",
+        "trigger_zh": "收到 session.resumed",
+        "animation": "think",
+        "expression": "thinking",
+        "expression_fallback": "idle",
+        "live2d": { "motion": "Idle", "motionIndex": 2, "expression": 2 },
+        "bubble_zh": "气泡显示 persona.js 的 reconnecting 台词（如「信号有点差…我重连一下。」）"
+      }
+    }
+  },
+
+  "pose_mapping": {
+    "_说明": "姿势状态由主进程漫游逻辑驱动，与教学无关。优先级最高，盖过一切。",
+    "source_of_truth": "App.jsx 的 pose = walking ? 'walk' : 'idle' + petAnimations.js 的 resolveAnimation 首行判断",
+    "walk": {
+      "trigger_zh": "主进程通过 pet:walk 通道通知 walking=true（自动漫游中）",
+      "animation": "walk",
+      "note_zh": "resolveAnimation 第一行就是 if (pose === 'walk') return 'walk'，先于状态与节点判断。⚠️ Live2D 路径没有这个分支（resolveLive2D 签名里没有 pose 参数）。"
+    }
+  },
+
+  "resolution_priority": {
+    "_说明": "resolveAnimation 与 resolveLive2D 的实际优先级链，前端实现必须与此一致。",
+    "animation_order": ["walk（漫游中）", "STATUS_TO_ANIMATION[status]", "NODE_TO_ANIMATION[node]", "'idle'"],
+    "expression_order": ["STATUS_TO_EXPRESSION[status]", "NODE_TO_EXPRESSION[node]", "'idle'", "FALLBACK 兜底表"],
+    "live2d_order": ["STATUS_TO_LIVE2D[status]", "NODE_TO_LIVE2D[node]", "{motion:'Idle', motionIndex:0, expression:0}"],
+    "call_site_notes_zh": "⚠️ Live2D 已可切换，所以「两条调用链姿势处理不对称」这件事**现在有实际影响了**：① resolveAnimation(pose, status, node) 内部第一行就是 if (pose === 'walk') return 'walk'，走路优先级最高。② resolveLive2D(status, node) 签名里**根本没有 pose 参数**，也没有走路分支。所以 **Live2D 模式下漫游时桌宠不会有走路动作**，只会平移。见 INCONSISTENCIES.md 第 21 条。",
+    "silent_fallback_warning_zh": "⚠️ 三条链路末尾都有兜底（'idle' / 默认对象）。这意味着**未知节点名永远不会报错**，只会静默退化。新增节点时必须同步通知前端补映射，不能指望测试时暴露问题。**这条机制现在依然存在**（只有 Reflect 这一个已知缺口被补上了）。"
+  },
+
+  "backend_contract_zh": {
+    "_说明": "给孙一新（Pedagogical Graph 负责人）与刘俊鹏（事件总线）的对接要点。",
+    "items": [
+      "教学动作通过 pedagogy.node.entered 事件的 payload.node 传给前端，值必须是上面 actions 里的键名（PascalCase：Assess / Teach / Ask / Hint / Correct / Test / UpdateProfile / Reflect）。",
+      "每次 node.entered 必须有配对的 node.exited，且 exited 应在 agent.turn.completed 之前发出。（Mock 已符合。）",
+      "分支决策通过 pedagogy.decision 事件的 payload.next 告知（**不是** next_action，也不是 action）。",
+      "前端**不会**因为收到未知节点名而报错，只会静默退回 idle —— 所以新增节点时务必同步通知前端补映射，不能指望测试时暴露问题。",
+      "Reflect 的 PNG 动画映射已补（→ think），可以放心发出。但 Live2D 映射仍缺 Reflect。",
+      "【v0.4.1 新增】pedagogy.decision 需要携带 capability 与 capability_status，让「策略判了什么」与「执行做成了什么」可分别核对（§5.4）。前端目前不消费，但教师评审要看。",
+      "【v0.4.1 新增】hint 与 test 的决策事件需要声明 answer_leaked（§5.4）。",
+      "【v0.4.1 新增·隐私】决策事件载荷里不得包含学生正文；学生文本只出现在 decision.params，且 params 本身不要 emit（§5.4 / §6.4 / §13.2）。",
+      "【v0.4.1 新增】绑定到 render_template 的动作（hint / reflect / end）**绝不调用模型**。请勿让这些动作产生 model.requested / model.stream.delta —— 否则桌宠会显示「正在思考」，与「确定性渲染」的语义矛盾。",
+      "【v0.4.1 新增】§7.3 的装配/绑定失败必须显式（no_binding / capability_not_found / invalid_request / error(template_not_found)）。学生可见表现是**空回复**（这是有意的取舍）。前端目前无法区分「空回复」与「没话说」，建议把 capability_status 写进 pedagogy.decision。"
+    ]
+  }
+}
