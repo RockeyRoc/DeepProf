@@ -282,7 +282,7 @@ shared/contracts/
 | **§7.3 装配/绑定失败的表现** | v0.4.1 要求装配错误「响亮地暴露」且学生可见表现是「空回复」；但事件流里没有字段承载 `CapabilityResult.status`，**桌宠分不清「装配失败的空回复」与「没话说」**。 |
 | **`pedagogy.decision` 的 v0.4.1 字段** | 缺 `capability` / `capability_status` / 依据字段（`evidence_sufficient` 等）/ `answer_leaked`，共 11 个。这是 v0.4.1 为「实验复盘」新增的必填内容。 |
 | **~~`toggleThrough` 的一行缺陷~~** | ✅ **已修复（核对于 2026-09-19）**：`App.jsx` 的 `toggleThrough()` 现在按 `next` 传参（`setIgnoreMouse(next)`），**强制穿透可以开、也可以关**。历史上它开关强制穿透时**无论开关都传 `true`**，且只能从菜单进入一次 —— **开了就关不掉**。 |
-| **~~安装包 / 分发~~** | ✅ **已解决（2026-09-19 晚）**：`electron-builder` 已装好并配在 `package.json` 的 `build` 字段。`npm run dist` 出安装版 + 免安装版（`release/` 下），`npm run dist:dir` 只出 `win-unpacked/`。**打包版实测通过**（渲染、Mock 237 事件、TTS 合成）。⚠️ 遗留：**无应用图标**（用 Electron 默认）、**无代码签名**（首次运行有 SmartScreen 警告）。详见 `docs/启动说明.md` §3.4。 |
+| **~~安装包 / 分发~~** | ✅ **已解决（2026-09-19 晚）**：`electron-builder` 已装好并配在 `package.json` 的 `build` 字段。`npm run dist` 出安装版 + 免安装版（`release/` 下），`npm run dist:dir` 只出 `win-unpacked/`。**打包版实测通过**（渲染、Mock 237 事件、TTS 合成）。⚠️ 遗留：**无应用图标**（用 Electron 默认）、**无代码签名**（首次运行有 SmartScreen 警告）。详见 `docs/启动说明.md` §3.4。<br>**当前版本 `0.2.1`**：免安装版 99.5 MB / 安装版 99.7 MB，下载地址 [Release `desktop-v0.2.1`](https://github.com/RockeyRoc/DeepProf/releases/tag/desktop-v0.2.1)（`release/` 是 gitignore 的，**exe 不随分支走**；Release 附件名是**英文**的 —— `DeepProf-Pet-portable-0.2.1.exe` / `DeepProf-Pet-setup-0.2.1.exe`，这是**故意的**，GitHub 附件名对中文处理不可靠）。⚠️ `release/` 里 0.1.0 / 0.2.0 的是历史包，**别拿**。 |
 | **多显示器 / 缩放** | 只取 `screen.getPrimaryDisplay()`，副屏与高 DPI 未专门适配（但已针对分数 DPI 的窗口漂移做了 `setBounds` 处理）。 |
 
 ### 🔴 2026-09-19 夜 · 问题快照（**拍摄于 15:23**）
