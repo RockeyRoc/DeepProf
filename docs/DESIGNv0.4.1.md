@@ -609,15 +609,27 @@ DeepProf/
 ├── api/                             # FastAPI routes / WebSocket
 │   └── app.py                       # 组合根：装配工具、Skill 与绑定表
 ├── config/
+├── migrations/                      # SQLite 迁移（§16.5）
+├── data/                            # 运行期数据（SQLite / 向量库）；.gitignore 已排除
+├── media/                           # 门户与文档配图
+├── plugins/                         # 第三方插件【安装目录】+ trusted.json 信任清单
+│                                    # ⚠️ 必须留在插件包之外（理由见 config/settings.py 注释）；
+│                                    #    与 runtime/plugins/（Plugin Runtime 代码）职责不同
+├── scripts/                         # 开发期独立脚本（不在装配链上，仅手工运行）
+├── shared/
+│   └── contracts/                   # 前后端事件 / IPC / 教学动作契约（§16.4）
+├── desktop/                         # Electron + React 桌宠前端（§16.4）
 ├── tests/
 │   ├── runtime/
 │   ├── graph/
 │   ├── skills/
 │   ├── integration/
 │   └── test_architecture_boundaries.py   # 三条架构守卫（依赖 / 词汇 / 端口）
+├── evaluation/                      # 【未建 · 待建】§16.6 模型评测、§16.8 评分量规
 └── docs/
     ├── DESIGNv0.4.1.md
-    └── deepprof_framework_v0.4.html
+    ├── deepprof_framework_v0.4.html
+    └── review/                      # 【未建 · 待建】§16.8 评审记录
 ```
 
 ### 9.1 依赖规则
