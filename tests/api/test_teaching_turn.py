@@ -15,22 +15,8 @@ import json
 
 from fastapi.testclient import TestClient
 
-from api.app import create_app
-from api.deps import get_runtime_service
 from config import settings
-from runtime.providers.fake import FakeProvider
-from runtime.sandbox.policy import SandboxPolicy
-from runtime.service import RuntimeService
-from runtime.storage.sqlite_store import SqliteDatabase
-
-
-def _client() -> tuple[TestClient, RuntimeService]:
-    service = RuntimeService(
-        provider=FakeProvider(), db=SqliteDatabase(":memory:"), sandbox=SandboxPolicy.from_settings()
-    )
-    app = create_app(runtime=service)
-    app.dependency_overrides[get_runtime_service] = lambda: service
-    return TestClient(app), service
+from tests.conftest import make_client, make_service
 
 
 def _sse_frames(body: str) -> list[dict]:
@@ -56,7 +42,8 @@ def _new_session(client: TestClient, learner_id: str = "learner_a") -> str:
 
 
 def test_teaching_turn_runs_graph_and_returns_frontend_payload():
-    client, service = _client()
+    service = make_service(with_sandbox=True)
+    client = make_client(service)
     session_id = _new_session(client)
 
     response = client.post(
@@ -96,7 +83,8 @@ def test_teaching_turn_runs_graph_and_returns_frontend_payload():
 
 
 def test_teaching_state_continues_across_turns_and_is_replayable():
-    client, service = _client()
+    service = make_service(with_sandbox=True)
+    client = make_client(service)
     session_id = _new_session(client)
     url = f"/sessions/{session_id}/teaching-turn"
 
@@ -124,7 +112,7 @@ def test_teaching_state_continues_across_turns_and_is_replayable():
 
 
 def test_teaching_turn_rejects_unknown_session():
-    client, _ = _client()
+    client = make_client(make_service(with_sandbox=True))
 
     response = client.post("/sessions/sess_missing/teaching-turn", json={"content": "在吗"})
 

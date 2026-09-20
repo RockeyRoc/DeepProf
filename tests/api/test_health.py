@@ -19,10 +19,8 @@ from api.deps import (
     reset_default_service,
 )
 from config import settings
-from runtime.providers.fake import FakeProvider
-from runtime.service import RuntimeService
-from runtime.storage.sqlite_store import SqliteDatabase
 from runtime.tools.base import FunctionTool, ToolContext, ToolResult
+from tests.conftest import make_client, make_service
 
 #: 一旦作为字段名出现就意味着可能泄露密钥的形态
 SECRET_KEY_SUFFIXES = ("_key", "_token", "_secret", "_password", "_credential")
@@ -49,18 +47,6 @@ def _all_keys(value) -> list[str]:
     return []
 
 
-def build_service() -> RuntimeService:
-    """构造不触网的 RuntimeService。"""
-    return RuntimeService(provider=FakeProvider(), db=SqliteDatabase(":memory:"))
-
-
-def build_client(service: RuntimeService) -> TestClient:
-    """注入 RuntimeService 并返回 TestClient。"""
-    app = create_app(runtime=service)
-    app.dependency_overrides[get_runtime_service] = lambda: service
-    return TestClient(app)
-
-
 async def _noop(arguments: BaseModel, ctx: ToolContext) -> ToolResult:
     """标记工具的空实现。"""
     return ToolResult.success("marker")
@@ -68,7 +54,7 @@ async def _noop(arguments: BaseModel, ctx: ToolContext) -> ToolResult:
 
 def test_health_ok_and_no_secrets():
     """健康检查必须 200，且响应里既无密钥字段名也无密钥值。"""
-    response = build_client(build_service()).get("/health")
+    response = make_client(make_service()).get("/health")
 
     assert response.status_code == 200
     payload = response.json()
@@ -112,8 +98,8 @@ def test_default_service_is_configured_too():
 
 def test_dependency_override_replaces_runtime():
     """dependency_overrides 注入的 Runtime 才是实际被调用的那一个。"""
-    app_service = build_service()
-    override_service = build_service()
+    app_service = make_service()
+    override_service = make_service()
     override_service.register_tool(
         FunctionTool(
             name="marker_tool",

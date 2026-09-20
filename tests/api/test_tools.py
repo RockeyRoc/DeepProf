@@ -11,27 +11,17 @@ from __future__ import annotations
 
 import asyncio
 
-from runtime.providers.fake import FakeProvider
 from runtime.sandbox.policy import PERM_FS_READ
-from runtime.service import RuntimeService
-from runtime.storage.sqlite_store import SqliteDatabase
 from runtime.tools.base import ToolContext
-from tools import register_default_tools
+from tests.conftest import make_service
 from tools.retrieval import STATUS_INSUFFICIENT, TOOL_NAME
-
-
-def build_service() -> RuntimeService:
-    """构造不触网、并已装配项目级工具的 RuntimeService。"""
-    service = RuntimeService(provider=FakeProvider(), db=SqliteDatabase(":memory:"))
-    register_default_tools(service.tools)
-    return service
 
 
 def test_search_textbook_returns_insufficient_evidence():
     """没有索引就必须说没有证据，绝不返回编造的 document_id / page。"""
 
     async def _run():
-        service = build_service()
+        service = make_service(with_tools=True)
         result = await service.tools.execute(
             TOOL_NAME,
             {"query": "导数的定义", "concept_ids": ["calc.derivative"], "top_k": 3},
@@ -60,7 +50,7 @@ def test_search_textbook_writes_audit_events():
     """工具执行必须留下审计事件（§5.3 必须经过权限检查与审计）。"""
 
     async def _run():
-        service = build_service()
+        service = make_service(with_tools=True)
         await service.tools.execute(
             TOOL_NAME,
             {"query": "洛必达法则"},

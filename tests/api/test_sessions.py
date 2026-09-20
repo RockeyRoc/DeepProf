@@ -16,11 +16,7 @@ import json
 
 from fastapi.testclient import TestClient
 
-from api.app import create_app
-from api.deps import get_runtime_service
-from runtime.providers.fake import FakeProvider
-from runtime.service import RuntimeService
-from runtime.storage.sqlite_store import SqliteDatabase
+from tests.conftest import make_client, make_service
 
 #: RuntimeEvent 的 dict 形状（§18.2），缺少任一字段前端就无法重连对账
 EVENT_FIELDS = (
@@ -33,18 +29,6 @@ EVENT_FIELDS = (
     "source",
     "timestamp",
 )
-
-
-def build_service() -> RuntimeService:
-    """构造不触网的 RuntimeService。"""
-    return RuntimeService(provider=FakeProvider(), db=SqliteDatabase(":memory:"))
-
-
-def build_client(service: RuntimeService) -> TestClient:
-    """注入 RuntimeService 并返回 TestClient。"""
-    app = create_app(runtime=service)
-    app.dependency_overrides[get_runtime_service] = lambda: service
-    return TestClient(app)
 
 
 def parse_sse(body: str) -> list[dict]:
@@ -76,7 +60,7 @@ def create_session(client: TestClient, learner_id: str = "stu-001", session_id: 
 # ================= 会话创建 =================
 def test_create_and_resume_session_keeps_learner():
     """创建会话返回 201；同一 session_id 再请求按恢复处理，不改写 learner_id。"""
-    with build_client(build_service()) as client:
+    with make_client(make_service()) as client:
         first = client.post("/sessions", json={"learner_id": "stu-001", "session_id": "sess-fixed"})
         assert first.status_code == 201
         assert first.json()["session_id"] == "sess-fixed"
@@ -96,7 +80,7 @@ def test_create_and_resume_session_keeps_learner():
 # ================= SSE 流式 =================
 def test_message_stream_contains_delta_and_done():
     """POST messages 返回 SSE：含 delta 与 done，事件形状为 RuntimeEvent dict。"""
-    with build_client(build_service()) as client:
+    with make_client(make_service()) as client:
         session_id = create_session(client)
         response = client.post(
             f"/sessions/{session_id}/messages",
@@ -136,7 +120,7 @@ def test_message_stream_contains_delta_and_done():
 
 def test_trace_id_header_is_passed_through():
     """请求头 trace_id 存在时作为本轮 trace_id，全部事件都归属于它。"""
-    with build_client(build_service()) as client:
+    with make_client(make_service()) as client:
         session_id = create_session(client)
         response = client.post(
             f"/sessions/{session_id}/messages",
@@ -152,7 +136,7 @@ def test_trace_id_header_is_passed_through():
 # ================= 事件回放 =================
 def test_events_replay_by_sequence():
     """GET events 能回放事件；用 latest_sequence 再查不会重复返回（断线重连）。"""
-    with build_client(build_service()) as client:
+    with make_client(make_service()) as client:
         session_id = create_session(client)
         client.post(f"/sessions/{session_id}/messages", json={"content": "什么是积分？"})
 
@@ -180,7 +164,7 @@ def test_events_replay_by_sequence():
 # ================= 会话不存在 =================
 def test_unknown_session_returns_structured_404():
     """会话不存在时返回结构化 404（session_not_found），不能是 500。"""
-    with build_client(build_service()) as client:
+    with make_client(make_service()) as client:
         missing = client.post("/sessions/no-such-session/messages", json={"content": "你好"})
         assert missing.status_code == 404
         assert missing.json()["detail"]["code"] == "session_not_found"

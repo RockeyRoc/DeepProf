@@ -109,6 +109,16 @@ def redact(value: Any) -> Any:
     return value
 
 
+def _type_value(event_type: Any) -> str:
+    """把事件类型规范成明文 value（枚举取 value，其余转字符串）。
+
+    统一入口：``str(枚举)`` 在 Python 3.11+ 会得到 ``"EventType.X"``，
+    落盘再读回就破坏事件类型的可比性。构造时与 ``to_dict()`` 必须用同一套规则，
+    否则「构造后 type 又被赋成枚举」的事件会序列化出不一致的形状。
+    """
+    return event_type.value if isinstance(event_type, Enum) else str(event_type)
+
+
 @dataclass
 class RuntimeEvent:
     """一条 Runtime / 教学事件。"""
@@ -125,7 +135,7 @@ class RuntimeEvent:
     def __post_init__(self) -> None:
         # 统一存明文值：str(枚举) 在 Python 3.11+ 会得到 "EventType.X"，
         # 落盘再读回就会破坏事件类型的可比性。
-        self.type = self.type.value if isinstance(self.type, Enum) else str(self.type)
+        self.type = _type_value(self.type)
         if not self.event_id:
             self.event_id = new_id("evt")
         if not self.timestamp:
@@ -137,7 +147,7 @@ class RuntimeEvent:
             "session_id": self.session_id,
             "trace_id": self.trace_id,
             "sequence": self.sequence,
-            "type": str(self.type),
+            "type": _type_value(self.type),
             "payload": self.payload,
             "source": self.source,
             "timestamp": self.timestamp,
