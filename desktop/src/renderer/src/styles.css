@@ -529,6 +529,36 @@ body,
   background: #f2f5f9; color: var(--muted, #6b7280); cursor: pointer; white-space: nowrap;
 }
 
+/* ── 教学依据条（可解释性）────────────────────────────
+   陈述「这个表情、这句话是根据什么给的」：轮次 / 提示级别 / 教材证据 /
+   疑似误区 / 是否证据不足 / 下一步。字段来自后端 pedagogy.result，
+   本地 Mock 也会捎带发一批（见 App.jsx 里那段注释）。
+
+   ⚠️ 和 .stat-bar 一样必须 flex-wrap —— 面板只有 ~360px 宽，
+      不换行的话排在后面的项会被挤出可视区（.stat-bar 上踩过这个坑）。 */
+.teach-bar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 5px 7px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 11px;
+}
+.teach-item {
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: #eef3fa;
+  color: #35506e;
+  white-space: nowrap;
+  cursor: help; /* 每一项的 title 里有详情 */
+}
+/* 需要注意的那几项：提示级别、证据不足、疑似误区 */
+.teach-item.warn { background: #fdf0e3; color: #9a5b12; }
+
 .consent-box {
   flex-shrink: 0;
   padding: 8px;

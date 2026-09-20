@@ -72,6 +72,16 @@ export default function App() {
    */
   const [blinkTick, setBlinkTick] = useState(0)
   const [streamText, setStreamText] = useState('')
+  /**
+   * 本轮的教学依据（可解释性）。
+   *
+   * ⚠️ 这些字段后端**一直在发** —— `api/routes/sessions.py` 的 `_result_frame()`
+   *    给 `pedagogy.result` 的 payload 里带着 turn_count / hint_level / citations /
+   *    misconceptions / evidence_sufficient / next_action / strategy_note。
+   *    但前端此前**收下就丢**，没有任何 UI —— 「已知限制」里明记着这条。
+   *    它们的用途正是评审要看的：这个表情、这句话，是根据什么给的。
+   */
+  const [teachInfo, setTeachInfo] = useState(null)
   const [messages, setMessages] = useState([])
   const [events, setEvents] = useState([])
   const [showLog, setShowLog] = useState(false)
@@ -227,6 +237,7 @@ export default function App() {
         setStatus('loading')
         setNode(null)
         setEmotion(null) // 新一轮开始，上一轮的情绪标签作废
+        setTeachInfo(null) // 教学依据同理：上一轮的不能留着装成这一轮的
         streamRef.current = ''
         setStreamText('')
         setBubbleOn(true)
@@ -263,6 +274,16 @@ export default function App() {
             })
           }
         }
+        // 教学依据：这些字段后端一直在发，此前前端收下就丢（见已知限制）。
+        setTeachInfo({
+          turn: payload.turn_count,
+          hint: payload.hint_level,
+          citations: Array.isArray(payload.citations) ? payload.citations : null,
+          misconceptions: Array.isArray(payload.misconceptions) ? payload.misconceptions : null,
+          evidence: payload.evidence_sufficient,
+          next: payload.next_action,
+          note: payload.strategy_note
+        })
         setBubbleOn(true)
         setStatus('idle')
         setStats((s) => interact(s, 'chat'))
@@ -297,6 +318,19 @@ export default function App() {
             })
           }
         }
+        // 教学依据：Mock 用 model.completed 捎带发这批字段（真后端走 pedagogy.result，
+        // 见上面那个 case）。两条路填的是同一个 state，所以 UI 不用分情况。
+        if (payload.turn_count !== undefined || payload.hint_level !== undefined) {
+          setTeachInfo({
+            turn: payload.turn_count,
+            hint: payload.hint_level,
+            citations: Array.isArray(payload.citations) ? payload.citations : null,
+            misconceptions: Array.isArray(payload.misconceptions) ? payload.misconceptions : null,
+            evidence: payload.evidence_sufficient,
+            next: payload.next_action,
+            note: payload.strategy_note
+          })
+        }
         streamRef.current = ''
         setStreamText('')
         setStatus('idle')
@@ -311,6 +345,22 @@ export default function App() {
           { role: 'sys', text: `模型失败：${payload.message || payload.code}` }
         ])
         break
+      /**
+       * ⚠️ `agent.cancelled` 和 `agent.failed` 是**两个不同的事件类型**，后端都会发。
+       *
+       * 后端 `runtime/core/agent.py`：`asyncio.CancelledError` 时发的是
+       * `EventType.AGENT_CANCELLED`（payload `{reason: "cancelled"}`），
+       * `AGENT_FAILED` 走的是另一条路径。而本契约原先写着
+       * 「agent.failed 是取消状态的**唯一**表达方式」—— 与实现不符。
+       *
+       * 只监听 agent.failed 的后果：真后端取消一轮时这里什么都不做，
+       * 状态**永久卡在 streaming**、朗读也不会停。而「流式文本与语音可停止」
+       * 是 §16.4 的验收项，演示时正好会踩到。
+       *
+       * 两个 case 共用同一段处理：payload 形状一致（都带 reason），
+       * 所以直接 fall-through，不复制逻辑。
+       */
+      case 'agent.cancelled':
       case 'agent.failed':
         interruptSpeech() // 取消/失败都不该继续念
         if (payload.reason === 'cancelled') {
@@ -675,8 +725,17 @@ export default function App() {
           <button onClick={() => { setMenuOpen(false); setPetScale(1) }}>
             恢复默认大小（{Math.round(petScale * 100)}%）
           </button>
-          <button onClick={() => { setMenuOpen(false); setRigMode((v) => !v) }}>
-            {rigMode ? '换成逐帧动作' : '换成分层走路'}
+          {/*
+            ⏸ 分层 rig 暂停（2026-09-20）。
+            理由与 walk/blink/talk 三批旧帧完全一样：rig 的三层贴图是从
+            `assets/pet/idle.png` 拆出来的，而那张还是**上一个角色**（深蓝双马尾）。
+            切过去小人就变回旧形象了 —— 和新换的 Q 版表情批串味。
+
+            接回来：拿新角色的立绘跑 `_素材工作区/拆腿.py --接入` 重拆三层，
+            再把下面这个按钮的 disabled 和 title 去掉。
+          */}
+          <button disabled title="等新角色的立绘拆好腿再接回来">
+            {rigMode ? '换成逐帧动作' : '分层走路（暂停·等新角色）'}
           </button>
           {/*
             Live2D 本轮不提供 —— 这是【范围决定】，不是故障。
@@ -854,6 +913,71 @@ export default function App() {
                   清空记录
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* ── 教学依据条 ──
+              这些字段后端**一直在发**（`api/routes/sessions.py` 的 `_result_frame()`
+              塞进 `pedagogy.result`），但前端此前收下就丢 —— 「已知限制」里
+              明记着「citations / hint_level / misconceptions 还没有对应的 UI」。
+
+              它们的意义是**可解释性**（DESIGN §12 / §13.1）：让评审看得见
+              「这个表情、这句话是根据什么给的」，而不是模型说什么就是什么。
+              所以这里只**陈述依据**，不做任何评价或打分。
+
+              ⚠️ 位置：放在「教学动作」按钮行**正上方** —— 和教学相关的东西聚在一起。
+                 不要往 `node-chip` 后面插：「教学节点：xxx」那个 chip 是
+                 `position: absolute; bottom: 4px`，**不占文档流**，
+                 插在它后面的元素会跑到面板最顶上（踩过）。
+
+              ⚠️ Mock 不发 `pedagogy.result`，是靠 `model.completed` 捎带发的
+                 同名字段把这条 UI 喂起来的（见 main/index.js）。接真后端后
+                 走 pedagogy.result 那条路，两边填的是同一个 state。 */}
+          {teachInfo && (
+            <div className="teach-bar">
+              {Number.isFinite(teachInfo.turn) && (
+                <span className="teach-item">第 {teachInfo.turn} 轮</span>
+              )}
+              {teachInfo.hint > 0 && (
+                <span
+                  className="teach-item warn"
+                  title="已给到的提示级别；3 级为上限，任何一级都不给最终答案"
+                >
+                  提示 Lv.{teachInfo.hint}
+                </span>
+              )}
+              {teachInfo.citations && (
+                <span
+                  className="teach-item"
+                  title={
+                    teachInfo.citations.length
+                      ? '教材引用：\n' +
+                        teachInfo.citations
+                          .map((c) => c.title || c.page || JSON.stringify(c))
+                          .join('\n')
+                      : '本轮没有引用教材证据'
+                  }
+                >
+                  证据 {teachInfo.citations.length} 条
+                </span>
+              )}
+              {teachInfo.evidence === false && (
+                <span className="teach-item warn" title="没有足够证据 —— 后端不应在这种情况下编造引用">
+                  证据不足
+                </span>
+              )}
+              {teachInfo.misconceptions && teachInfo.misconceptions.length > 0 && (
+                <span
+                  className="teach-item warn"
+                  title={
+                    '疑似误区（待向学生确认，不是结论）：\n' +
+                    teachInfo.misconceptions.join('\n')
+                  }
+                >
+                  疑似误区 {teachInfo.misconceptions.length}
+                </span>
+              )}
+              {teachInfo.next && <span className="teach-item">下一步 {teachInfo.next}</span>}
             </div>
           )}
 

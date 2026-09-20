@@ -40,6 +40,29 @@ def _level_of(value: int) -> str:
     return "亲密"
 
 
+#: 中文档位 → 契约里的英文键（shared/contracts/events.json 的 affinity.updated.payload.stage）。
+#:
+#: ⚠️ 2026-09-20 由张钧翔补。这里和前端 `desktop/src/renderer/src/petStats.js` 的
+#:    `STAGES` 是**同一套分档，只是叫法不同**：
+#:
+#:      | 阈值 | 本文件（中文） | petStats.js（英文键 + 中文标签） |
+#:      | ---- | -------------- | -------------------------------- |
+#:      |  <20 | 生疏           | stranger · 刚认识                |
+#:      |  <50 | 熟悉           | familiar · 熟悉                  |
+#:      |  <80 | 信任           | close    · 亲近   ← 这里叫"信任"  |
+#:      | >=80 | 亲密           | attached · 依赖   ← 这里叫"亲密"  |
+#:
+#:    阈值**完全一致**（0/20/50/80），所以只是命名问题，不是算法分歧。
+#:    契约以**英文键**为准（前端按它查表），中文标签只用于界面展示 ——
+#:    发事件时用 stage，别把 level 发出去。
+_STAGE_BY_LEVEL = {
+    "生疏": "stranger",
+    "熟悉": "familiar",
+    "信任": "close",
+    "亲密": "attached",
+}
+
+
 @dataclass
 class AffinityState:
     """桌宠好感度状态骨架。
@@ -61,8 +84,13 @@ class AffinityState:
 
     @property
     def level(self) -> str:
-        """展示档位（表现层用语）。"""
+        """展示档位（中文，表现层用语）。只用于界面显示，**不要发进事件**。"""
         return _level_of(self.value)
+
+    @property
+    def stage(self) -> str:
+        """契约 `affinity.updated` 里的 stage（英文键）。发事件用这个。"""
+        return _STAGE_BY_LEVEL[self.level]
 
     def apply_delta(self, delta: int, *, source: str = SOURCE_UNBOUND) -> int:
         """按增量更新好感度并夹取到合法区间，返回新值。
@@ -91,6 +119,37 @@ class AffinityState:
             "source": self.source,
             "updated_at": self.updated_at,
             "unbound": self.source == SOURCE_UNBOUND,
+        }
+
+    def to_event_payload(self) -> dict:
+        """契约 `affinity.updated` 的 payload 形状（shared/contracts/events.json）。
+
+        ⚠️ 2026-09-20 由张钧翔补。**为什么不能直接用 to_dict() 发事件**：
+            两边字段名根本对不上 ——
+
+              to_dict()（本文件原有的）        affinity.updated（契约要求的）
+              ─────────────────────────       ──────────────────────────────
+              value   int                     affinity  float
+              level   中文档位                 stage     英文键
+              unbound bool                    （无）
+
+            而契约那个形状是照**前端** `petStats.js` 写的，前端只认
+            `affinity` / `stage` 这套名字 —— 拿 to_dict() 发出去，前端一个字段都读不到。
+            所以发事件必须用本方法；to_dict() 保留给界面展示与旧调用方，别删。
+
+        另外两点仍在分歧中，**没有单方面改**，记录在此等对齐：
+          1. **初值**：这里取 settings.affinity_init（默认 30），而 petStats.js 从 4 开始。
+             两边一开始就不同档；谁为准要定（见 INCONSISTENCIES.md）。
+          2. **谁算**：本骨架完全没有事件源（source 恒为 "unbound"），而前端
+             petStats.js 已经在本地按互动/时间自己算了。契约说 producer 是 runtime ——
+             到底是"前端算了报上去"还是"后端算了推下来"，这条链路还没有结论。
+        """
+        return {
+            "learner_id": self.learner_id,
+            "affinity": float(self.value),
+            "stage": self.stage,
+            "source": self.source,
+            "updated_at": self.updated_at,
         }
 
 

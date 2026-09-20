@@ -1,54 +1,81 @@
 /**
  * 桌宠动画配置 —— 教学节点 → 表情/动画
  *
- * ═══ 素材现状（2026-09-19）═══
+ * ═══ 素材现状（2026-09-20 · 换角色后）═══
  *
- * 第①批【9 张表情立绘】已到位，在 `assets/pet/expressions/`：
- *   统一 **1536×1536** 画布、脚底对齐、头心对齐、角色高 **1200px**（实测 1201，差 1px）。
+ * 角色换了：从**上一版原创角色**（深蓝双马尾 + 浅蓝开衫）换成**官方 Q 版新角色**
+ * （白发 + 蓝蝴蝶结 + 水手风蓝白裙）。**换的只是素材，渲染代码一行没动。**
+ * 上一个角色的素材全部移到了 `_素材工作区\_旧素材归档\`，**没有删**。
+ *
+ * 第①批【6 张 Q 版表情立绘】已到位，在 `assets/pet/expressions/`：
+ *   统一 **1536×1536** 画布、脚底对齐、头心对齐、角色高 **1200px**。
  *   由 `_素材工作区\动作帧\` 的流水线处理产出，别手动改这些 PNG。
  *   ⚠️ 这里**曾错记成「768×768 / 角色高 620px」，别再写回去** ——
  *      渲染端按 `geometry.json` 的 1536 算缩放、贴图却只有 768 的话，
  *      角色会**恒为一半大**：不报错、不崩溃、只是"看着不对"。
- *      实测 `expressions/*.png` 现在**全部 1536×1536**，与 geometry 已对齐。
  *
- * 素材进度（2026-09-19）：
- *   ✅ 走路 4 帧 —— **已接进本文件**（见下面 `walk`，带自己的 `geo`）。
- *   ✅ 眨眼 2 帧 / 说话 2 帧 —— **已产出**（`frames/blink/`、`frames/talk/`），
- *      但**还没接**：本文件没有 `blink` 条目，`talk` 仍指向 `teach.png` 单图。
- *      📌 记录见 `ASSETS_LICENSE.md` §3.5（该节明说"记录的是素材产出，不代表已在桌宠里播放"）。
- *   ⏸ 待机 2 帧（`idle_0` / `idle_1`）—— **仍未产出**，所以 `idle` 还是单帧。
- *   单帧时靠 FramePet 的 sway 形变滤镜 + 弹跳补一点"活着"的感觉。
- *   帧到位后把 frames 数组填长即可，其他代码一行都不用改。
+ * ⏸ 走路 / 眨眼 / 说话 —— **三批旧帧已停用**（画的是上一个角色，会串味）。
+ *    文件还在 `frames/` 下，只是不再 import；接回步骤见文件中部那段注释。
+ * ⏸ 待机 2 帧（`idle_0` / `idle_1`）—— 仍未产出，`idle` 还是单帧。
+ *    单帧时靠 FramePet 的 sway 形变滤镜 + 弹跳补一点"活着"的感觉。
  *
- * ⚠️ `assets/pet/` 根目录现在**只剩 `idle.png`**（642×1024），它**不是**旧素材：
- *    那是**当前角色**的立绘，且是**在用**的活素材 —— `RigPet.jsx` 拿它做点击命中掩码、
- *    `rig/rig.json` 的 `source` 指向它。**别删**。
- *    （原先同目录还有 happy/quiz/sorry 三张**与它逐字节相同**的重复图，
- *      纯旧文件，已于 2026-09-19 移出交付目录，见 `ASSETS_LICENSE.md` §八 第 3 条。）
+ * ⚠️ `assets/pet/idle.png`（642×1024）**仍是上一个角色**，但它现在**没有出口**：
+ *    唯一用它的 RigPet 已在右键菜单里 disable（见 App.jsx 那段注释）。
+ *    接回分层走路时，要连它和 `rig/` 三层一起换掉。**别只删它** ——
+ *    `hitTest` 与 `rig.json` 的 source 都指着这个路径。
  */
 
-// ── 9 张表情立绘 ──
+/* ── 表情立绘：现在是 **6 张**（2026-09-20 换成官方 Q 版角色）──
+ *
+ * ⚠️ 上个角色那批是 **9 张**（idle/think/teach/ask/hint/correct/quiz/happy/sad），
+ *    组长这回给的 Q 版只有 **6 个姿态**，没有 hint / correct / quiz 三张。
+ *    所以那三个槽位**复用最接近的一张**（见下面 ANIMATIONS 的注释与映射理由），
+ *    不是漏了。要补齐得让组长按 `动作帧/_新角色出图prompt.md` 再出三张。
+ *
+ * 归一化产物在 `_素材工作区/动作帧/归一化/表情/`，由 `归一化帧.py 表情 --接入` 产出。
+ * ⚠️ 那个脚本把结果拷到 `assets/pet/frames/<动作>/`，而表情批实际读 `expressions/`
+ *    —— 拷完要手动挪过来。这个不一致本轮没改脚本（怕动到别的动作），先记在这。
+ */
 import idleUrl from './assets/pet/expressions/idle.png'
 import thinkUrl from './assets/pet/expressions/think.png'
 import teachUrl from './assets/pet/expressions/teach.png'
 import askUrl from './assets/pet/expressions/ask.png'
-import hintUrl from './assets/pet/expressions/hint.png'
-import correctUrl from './assets/pet/expressions/correct.png'
-import quizUrl from './assets/pet/expressions/quiz.png'
 import happyUrl from './assets/pet/expressions/happy.png'
 import sadUrl from './assets/pet/expressions/sad.png'
 import geometry from './assets/pet/expressions/geometry.json'
-// 走路 4 帧（侧视朝右，8fps）。归一化时用的同一套规格，脚底和表情那批对齐。
-import walkGeo from './assets/pet/frames/walk/geometry.json'
-import walk0Url from './assets/pet/frames/walk/walk_0.png'
-import walk1Url from './assets/pet/frames/walk/walk_1.png'
-import walk2Url from './assets/pet/frames/walk/walk_2.png'
-import walk3Url from './assets/pet/frames/walk/walk_3.png'
-// 眨眼 2 帧 / 说话 2 帧（2026-09-19 出图；与表情批共用同一份 geometry）
-import blink0Url from './assets/pet/frames/blink/blink_0.png'
-import blink1Url from './assets/pet/frames/blink/blink_1.png'
-import talk0Url from './assets/pet/frames/talk/talk_0.png'
-import talk1Url from './assets/pet/frames/talk/talk_1.png'
+/* =========================================================================
+ * ⏸ 走路 / 眨眼 / 说话 —— 三批旧帧【已停用】，2026-09-20
+ *
+ * 为什么停用：这三批帧（`frames/walk|blink|talk/`）画的是**上一个角色**
+ * （深蓝双马尾 + 开衫）。而表情批已经换成官方 Q 版新角色
+ * （白发 + 蓝蝴蝶结 + 水手风）。两套并存的话，小人**一站定是新角色、
+ * 一走/一眨眼/一说话就变回旧角色** —— 比不做还糟。
+ *
+ * 文件**没有删**，还在 `assets/pet/frames/` 下，`_几何.json` 也在。
+ * 只是不再 import，所以也不会进构建产物。
+ *
+ * ═══ 新帧到手后怎么接回来 ═══
+ *
+ *   1. 把新帧按 `_素材工作区/动作帧/README.md` 跑归一化：
+ *        python 归一化帧.py walk --接入
+ *      （blink / talk 同理；眨眼和说话的第一帧要跟表情批的 idle **同一张图**才无缝）
+ *   2. 恢复下面这几行 import（路径不变）
+ *   3. 把 ANIMATIONS 里 walk / talk / blink 的 frames 填回去，
+ *      并把 walk 的 geo 恢复成 `frames/walk/geometry.json`
+ *   4. STATUS_TO_ANIMATION 里恢复 `streaming: 'talk'`
+ *
+ * ⚠️ walk 必须带自己的 geo —— 走路那批角色框比表情批【宽】（侧视伸出去），
+ *    共用一份会让缩放算错。
+ * ========================================================================= */
+// import walkGeo from './assets/pet/frames/walk/geometry.json'
+// import walk0Url from './assets/pet/frames/walk/walk_0.png'
+// import walk1Url from './assets/pet/frames/walk/walk_1.png'
+// import walk2Url from './assets/pet/frames/walk/walk_2.png'
+// import walk3Url from './assets/pet/frames/walk/walk_3.png'
+// import blink0Url from './assets/pet/frames/blink/blink_0.png'
+// import blink1Url from './assets/pet/frames/blink/blink_1.png'
+// import talk0Url from './assets/pet/frames/talk/talk_0.png'
+// import talk1Url from './assets/pet/frames/talk/talk_1.png'
 
 /**
  * 角色在画布里的外接框（由 `_素材工作区` 的归一化脚本产出，别手改）。
@@ -56,48 +83,66 @@ import talk1Url from './assets/pet/frames/talk/talk_1.png'
  * 因为画布是方的（1536×1536）而桌宠窗口是窄高的（220×300），会变成宽度受限。
  */
 export const EXPRESSION_GEOMETRY = geometry
-export const WALK_GEOMETRY = walkGeo
+// WALK_GEOMETRY 已随走路帧一并停用（原先导出但全项目无人引用）。接回走路时恢复：
+//   import walkGeo from './assets/pet/frames/walk/geometry.json'
+//   export const WALK_GEOMETRY = walkGeo
 
 export const ANIMATIONS = {
   // ---- 待机：帧没出，先用 idle 单图 + 形变滤镜做呼吸 ----
   idle: { frames: [idleUrl], fps: 1.5, loop: true, sway: false },
 
-  // ---- 走路：真的逐帧播了（2026-09-19 出图）----
-  // ⚠️ 必须带自己的 geo：走路的角色框比表情那批【宽】（尾巴伸出去），
-  //    共用一份会让缩放算错。两批的脚底和头心是对齐的，所以高度一致。
-  walk: {
-    frames: [walk0Url, walk1Url, walk2Url, walk3Url],
-    // ⚠️ 从 8 降到 6：8fps 下一个循环只有 0.5 秒，配上走路帧本身的
-    //    高度起伏，看起来像在"一胀一缩地赶路"。6fps 稳一些。
-    fps: 6,
-    loop: true,
-    sway: false,
-    geo: walkGeo
-  },
+  // ---- 走路：⏸ 已停用（旧帧是上个角色）----
+  // 指向 idle = 漫游时**不换姿势**，用当前表情站在原地。
+  // ⚠️ 漫游位移本身还在（托盘里的「自动溜达」，默认关）。演示时别开它 ——
+  //    开了小人是"站着滑"，因为走路帧停了。要真的走起来，等新角色的侧视 4 帧。
+  walk: { frames: [idleUrl], fps: 6, loop: true, sway: false },
 
-  // ---- 说话：嘴部 2 帧开合（2026-09-19 接入）----
-  // 6fps：一开一合约 0.33 秒，接近正常说话的语速。
-  // 这两帧与原表情批共用同一份 geometry（脚底/头心对齐），所以不用单独指定 geo。
-  talk: { frames: [talk0Url, talk1Url], fps: 6, loop: true, sway: false },
+  // ---- 说话：⏸ 已停用（旧帧是上个角色）----
+  // 注意：真正让「说话」不再抢占表情的是 STATUS_TO_ANIMATION 里删掉了 streaming 那一条
+  // （见文件末尾）。所以流式期间会正常显示当前教学表情，只是嘴不动。
+  talk: { frames: [idleUrl], fps: 6, loop: true, sway: false },
 
-  // ---- 眨眼：不是独立动作，是**叠在待机上**的一条 overlay ----
-  // 播放方式见 App.jsx：随机间隔触发，每次把 trigger 加一就重播一遍。
-  // blink_0 是睁眼（与 idle 同一张图，天然无缝），blink_1 是闭眼。
-  // holds 是「每帧停多久（毫秒）」——闭眼必须比睁眼短得多，
-  // 等间隔播放的话会变成"闭着眼发呆"，不是眨眼。
-  blink: {
-    frames: [blink0Url, blink1Url],
-    holds: [90, 110],
-    loop: false,
-    sway: false
-  },
+  // ---- 眨眼：⏸ 已停用（旧帧是上个角色）----
+  // 这里仍然保留 overlay 的结构（App.jsx 靠 ANIMATIONS.blink.frames 触发），
+  // 但两帧都是 idle，所以"眨"了等于没眨 —— 不会露出旧角色的脸。
+  // 接回新帧时把 holds 恢复成 [90, 110]（闭眼必须比睁眼短，否则是"闭着眼发呆"）。
+  blink: { frames: [idleUrl], holds: [90], loop: false, sway: false },
 
-  // ---- 教学节点，一个节点一张对应的表情 ----
+  /* ---- 教学节点 ----
+   *
+   * 新角色只有 6 个姿态，代码里却有 9 个教学槽位 —— 所以有 3 个是**复用**的，
+   * 怎么分都免不了重复。关键是**别让演示顺序里相邻的两个撞车**。
+   *
+   * Mock 走的教学节点顺序（也是演示时肉眼能看到的顺序）：
+   *     Assess → Teach → Ask → Hint → Correct → UpdateProfile
+   *
+   * 按这个顺序排查相邻对：
+   *   Assess(think) vs Teach(teach)      ✓ 不同
+   *   Teach(teach) vs Ask(ask)           ✓ 不同
+   *   Ask(ask)     vs Hint(?)            ← 必须避开 ask
+   *   Hint(?)      vs Correct(teach)     ← 必须避开 teach
+   *   Correct(teach) vs UpdateProfile(happy) ✓ 不同
+   *
+   * ⚠️ hint 一开始被指到 ask，结果 **Ask→Hint 表情一模一样**，看着像"桌宠没反应"。
+   *    改成 think 之后相邻对全部不同。重复仍然存在（think 同时供 Assess/Hint/Test），
+   *    但**不在演示顺序上挨着**，不影响观感。
+   *
+   *    Assess   → think  捧书点下巴 = 评估、琢磨
+   *    Teach    → teach  捧书张嘴   = 讲解
+   *    Ask      → ask    挥手眯眼   = 邀你来答
+   *    Hint     → think  ↑ 复用。语义上是"琢磨该给你什么提示"
+   *    Correct  → teach  ↑ 复用。纠错本来就是一种讲解
+   *    Test     → think  ↑ 复用（不在 Mock 顺序里）
+   *    Reflect  → think  ↑ 复用（不在 Mock 顺序里）
+   *
+   * 补齐缺失的三张（hint / correct / test）后，把这里换成各自的 frames 即可。
+   * 出图 prompt 见 `_素材工作区/动作帧/_新角色出图prompt.md` §四。
+   */
   teach: { frames: [teachUrl], fps: 6, loop: true, sway: false },
   ask: { frames: [askUrl], fps: 4, loop: true, sway: false },
-  hint: { frames: [hintUrl], fps: 6, loop: true, sway: false },
-  correct: { frames: [correctUrl], fps: 4, loop: true, sway: false },
-  quiz: { frames: [quizUrl], fps: 1.5, loop: true, sway: false },
+  hint: { frames: [thinkUrl], fps: 6, loop: true, sway: false },
+  correct: { frames: [teachUrl], fps: 4, loop: true, sway: false },
+  quiz: { frames: [thinkUrl], fps: 1.5, loop: true, sway: false },
   happy: { frames: [happyUrl], fps: 8, loop: false, sway: false },
 
   // ---- 运行状态用的 ----
@@ -132,6 +177,39 @@ export const NODE_TO_ANIMATION = {
   Test: 'quiz',
   UpdateProfile: 'happy',
   Reflect: 'think' // 回退到评估式思考；必须有，否则静默消失
+}
+
+/**
+ * 节点名 → 动作名，**两套写法都认**。
+ *
+ * ═══ 为什么不能直接 `NODE_TO_ANIMATION[node]` ═══
+ *
+ * 后端同时存在两套命名，而且**事件里发的是哪一套，Mock 和真后端不一样**：
+ *
+ *   | 来源 | 发什么 | 出处 |
+ *   | --- | --- | --- |
+ *   | Mock（前端自演） | `'Assess'`、`'Teach'` —— PascalCase | `main/index.js` 的 emitEvent |
+ *   | 真后端（graph） | `'assess'`、`'hint'`、`'update_profile'` —— 全小写 | `graph/education/nodes/*.py` 的 `NODE = "hint"`、`policies/__init__.py` 的 `ACTION_HINT = "hint"` |
+ *
+ * 上面这张表的键是照 Mock 写的。只认它的话，**真后端发来的节点名一个都匹配不上**，
+ * 全部落进 `|| 'idle'` —— 又是那种"不报错、不崩溃、只是表情不对"的静默失败。
+ *
+ * `UpdateProfile` ↔ `update_profile` 这组尤其要注意：不只是大小写，
+ * 下划线也有无之别，所以归一化要**连下划线和连字符一起吃掉**再做比较。
+ *
+ * ⚠️ 两套命名并存本身是待确认项（已记进 shared/contracts，需要和后端定一套），
+ *    这里只是让前端在定论之前不会静默失效。
+ */
+export function animationForNode(node) {
+  if (!node) return null
+  const key = String(node).trim()
+  if (NODE_TO_ANIMATION[key]) return NODE_TO_ANIMATION[key]
+
+  const norm = key.toLowerCase().replace(/[_\-\s]/g, '')
+  for (const [name, anim] of Object.entries(NODE_TO_ANIMATION)) {
+    if (name.toLowerCase() === norm) return anim
+  }
+  return null
 }
 
 /**
@@ -198,7 +276,11 @@ export function animationForEmotion(emotion) {
  */
 export const STATUS_TO_ANIMATION = {
   loading: 'think',
-  streaming: 'talk', // 流式输出中 = 正在说话 → 嘴部 2 帧开合
+  // streaming: 'talk',  ⏸ 2026-09-20 停用 —— 说话帧是上个角色的，接上去会让小人
+  //   在流式输出期间变回旧形象。**删掉这一条**而不是把 talk 指向 idle，是因为
+  //   STATUS 的优先级高于情感标签与教学节点：留着它，流式期间就会被 idle 顶掉，
+  //   连当前的教学表情都显示不出来。删掉之后流式期间自然落到情感标签/节点，
+  //   表现是"表情正常、只是嘴不动" —— 正是停用期间想要的效果。
   error: 'sad',
   cancelled: 'sad',
   reconnecting: 'think'
@@ -230,12 +312,13 @@ export function resolveAnimation(pose, status, node, emotion) {
   //    后端换词表、或新增教学动作时会走到这里 —— 静默退回 idle 的话，
   //    现象是"桌宠对这个动作毫无反应"，和"这个动作本来就没表现"完全分不清，
   //    联调时极难发现（NODE_TO_ANIMATION 上面那条历史注释记的就是同一个坑）。
-  if (emotion && !NODE_TO_ANIMATION[node]) {
+  const byNode = animationForNode(node)
+  if (emotion && !byNode) {
     console.warn(
       `[桌宠] 不认识的情感标签 "${emotion}"（教学节点 "${node || '无'}"）——` +
         '已退回待机。若这是后端新增的取值，请补进 petAnimations.js 的 EMOTION_TO_ANIMATION。'
     )
   }
 
-  return NODE_TO_ANIMATION[node] || 'idle'
+  return byNode || 'idle'
 }

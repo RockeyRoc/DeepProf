@@ -177,7 +177,12 @@ class MockRuntime extends EventEmitter {
     if (!this.traceId) return false
     this.cancelled = true
     this.clearTimer()
-    this.emitEvent('agent.failed', { reason: 'cancelled', message: '本轮已取消' }, 'renderer')
+    // ⚠️ 2026-09-20：由 agent.failed 改成 agent.cancelled —— **真后端发的是这个**。
+    //    后端 runtime/core/agent.py 捕获 asyncio.CancelledError 时发 EventType.AGENT_CANCELLED
+    //    （独立事件类型，与 AGENT_FAILED 是两条路径），payload 同样是 {reason:'cancelled'}。
+    //    Mock 原先模仿得不准，导致契约里那句「agent.failed 是取消状态的唯一表达方式」对真后端不成立。
+    //    前端两个 case 都接（App.jsx 里 case 直落），所以**表现零变化**。
+    this.emitEvent('agent.cancelled', { reason: 'cancelled', message: '本轮已取消' }, 'renderer')
     this.emitEvent('session.compacted', { reason: 'cancelled' })
     this.traceId = null
     return true
@@ -282,7 +287,25 @@ class MockRuntime extends EventEmitter {
         const last = steps[steps.length - 1]
         this.emitEvent('pedagogy.node.exited', { node: last.node })
         this.emitEvent('memory.write', { dimension: 'episodic', key: 'db_normalization' })
-        this.emitEvent('model.completed', { text: full })
+        // ⚠️ 这几个字段是**为了演示「教学依据条」才加的**，真后端把它们塞在
+        //    `pedagogy.result` 的 payload 里（api/routes/sessions.py 的 _result_frame）。
+        //    Mock 走的是 model.completed 这条链路，所以捎带发同名同形的字段，
+        //    好让那条 UI 在本地也能看到内容。
+        //
+        //    数值都是**编的**（按本轮确实走过的节点编），不是真测量：
+        //      · citations 空 + evidence_sufficient=false —— 诚实反映"Mock 没有 RAG"，
+        //        顺便演示"没有证据时不编造引用"这条规则长什么样
+        //      · misconceptions 一条是配合默认问题（数据库第三范式）编的
+        this.emitEvent('model.completed', {
+          text: full,
+          turn_count: 1,
+          hint_level: 1, // 本轮确实走过了 Hint 节点
+          citations: [],
+          misconceptions: ['可能把「消除传递依赖」和「拆表」当成同一件事'],
+          evidence_sufficient: false,
+          next_action: 'end',
+          strategy_note: 'mock: 走完全部六个教学节点'
+        })
         this.emitEvent('agent.turn.completed', { status: 'ok' })
         this.traceId = null
         return
@@ -518,8 +541,19 @@ let roaming = false
 let roamTimer = null
 let moveTimer = null
 
-/** 宠物窗口的尺寸（只有角色，没有面板） */
-const PET_W = 220
+/**
+ * 宠物窗口的尺寸（只有角色，没有面板）。
+ *
+ * ⚠️ 2026-09-20：宽度由 220 放宽到 330，为的是 Q 版新角色。
+ *    旧角色是**修长**的（外接框 731×1201），Q 版是**矮胖**的（1244×1201，宽了 70%）。
+ *    窗口只有 220 宽时是"宽度受限"的，Q 版被压到只剩 **212px 高**；
+ *    放到 330 之后是 **318px 高**，接近旧角色原本的 361px，桌面上存在感差不多。
+ *    再宽（380）能到 367px，但窗口横向占得太多，330 是折中。
+ *
+ *    改这个值要连带留意：安全夹取（safeSetPosition 用 winW/winH）、
+ *    拖动、点击命中区域、以及面板模式的 380×620 切换 —— 都要实机验过。
+ */
+const PET_W = 330
 /**
  * 桌宠模式的窗口高度 = **角色 300 + 气泡 120**。
  *
