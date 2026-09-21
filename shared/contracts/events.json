@@ -1,7 +1,7 @@
 {
   "contract": "deepprof.events",
-  "version": "1.2.0",
-  "frozen_at": "2026-09-20",
+  "version": "1.2.2",
+  "frozen_at": "2026-09-21",
   "status": "frozen-draft",
   "owner": "张钧翔（桌宠前端）",
   "co_owner": "刘俊鹏（Runtime / api，事件生产方）",
@@ -14,6 +14,17 @@
     "previous_baseline": "DESIGNv0.4.md v0.4（2026-09-17）"
   },
   "changelog_zh": {
+    "1.2.1 -> 1.2.2": [
+      "新增 pedagogy.attempt（Test / Correct 节点产出的作答事实，教育组 → 数据组，§16.3 / §18.2）：代码里 EventType.PEDAGOGY_ATTEMPT 早已存在（graph/education/nodes/__init__.py 的 emit_attempt），契约却漏记 —— 由新增的契约一致性测试 tests/test_contract_consistency.py 发现并要求补齐。payload 即 Attempt.model_dump()（attempt_id / learner_id / item_id / concept_ids / correct / timestamp / hint_count），Attempt 契约 extra=forbid，字段漂移在 models/learner/attempt.py 校验处即报错。前端不消费，消费方是数据组 BKT / IRT。",
+      "同版本新增 tests/test_contract_consistency.py：守护「events.json 的事件名集合 == EventType 枚举 + api 合成帧」与「envelope 字段 == RuntimeEvent.to_dict 的键」，防止契约与代码再次漂移。"
+    ],
+    "1.2.0 -> 1.2.1": [
+      "🟢 解决「取消事件分歧」（_待确认_取消事件分歧.md 三问全部落定，2026-09-21）：",
+      "问题 1：取消统一到 agent.cancelled —— Mock 的 cancel() 已改为发 agent.cancelled（desktop/src/main/index.js，两处调用点），与真后端 runtime/core/agent.py 一致；agent.failed 保留给真正的失败。",
+      "问题 2：AGENT_CANCELLED 已补进 api/routes/sessions.py 的 _TERMINAL_TYPES（取消是终态，SSE 流据此收尾，前端不会停在 streaming），并在 _SSE_EVENT_NAMES 里给它独立事件名 cancelled（取消不是失败，不混进 error 通路）。",
+      "问题 3：后端新增显式取消接口 POST /sessions/{id}/cancel —— 只断 SSE 时 agent.cancelled 发不出去（连接已断），前端永远收不到取消确认；现在前端可先 POST /cancel 再在同一条流上收到 agent.cancelled。会话不存在返回 404 session_not_found，无进行中轮次返回 409 no_active_turn。",
+      "agent.cancelled.implemented 改为 true（Mock 已发该事件），mock_divergence_zh 分歧已解决并保留处理痕迹。"
+    ],
     "1.1.0 -> 1.2.0": [
       "对账 Main 分支（RockeyRoc/DeepProf @ a3267f9）的**真实后端**，补齐事件缺口。真值来源：runtime/core/events.py 的 EventType 枚举 + api/routes/sessions.py 的收尾帧合成逻辑。",
       "新增 agent.cancelled：后端把「取消」定义成**独立事件类型**（runtime/core/agent.py 捕获 asyncio.CancelledError 时发出），与 agent.failed 是两条不同路径。前端 App.jsx 已同步补上处理（两个 case 共用一段，case 直落）。⚠️ 原 agent.failed 的 when_zh 写着「是取消状态的唯一表达方式」，那是照 Mock 写的，与实现不符，已改。",
@@ -244,12 +255,13 @@
     },
 
     "agent.cancelled": {
-      "implemented": false,
+      "implemented": true,
       "backend_implemented": true,
       "frontend_consumed": true,
       "producer": "runtime",
       "consumer": ["renderer", "storage"],
-      "when_zh": "本轮被取消（用户中断 / 超时）。真后端 `runtime/core/agent.py` 捕获 asyncio.CancelledError 时发**本事件**，与 agent.failed 是两条不同的路径。",
+      "when_zh": "本轮被取消（用户中断 / 超时）。真后端 `runtime/core/agent.py` 捕获 asyncio.CancelledError 时发**本事件**，与 agent.failed 是两条不同的路径。教学图链路（teaching-turn）的取消由 api 层补发（source='deepprof.api'）。",
+      "sse_event_name": "cancelled",
       "payload": {
         "reason": {
           "type": "string",
@@ -262,7 +274,7 @@
       "example": { "reason": "cancelled" },
       "renderer_effect_zh": "App.jsx：与 agent.failed 共用一段 —— 打断朗读；把已流式输出的半截文本追加「（已中断）」入消息列表并置 cancelled 状态。",
       "note_zh": "⚠️ 2026-09-20 由张钧翔补记。对账 Main 上 `runtime/core/events.py` 的 EventType 时发现：后端把 AGENT_CANCELLED 定义成独立事件类型。在此之前前端只监听 agent.failed，真后端取消一轮时会走到 default 分支什么都不做 —— 状态**永久卡在 streaming**、朗读也不会停，而「流式文本与语音可停止」正是 §16.4 的验收项。前端处理已同步补上。",
-      "mock_divergence_zh": "⚠️ 仍存在的一处 Mock ↔ 后端分歧：Mock 的 cancel() 发的是 agent.failed({reason:'cancelled'})，真后端发 agent.cancelled。前端现在两个都接，所以**表现一致**；但 Mock 作为本契约的事实标准（见 source_of_truth）已与后端不符。是否把 Mock 也改成发 agent.cancelled，待与刘俊鹏确认后统一。"
+      "mock_divergence_zh": "✅ 已解决（2026-09-21，见 changelog 1.2.0 -> 1.2.1）：Mock 的 cancel() 已改为发 agent.cancelled，与真后端一致。配套改动：AGENT_CANCELLED 已进后端 _TERMINAL_TYPES 与 _SSE_EVENT_NAMES（SSE 事件名 cancelled）；后端新增显式取消接口 POST /sessions/{id}/cancel，前端可在同一条流上收到取消确认。原分歧描述保留备查：Mock 曾发 agent.failed({reason:'cancelled'})，与真后端的独立事件类型不一致。"
     },
 
     "model.requested": {
@@ -648,6 +660,28 @@
       "example": { "action": "Teach", "emotion": "explaining", "response_text": "……", "citations": [] },
       "renderer_effect_zh": "App.jsx：已实现（case 'pedagogy.result'）—— 收下 emotion / action，把 response_text 入消息列表并按需朗读，置 idle，气泡延时收起。",
       "note_zh": "⚠️ 2026-09-20 由张钧翔补记。本事件此前**完全没写进契约**，但 App.jsx 早在消费它（那里的注释还准确抄了 payload 形状）。契约漏记的代价：后来人照契约实现前端，会直接漏掉唯一能拿到回复正文的通路 —— 后端发了、前端没反应，又是静默失败。"
+    },
+
+    "pedagogy.attempt": {
+      "implemented": false,
+      "backend_implemented": true,
+      "frontend_consumed": false,
+      "producer": "graph",
+      "consumer": ["storage"],
+      "when_zh": "Test / Correct 节点判分后，把一条作答事实交给数据组（§16.3 交接 / §18.2 Attempt 行）。只在「归属明确 + 判分可靠 + 题目可追踪」时产出（policies.attempt_gate）；未产出时图会在决策事件里记录原因，不静默跳过。",
+      "source_of_truth_note_zh": "graph/education/nodes/__init__.py 的 emit_attempt()（payload 即 Attempt.model_dump()）+ models/learner/attempt.py 的 Attempt（pydantic，extra=forbid，字段漂移在这里就报错）。⚠️ 2026-09-21 由一致性测试发现契约漏记本条（代码有 EventType.PEDAGOGY_ATTEMPT、契约没有），已补。",
+      "payload": {
+        "attempt_id": { "type": "string", "required": true, "meaning_zh": "作答事件唯一标识（幂等键：重复写入不得重复记分，§18.2）。" },
+        "learner_id": { "type": "string", "required": true, "meaning_zh": "学习者标识；不同学习者的数据不得互相覆盖（§17.3）。" },
+        "item_id": { "type": "string", "required": true, "meaning_zh": "题目标识（与教材来源、知识点的映射由数据组负责）。" },
+        "concept_ids": { "type": "array", "required": false, "meaning_zh": "本题覆盖的知识点列表（去空去重保序）；BKT 按知识点逐条累积证据。" },
+        "correct": { "type": "boolean", "required": true, "meaning_zh": "是否正确；必须显式给出，不用 null 表示未知。" },
+        "timestamp": { "type": "string", "required": true, "meaning_zh": "作答时间，ISO8601（UTC）；知识追踪按时间排序。" },
+        "hint_count": { "type": "integer", "required": false, "meaning_zh": "本题已给出的提示次数（默认 0）；提示越多证据越弱。" }
+      },
+      "example": { "attempt_id": "attempt-x1", "learner_id": "stu-001", "item_id": "q-db-3nf-02", "concept_ids": ["db_3nf"], "correct": false, "timestamp": "2026-09-21T08:00:00+00:00", "hint_count": 2 },
+      "renderer_effect_zh": "App.jsx：无处理（default 分支）。桌宠不消费作答事实，消费者是数据组的 BKT / IRT（§18.1）。",
+      "note_zh": "⚠️ Attempt 本身**不带 session_id / trace_id**（契约 extra=forbid）：交互事实由 Session 记录，两者靠事件外层字段对齐（§18.2）；§16.6 的「来源」由事件外层 source 表达，不写进 payload。"
     },
 
     "tool.requested": {

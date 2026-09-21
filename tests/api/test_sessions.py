@@ -12,11 +12,17 @@
 """
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import json
 
 from fastapi.testclient import TestClient
 
-from tests.conftest import make_client, make_service
+from runtime.providers.base import ModelChunk, ModelRequest, Provider, ProviderCapabilities
+from runtime.providers.fake import FakeProvider
+from runtime.service import RuntimeService
+from runtime.storage.sqlite_store import SqliteDatabase
+from tests.conftest import make_async_client, make_client, make_service
 
 #: RuntimeEvent 的 dict 形状（§18.2），缺少任一字段前端就无法重连对账
 EVENT_FIELDS = (
@@ -172,3 +178,93 @@ def test_unknown_session_returns_structured_404():
         replay = client.get("/sessions/no-such-session/events")
         assert replay.status_code == 404
         assert replay.json()["detail"]["code"] == "session_not_found"
+
+
+# ================= 显式取消 =================
+class HangingProvider(Provider):
+    """产出第一个增量后一直挂起：让「一轮正在进行」成为可测的稳定状态。"""
+
+    name = "hanging"
+
+    def __init__(self) -> None:
+        self.started = asyncio.Event()
+
+    def capabilities(self) -> ProviderCapabilities:
+        return ProviderCapabilities(name=self.name)
+
+    async def generate(self, request: ModelRequest):
+        return await self.stream(request).__anext__()  # pragma: no cover
+
+    async def stream(self, request: ModelRequest):
+        self.started.set()
+        yield ModelChunk(delta="先说一半")
+        await asyncio.sleep(3600)
+
+
+async def test_cancel_turn_delivers_agent_cancelled_on_stream():
+    """显式取消（shared/contracts 待确认问题 3）：
+
+    SSE 还在读的时候 POST /cancel，前端应能在**同一条流上**收到
+    ``agent.cancelled`` 作为确认（SSE event 名 ``cancelled``），而不是
+    永远停在 streaming、只能靠重连回放事后补。
+    """
+    provider = HangingProvider()
+    service = RuntimeService(provider=provider, db=SqliteDatabase(":memory:"))
+    async with make_async_client(service) as client:
+        created = await client.post("/sessions", json={"learner_id": "stu-001"})
+        assert created.status_code == 201, created.text
+        session_id = created.json()["session_id"]
+
+        lines: list[str] = []
+
+        async def consume() -> None:
+            async with client.stream(
+                "POST", f"/sessions/{session_id}/messages", json={"content": "慢慢说"}
+            ) as response:
+                assert response.status_code == 200
+                async for line in response.aiter_lines():
+                    lines.append(line)
+
+        task = asyncio.create_task(consume())
+        await asyncio.wait_for(provider.started.wait(), timeout=5)
+
+        cancelled = await client.post(f"/sessions/{session_id}/cancel")
+        assert cancelled.status_code == 200, cancelled.text
+        assert cancelled.json() == {"session_id": session_id, "cancelled": True}
+
+        # 流应自然收尾（终结事件后生成器 break），而不是悬挂
+        with contextlib.suppress(asyncio.TimeoutError):
+            await asyncio.wait_for(task, timeout=5)
+        assert task.done()
+
+        frames = parse_sse("\n".join(lines))
+        assert frames, lines
+        last = frames[-1]
+        assert last["event"]["type"] == "agent.cancelled"
+        assert last["event"]["payload"] == {"reason": "cancelled"}
+        assert last["frame"] == "cancelled"  # 取消有独立的 SSE 事件名，不混进 error
+        # 取消事件已入事件库，断线重连也能补到（§16.1 取消可观测）
+        replay = await client.get(f"/sessions/{session_id}/events", params={"from_sequence": 0})
+        types = [event["type"] for event in replay.json()["events"]]
+        assert "agent.cancelled" in types
+
+
+async def test_cancel_turn_without_active_turn_returns_409():
+    """没有正在执行的轮次时取消：结构化 409（no_active_turn），不能是 500。"""
+    service = RuntimeService(provider=FakeProvider(), db=SqliteDatabase(":memory:"))
+    async with make_async_client(service) as client:
+        created = await client.post("/sessions", json={"learner_id": "stu-001"})
+        session_id = created.json()["session_id"]
+
+        response = await client.post(f"/sessions/{session_id}/cancel")
+        assert response.status_code == 409
+        assert response.json()["detail"]["code"] == "no_active_turn"
+
+
+async def test_cancel_unknown_session_returns_404():
+    """取消不存在的会话：结构化 404（session_not_found）。"""
+    service = RuntimeService(provider=FakeProvider(), db=SqliteDatabase(":memory:"))
+    async with make_async_client(service) as client:
+        response = await client.post("/sessions/no-such-session/cancel")
+        assert response.status_code == 404
+        assert response.json()["detail"]["code"] == "session_not_found"

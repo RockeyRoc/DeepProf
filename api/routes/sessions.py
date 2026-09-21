@@ -1,10 +1,11 @@
 """会话接入路由（DESIGNv0.4 §8 会话接入与流式输出；§7.2 主会话链路；§18.2）。
 
-四条链路：
+五条链路：
 1. ``POST /sessions``                     创建/恢复会话；
 2. ``POST /sessions/{id}/messages``       一轮原始对话（Agent 循环），SSE 推送 Runtime 事件；
 3. ``POST /sessions/{id}/teaching-turn``  一轮教学策略图（UI/API → Graph → RuntimePort，§9.1）；
-4. ``GET  /sessions/{id}/events``         按 sequence 回放事件（断线重连）。
+4. ``GET  /sessions/{id}/events``         按 sequence 回放事件（断线重连）；
+5. ``POST /sessions/{id}/cancel``         显式取消正在执行的一轮（§16.1 失败与取消可观测）。
 
 关键约定：
 - 流式一律用 SSE（``text/event-stream``），帧的 ``data`` 就是
@@ -55,6 +56,8 @@ _SSE_EVENT_NAMES = {
     EventType.MODEL_STREAM_DELTA.value: "delta",
     EventType.AGENT_TURN_COMPLETED.value: "done",
     EventType.AGENT_FAILED.value: "error",
+    # 取消不是失败：用户主动行为，给独立的名字，前端不必把它混进 error 通路
+    EventType.AGENT_CANCELLED.value: "cancelled",
     EventType.MODEL_FAILED.value: "error",
     EventType.TOOL_COMPLETED.value: "tool",
     EventType.TOOL_FAILED.value: "tool",
@@ -68,10 +71,27 @@ _SSE_HEADERS = {
     "X-Accel-Buffering": "no",  # 关闭反向代理缓冲，避免流式被攒到最后
 }
 
-#: 终结事件：收到即表示本轮结束
+#: 终结事件：收到即表示本轮结束。
+#: 取消也是终态 —— 流必须在此收尾，否则取消后前端会永远停在 streaming
+#: （shared/contracts/_待确认_取消事件分歧.md 问题 2）
 _TERMINAL_TYPES = frozenset(
-    {EventType.AGENT_TURN_COMPLETED.value, EventType.AGENT_FAILED.value}
+    {
+        EventType.AGENT_TURN_COMPLETED.value,
+        EventType.AGENT_FAILED.value,
+        EventType.AGENT_CANCELLED.value,
+    }
 )
+
+#: 正在执行的轮次任务（session_id -> task）：显式取消接口据此定位并取消本轮。
+#: 轮次开始时登记、结束时移除（只移除自己登记的那一条，避免误删后一轮的登记）。
+#: ⚠️ 只允许在事件循环内（async def 端点 / 生成器）操作，asyncio.Task 不是线程安全的。
+_active_turns: dict[str, asyncio.Task] = {}
+
+
+def _unregister_turn(session_id: str, task: asyncio.Task) -> None:
+    """注销轮次任务：只移除自己登记的那一条，避免误删后一轮的登记。"""
+    if _active_turns.get(session_id) is task:
+        _active_turns.pop(session_id, None)
 
 
 # ================= 会话创建 =================
@@ -125,7 +145,7 @@ async def post_message(
 
     每一帧：
         id: {sequence}
-        event: delta | tool | done | error | event
+        event: delta | tool | done | error | cancelled | event
         data: {"event_id":..., "session_id":..., "trace_id":..., "sequence":...,
                "type":..., "payload":..., "source":..., "timestamp":...}
     """
@@ -173,6 +193,39 @@ async def post_teaching_turn(
         media_type="text/event-stream",
         headers=_SSE_HEADERS,
     )
+
+
+# ================= 显式取消 =================
+@router.post(
+    "/{session_id}/cancel",
+    summary="取消该会话正在执行的一轮对话",
+    responses={
+        404: {"description": "会话不存在（session_not_found）"},
+        409: {"description": "当前没有正在执行的轮次（no_active_turn）"},
+    },
+)
+async def cancel_turn(
+    session_id: str,
+    service: RuntimeService = Depends(get_runtime_service),
+) -> dict:
+    """显式取消正在执行的一轮（shared/contracts/_待确认_取消事件分歧.md 问题 3）。
+
+    只断开 SSE 做不到「在同一条流上确认取消」：连接已断，
+    ``agent.cancelled`` 发不出去，前端只能靠重连回放事后补。
+    本端点取消任务后，Agent 循环捕获 ``CancelledError`` 会发 ``agent.cancelled``
+    （runtime/core/agent.py，入事件库），仍在前端订阅的流上即可收到确认。
+    """
+    if service.session_store.load(session_id) is None:
+        raise _not_found(session_id)
+    task = _active_turns.get(session_id)
+    if task is None or task.done():
+        raise _conflict(
+            "no_active_turn",
+            "该会话当前没有正在执行的轮次",
+            session_id=session_id,
+        )
+    task.cancel()
+    return {"session_id": session_id, "cancelled": True}
 
 
 # ================= 事件回放 =================
@@ -242,6 +295,7 @@ async def _event_stream(
         service.bus.close_stream(subscription)
 
     task.add_done_callback(_on_done)
+    _active_turns[session.session_id] = task
     last_sequence = 0
     try:
         async for event in subscription:
@@ -263,6 +317,7 @@ async def _event_stream(
                 )
             )
     finally:
+        _unregister_turn(session.session_id, task)
         service.bus.close_stream(subscription)
         if not task.done():
             task.cancel()
@@ -301,6 +356,7 @@ async def _teaching_event_stream(
 
     task = asyncio.create_task(_drive())
     task.add_done_callback(lambda finished: service.bus.close_stream(subscription))
+    _active_turns[session.session_id] = task
     last_sequence = 0
     try:
         async for event in _events_until(subscription, task):
@@ -313,6 +369,17 @@ async def _teaching_event_stream(
                 "message": str(exc),
                 "details": getattr(exc, "details", {}),
             }
+        elif task.cancelled():
+            # 显式取消（POST /cancel）：教学图没有 Agent 那样的 CancelledError 钩子，
+            # 由 API 层补发 agent.cancelled 并入事件库（§16.1 取消可观测）；
+            # 随后的 replay 补齐会把它推到同一条流上，作为前端的取消确认
+            service.bus.emit(
+                EventType.AGENT_CANCELLED,
+                {"reason": "cancelled"},
+                session_id=session.session_id,
+                trace_id=trace_id,
+                source="deepprof.api",
+            )
         # 收尾：把订阅关闭前已落盘但未推送的事件补上
         for event in service.replay(session.session_id, last_sequence):
             last_sequence = event.sequence
@@ -331,10 +398,13 @@ async def _teaching_event_stream(
                 )
             )
             return
+        if task.cancelled():
+            return  # 已取消的轮次没有 result 三件套可给
         yield _frame(
             _result_frame(service, session, result, trace_id, sequence=last_sequence + 1)
         )
     finally:
+        _unregister_turn(session.session_id, task)
         service.bus.close_stream(subscription)
         if not task.done():
             task.cancel()

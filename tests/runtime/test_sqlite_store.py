@@ -1,6 +1,8 @@
 """SQLite 存储测试（D-3 / §17.3 / §18.2）。"""
 from __future__ import annotations
 
+from pathlib import Path
+
 from config import settings
 from runtime.core.events import EventType, RuntimeEvent
 from runtime.core.message import Message
@@ -193,11 +195,24 @@ def test_profile_store_upserts_by_model_version(db):
     assert rows[0]["evidence_count"] == 5
 
 
-def test_sqlite_path_uses_project_data_dir(tmp_path):
-    """默认路径落在项目 data 目录下，避免写进 CWD 之外的意外位置。"""
-    database = SqliteDatabase(tmp_path / "paths.db")
+def test_sqlite_path_defaults_to_user_home(tmp_path, monkeypatch):
+    """配置留空时默认落在用户数据目录（~/.deepprof/sessions），不依赖 CWD / 安装目录。
+
+    显式传入（含本地 .env 覆盖）的相对路径仍相对项目根（开发模式行为不变），
+    因此这里先清空 settings 里的值再验证默认解析。
+    """
+    monkeypatch.setattr(settings, "sqlite_path", "")
+    monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
+    default = SqliteDatabase()
     try:
-        assert database.path.endswith("paths.db")
-        assert settings.sqlite_path.startswith("data/")
+        assert default.path == str(tmp_path / "home" / "sessions" / "deepprof.db")
+        assert Path(default.path).parent.is_dir()  # 目录已自动创建
     finally:
-        database.close()
+        default.close()
+
+    # 相对路径显式传入：相对项目根（与旧语义一致）
+    relative = SqliteDatabase(tmp_path / "explicit.db")
+    try:
+        assert relative.path.endswith("explicit.db")
+    finally:
+        relative.close()

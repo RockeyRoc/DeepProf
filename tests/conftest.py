@@ -53,6 +53,21 @@ def make_client(service: RuntimeService) -> TestClient:
     return TestClient(app)
 
 
+def make_async_client(service: RuntimeService):
+    """异步 httpx 客户端：供需要「流式进行中并发发另一条请求」的测试使用
+    （如显式取消：SSE 还在读的时候 POST /cancel）。"""
+    import httpx
+
+    from api.app import create_app
+    from api.deps import get_runtime_service
+
+    app = create_app(runtime=service)
+    app.dependency_overrides[get_runtime_service] = lambda: service
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test"
+    )
+
+
 @pytest.fixture
 def db(tmp_path: Path) -> SqliteDatabase:
     """文件型临时数据库（比 :memory: 更接近真实部署，可验证重启恢复）。"""

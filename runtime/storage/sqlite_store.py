@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from config import ensure_parent, settings
+from config.paths import sqlite_default_path
 
 from ..core.events import RuntimeEvent
 from ..core.session import Session
@@ -31,6 +32,10 @@ class SqliteDatabase:
 
     def __init__(self, path: str | Path = "", busy_timeout_ms: int | None = None) -> None:
         raw = str(path or settings.sqlite_path)
+        if not raw:
+            # 留空 = 用户数据目录默认位置（~/.deepprof/sessions/deepprof.db），
+            # 程序安装目录（只读）与 CWD 都不落盘
+            raw = str(sqlite_default_path())
         self.is_memory = raw == ":memory:"
         self.path = raw if self.is_memory else str(ensure_parent(raw))
         self.busy_timeout_ms = (

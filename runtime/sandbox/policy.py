@@ -51,10 +51,14 @@ class SandboxPolicy:
 
     @classmethod
     def from_settings(cls, allowed_roots: str = "", **overrides) -> "SandboxPolicy":
-        """按配置构造：sandbox_allowed_roots 为逗号分隔的相对路径。"""
+        """按配置构造：逗号分隔的目录列表。
+
+        相对路径相对项目根；``~/`` 开头相对用户主目录（先 expanduser 再判定，
+        绝对路径原样放行）。
+        """
         raw = allowed_roots or default_settings.sandbox_allowed_roots
         roots = [
-            project_path(item.strip()).resolve()
+            project_path(Path(item.strip()).expanduser()).resolve()
             for item in raw.split(",")
             if item.strip()
         ]
