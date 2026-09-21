@@ -14,8 +14,10 @@
 
 两种模式都测：
     prod  直接跑 node_modules/electron/dist/electron.exe .
-          这就是打包后双击 exe 的路径，是交付形态的真实数字
-    dev   npm run dev（= 启动桌宠.bat 干的事）
+          这就是打包后双击 exe 的路径，是交付形态的真实数字。
+          也是 2026-09-21 之后 `deepprof /pet` / 双击 启动桌宠.bat 走的路径
+          （那之后 .bat 不再跑 npm run dev）
+    dev   npm run dev
           开发期天天用的路径，必须知道它有多慢，否则会误以为程序有问题
 
 为什么要先跑一次热身：

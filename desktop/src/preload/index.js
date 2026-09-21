@@ -27,6 +27,16 @@ contextBridge.exposeInMainWorld('deepprof', {
   reconnect: () => ipcRenderer.invoke('session:reconnect'),
 
   /**
+   * 当前运行模式：'backend'（真模型）还是 'mock'（演示文案）。
+   *
+   * ⚠️ 为什么要有这个：桌宠此前**根本没接模型**，回复是一段写死的文案，
+   *    而界面上完全看不出来。现在接上真后端之后，
+   *    "现在到底是模型在说还是演示文案"必须是**一眼可见**的 ——
+   *    否则下次再出问题，还是没人能发现。
+   */
+  getRuntimeStatus: () => ipcRenderer.invoke('runtime:status'),
+
+  /**
    * 订阅统一事件流 —— 渲染层唯一的事件入口。
    * 返回取消订阅函数。
    */
@@ -56,8 +66,18 @@ contextBridge.exposeInMainWorld('deepprof', {
    */
   tts: {
     synthesize: (text) => ipcRenderer.invoke('tts:synthesize', text),
-    /** 自检：神经语音到底能不能用 */
-    selftest: () => ipcRenderer.invoke('tts:selftest')
+    /** 自检：神经语音到底能不能用（按**当前音色**试合成一段） */
+    selftest: () => ipcRenderer.invoke('tts:selftest'),
+    /**
+     * 音色偏好（存在 `~/.deepprof/voice.json`，由主进程读写）。
+     * ⚠️ 配置在主进程侧而不是 localStorage：合成发生在主进程，
+     *    "启动问候语"在渲染进程就绪前就要念，主进程必须自己能读到。
+     */
+    getVoice: () => ipcRenderer.invoke('tts:get-voice'),
+    /** 只传要改的字段：{ voice } / { rate } / { pitch }，返回合并后的完整配置 */
+    setVoice: (patch) => ipcRenderer.invoke('tts:set-voice', patch),
+    /** 可选音色表（需要联网；取不到返回 ok:false，不影响继续用当前音色） */
+    listVoices: () => ipcRenderer.invoke('tts:list-voices')
   },
 
   /**

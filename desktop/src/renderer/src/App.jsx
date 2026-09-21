@@ -20,7 +20,15 @@ import RigPet from './RigPet'
  * Live2DPet 自己的代码一行都还没跑。只有打断静态 import 链才管用。
  */
 const Live2DPet = lazy(() => import('./Live2DPet'))
-import { speak, stop as stopSpeech, ttsSupported, pause as pauseSpeech, resume as resumeSpeech, isPaused as speechIsPaused } from './tts'
+import {
+  speak,
+  stop as stopSpeech,
+  ttsSupported,
+  pause as pauseSpeech,
+  resume as resumeSpeech,
+  isPaused as speechIsPaused,
+  clearCache as clearTtsCache
+} from './tts'
 import {
   load as loadStats, save as saveStats, tick as tickStats, interact,
   maybeSleep, stageOf, exportForDataTeam, reset as resetStats
@@ -41,6 +49,29 @@ function isPatOnHead(e) {
 }
 
 const EXPRESSION_NAMES = ['f00', 'f01', 'f02', 'f03', 'f04', 'f05', 'f06', 'f07']
+
+/**
+ * 角色缩放的持久化（2026-09-21）。
+ *
+ * ⚠️ 为什么要存：以前 `petScale` 只是组件内 state —— 用户滚轮不小心缩了一次，
+ *    界面没有任何提示；**重启又悄悄回到 100%**，于是"它有时候大有时候小"，
+ *    完全对不上账。存下来之后"我调过大小"这件事是可见、可复现的。
+ *
+ * 取值范围与 onWheel 的夹取保持一致（0.6 ~ 1.8）；越界或读不出来一律回 1。
+ */
+const PET_SCALE_KEY = 'deepprof.petScale'
+const PET_SCALE_MIN = 0.6
+const PET_SCALE_MAX = 1.8
+
+function loadPetScale() {
+  try {
+    const v = Number(localStorage.getItem(PET_SCALE_KEY))
+    if (Number.isFinite(v) && v >= PET_SCALE_MIN && v <= PET_SCALE_MAX) return v
+  } catch {
+    /* localStorage 不可用（隐私模式等）→ 用默认值 */
+  }
+  return 1
+}
 
 /**
  * DeepProf 桌宠
@@ -112,8 +143,17 @@ export default function App() {
    */
   const [rigMode, setRigMode] = useState(false)
 
-  /** 角色缩放倍率（滚轮调，菜单里可复位）。乘在渲染端的适配缩放上 */
-  const [petScale, setPetScale] = useState(1)
+  /** 角色缩放倍率（Ctrl+滚轮调，菜单里可复位）。乘在渲染端的适配缩放上 */
+  const [petScale, setPetScale] = useState(loadPetScale)
+
+  /** 把缩放存进 localStorage —— 见上面 loadPetScale 的说明（不再"重启就变回去"） */
+  useEffect(() => {
+    try {
+      localStorage.setItem(PET_SCALE_KEY, String(petScale))
+    } catch {
+      /* 存不进去不影响使用 */
+    }
+  }, [petScale])
 
   /** 置顶开关状态（和主进程保持同步） */
   const [onTop, setOnTop] = useState(true)
@@ -124,6 +164,81 @@ export default function App() {
   const [autoSpeak, setAutoSpeak] = useState(true)
   const autoSpeakRef = useRef(true)
   autoSpeakRef.current = autoSpeak
+
+  /**
+   * 音色偏好 —— 存在 `~/.deepprof/voice.json`，由**主进程**读写。
+   *
+   * ⚠️ 不放 localStorage：合成发生在主进程（渲染进程没有起子进程的能力），
+   *    而"启动问候语"要在渲染进程就绪之前就念出来。见 preload 里的同段说明。
+   *    null = 还没读回来（此时菜单只显示"读取中"）。
+   */
+  const [voicePref, setVoicePref] = useState(null)
+  /** 可选音色表：null=还没取过；{ok:false}=取不到（要联网，取不到不影响继续用） */
+  const [voiceList, setVoiceList] = useState(null)
+  const [voiceListOpen, setVoiceListOpen] = useState(false)
+
+  /**
+   * 运行模式：null=还在启动；否则 { mode:'backend'|'mock', provider, reason }。
+   *
+   * ⚠️ 必须有这个显示（2026-09-21）：桌宠此前**根本没接模型**，
+   *    回复全是主进程里写死的演示文案，而界面上完全看不出来 ——
+   *    所以这个问题拖了很久才被发现。现在"模型在说"和"演示文案"必须一眼可分。
+   */
+  const [runtimeMode, setRuntimeMode] = useState(null)
+
+  /** 拉取运行模式；后端要十几秒才起来，所以启动期间轮询，就绪后停 */
+  useEffect(() => {
+    let alive = true
+    let timer = null
+    let tries = 0
+    const api = window.deepprof
+    if (!api || typeof api.getRuntimeStatus !== 'function') return
+
+    const pull = async () => {
+      tries += 1
+      try {
+        const r = await api.getRuntimeStatus()
+        if (!alive || !r || !r.ok) return
+        setRuntimeMode(r)
+        if (r.ready && timer) {
+          clearInterval(timer)
+          timer = null
+        }
+      } catch {
+        /* 主进程 handler 还没注册，下一次再试 */
+      }
+      // 上限 40 次（约 80 秒）：一直起不来就停止轮询，状态停在"启动中/演示模式"
+      if (tries >= 40 && timer) {
+        clearInterval(timer)
+        timer = null
+      }
+    }
+
+    pull()
+    timer = setInterval(pull, 2000)
+    return () => {
+      alive = false
+      if (timer) clearInterval(timer)
+    }
+  }, [])
+
+  /** 启动时把当前音色读回来（只是一个本地小 JSON，不等网络） */
+  useEffect(() => {
+    let alive = true
+    const api = window.deepprof && window.deepprof.tts
+    if (!api || typeof api.getVoice !== 'function') return
+    api
+      .getVoice()
+      .then((r) => {
+        if (alive && r && r.ok) setVoicePref(r)
+      })
+      .catch(() => {
+        /* 读不到就用主进程的默认音色，界面上显示"默认"即可 */
+      })
+    return () => {
+      alive = false
+    }
+  }, [])
 
   // ── 好感度 / 心情 / 精力（任务书 §16.4「好感度交互」）──
   const [stats, setStats] = useState(loadStats)
@@ -292,6 +407,10 @@ export default function App() {
       case 'pedagogy.decision':
         // 决策事件带 emotion 也收下（v0.4.1 的字段缺口另见「已知限制」）
         if (payload.emotion) setEmotion(payload.emotion)
+        break
+      case 'runtime.mode':
+        // 主进程装配完成时推一条（拉取那条路见上面的 getRuntimeStatus）
+        setRuntimeMode({ ok: true, ready: true, ...payload })
         break
       case 'model.requested':
         setStatus('loading')
@@ -600,6 +719,41 @@ export default function App() {
     })
   }
 
+  /** 音色短名（菜单里显示用）：zh-CN-XiaoxiaoNeural → Xiaoxiao */
+  const voiceShort = (name) => {
+    const s = String(name || '')
+    const m = s.match(/^[a-z]{2}-[A-Z]{2}-(.+?)Neural$/)
+    return m ? m[1] : s || '默认'
+  }
+
+  /** 展开时才去取音色表 —— 要联网，不能拖慢启动 */
+  const toggleVoiceList = async () => {
+    const next = !voiceListOpen
+    setVoiceListOpen(next)
+    if (!next || voiceList) return
+    const api = window.deepprof && window.deepprof.tts
+    if (!api || typeof api.listVoices !== 'function') return
+    const r = await api.listVoices().catch(() => null)
+    setVoiceList(r && r.ok ? r : { ok: false, reason: (r && r.reason) || '取不到音色表' })
+  }
+
+  /** 选定音色：写进 `~/.deepprof/voice.json`，然后立刻念一句试听 */
+  const applyVoice = async (name) => {
+    const api = window.deepprof && window.deepprof.tts
+    if (!api || typeof api.setVoice !== 'function') return
+    const r = await api.setVoice({ voice: name }).catch(() => null)
+    if (!r || !r.ok) return
+    setVoicePref(r)
+    setVoiceListOpen(false)
+    setMenuOpen(false)
+    // ⚠️ 必须先清缓存：缓存按文本存，不清的话试听同一句会播回**旧音色**
+    clearTtsCache()
+    speak('换成这个声音啦，听听看。', (s) => {
+      setSpeaking(s === 'start')
+      if (s !== 'start') setPaused(false)
+    })
+  }
+
   const togglePause = () => {
     if (paused) {
       resumeSpeech()
@@ -696,10 +850,20 @@ export default function App() {
         onMouseDown={onMouseDown}
         // 双击 = 打开对话面板（单击是摸头/反应，见 onUp）
         onDoubleClick={() => toggleChat(true)}
-        // 滚轮 = 缩放角色（0.6x ~ 1.8x）
+        // 缩放角色（0.6x ~ 1.8x）
+        //
+        // ⚠️ **必须按住 Ctrl 才生效**（2026-09-21 改）。
+        //    原来是不带任何修饰键就直接缩 —— 而 `.pet-area` 铺满整个桌宠窗口，
+        //    桌宠又是常驻置顶的，于是"鼠标刚好压在桌宠上时随手滚一下滚轮"
+        //    就会把小人缩小 12%/格，最多缩到 60%，界面上却毫无提示。
+        //    这正是用户报的「莫名其妙变小」。加上修饰键之后，
+        //    普通滚动不再有任何副作用，缩放变成一个明确的操作。
         onWheel={(e) => {
+          if (!e.ctrlKey && !e.metaKey) return // 不按修饰键 → 什么都不做
           e.preventDefault()
-          setPetScale((v) => Math.min(1.8, Math.max(0.6, v - e.deltaY * 0.0012)))
+          setPetScale((v) =>
+            Math.min(PET_SCALE_MAX, Math.max(PET_SCALE_MIN, v - e.deltaY * 0.0012))
+          )
         }}
         onContextMenu={(e) => {
           e.preventDefault()
@@ -778,6 +942,56 @@ export default function App() {
           <button onClick={() => { setMenuOpen(false); setPetScale(1) }}>
             恢复默认大小（{Math.round(petScale * 100)}%）
           </button>
+
+          {/* ── 换音色 ──
+              音色表要联网取，所以做成"展开才拉"，不拖慢启动。
+              取不到也不挡路：显示原因，用户继续用当前音色即可。 */}
+          <button onClick={toggleVoiceList}>
+            {voiceListOpen ? '▾' : '▸'} 音色（{voiceShort(voicePref && voicePref.voice)}）
+          </button>
+          {voiceListOpen && (
+            <div className="ctx-sub">
+              {!voiceList && <span className="ctx-note">读取中…</span>}
+              {voiceList && !voiceList.ok && (
+                <span className="ctx-note">取不到音色表：{voiceList.reason}</span>
+              )}
+              {voiceList && voiceList.ok && !voiceList.voices.length && (
+                <span className="ctx-note">没有可用的中文音色</span>
+              )}
+              {voiceList &&
+                voiceList.ok &&
+                voiceList.voices.map((v) => (
+                  <button
+                    key={v.name}
+                    className={voicePref && voicePref.voice === v.name ? 'on' : ''}
+                    title={v.name}
+                    onClick={() => applyVoice(v.name)}
+                  >
+                    {v.friendly || voiceShort(v.name)}
+                    {v.gender ? `（${v.gender === 'Female' ? '女' : '男'}）` : ''}
+                  </button>
+                ))}
+            </div>
+          )}
+          {/* 语音自检：把"到底是没装 edge-tts / 没网 / 还是别的"一句话说清楚 */}
+          <button
+            onClick={async () => {
+              setMenuOpen(false)
+              const api = window.deepprof && window.deepprof.tts
+              if (!api || typeof api.selftest !== 'function') {
+                window.alert('语音自检不可用（preload 没接上）')
+                return
+              }
+              const r = await api.selftest().catch(() => null)
+              window.alert(
+                r && r.ok
+                  ? `神经语音可用\n音色：${r.voice || '默认'}\n${r.detail || ''}`
+                  : `神经语音不可用，会退回系统合成音（比较机械）\n原因：${(r && r.reason) || '未知'}`
+              )
+            }}
+          >
+            语音自检
+          </button>
           {/*
             ⏸ 分层 rig 暂停（2026-09-20）。
             理由与 walk/blink/talk 三批旧帧完全一样：rig 的三层贴图是从
@@ -824,6 +1038,22 @@ export default function App() {
       {chatOpen && (
         <>
           {node && <div className="node-chip">教学节点：{node}</div>}
+
+          {/* ── 运行模式 ──
+              真模型 / 演示模式必须一眼可见：之前"没接模型"就是因为界面上
+              完全看不出来，回复流式输出得很像真的。 */}
+          <div
+            className={
+              runtimeMode && runtimeMode.mode === 'backend' ? 'mode-chip on' : 'mode-chip'
+            }
+            title={runtimeMode && runtimeMode.reason ? runtimeMode.reason : ''}
+          >
+            {!runtimeMode || !runtimeMode.ready
+              ? '后端启动中…'
+              : runtimeMode.mode === 'backend'
+                ? `真模型 · ${runtimeMode.provider || '已连接'}`
+                : '演示模式（未接模型）'}
+          </div>
 
           {mode === 'live2d' && (
             <div className="expr-bar">

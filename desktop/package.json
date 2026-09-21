@@ -1,9 +1,13 @@
 {
   "name": "deepprof-desktop",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "private": true,
   "description": "DeepProf 桌宠前端 —— Electron + React（MVP-3 第一个模块）",
   "author": "张钧翔",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/RockeyRoc/DeepProf.git"
+  },
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -31,6 +35,24 @@
       {
         "from": "build/icon.ico",
         "to": "icon.ico"
+      },
+      {
+        "from": "bin",
+        "to": "bin"
+      },
+      {
+        "from": "..",
+        "to": "backend",
+        "filter": [
+          "api/**/*",
+          "graph/**/*",
+          "runtime/**/*",
+          "skills/**/*",
+          "tools/**/*",
+          "config/**/*",
+          "shared/**/*",
+          "requirements.txt"
+        ]
       }
     ],
     "win": {
@@ -53,6 +75,8 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "include": "installer.nsh",
       "createDesktopShortcut": true,
       "shortcutName": "DeepProf桌宠",
       "artifactName": "DeepProf桌宠-安装版-${version}.${ext}"

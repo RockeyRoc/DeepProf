@@ -132,6 +132,17 @@ let lastEngine = null
 const edgeCache = new Map()
 const EDGE_CACHE_MAX = 24
 
+/**
+ * 清空合成缓存。
+ *
+ * ⚠️ **换音色后必须调用**：缓存是按**文本**存的，不按音色。
+ *    不清的话，用户换了音色去试听同一句（比如"听听看"），
+ *    播出来的还是**旧音色** —— 看起来就像"换音色没生效"。
+ */
+export function clearCache() {
+  edgeCache.clear()
+}
+
 async function tryEdge(text, my, onState) {
   const api = typeof window !== 'undefined' && window.deepprof && window.deepprof.tts
   if (!api || typeof api.synthesize !== 'function') return false

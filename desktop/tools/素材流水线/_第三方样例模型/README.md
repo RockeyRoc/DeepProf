@@ -11,8 +11,9 @@
 > 移入日期：**2026-09-19**（从桌宠交付目录移出）
 > 移出前位置：`desktop/src/renderer/public/live2d/`
 > 开发机位置：`_素材工作区/_第三方样例模型/`（**不在本仓库内**）
-> 相关文档：[`../../../docs/DeepProf_素材授权调研.md`](../../../docs/DeepProf_素材授权调研.md)、
-> [`../../../docs/DeepProf_原创角色设定.md`](../../../docs/DeepProf_原创角色设定.md) §三
+> 相关文档：原 `docs/DeepProf_素材授权调研.md` 与 `docs/DeepProf_原创角色设定.md`
+> **已于 2026-09-21 随 `desktop/docs/` 一起删除**（授权结论见仓库根的
+> [`docs/license_audit.md`](../../../../docs/license_audit.md)）。
 
 ---
 
@@ -160,7 +161,6 @@ Move-Item "$dst\shizuku" $pub   # 可选：没人用它，只有音效
 3. 其余前置条件（不然切过去一样是黑屏，别误判成模型问题）：
    - 只用 Cubism 4（`.moc3`），import 路径是 `pixi-live2d-display/cubism4`；
    - `live2dSetup.js` 里 `install(PIXI)` 必须在任何 Pixi 对象之前执行。
-   （详见 `desktop/docs/启动说明.md` §5.3）
 
 **验证完请务必再把它移回本目录** —— 别让它又悄悄漂回交付目录。
 

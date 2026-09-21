@@ -29,9 +29,140 @@ const {
   globalShortcut
 } = require('electron')
 const path = require('path')
+const os = require('os')
+const fs = require('fs')
 
 /** 开发模式：electron-vite dev 会注入这个环境变量 */
 const isDev = !!process.env.ELECTRON_RENDERER_URL
+
+/* ══════════════════════════════════════════════════════════════
+ * 应用数据目录 —— 三层布局（模仿 Codex 桌面端：程序 / 用户数据 / 可再生缓存）
+ *
+ *   ① 程序本体   → 安装目录（用户可选路径），运行期只读；
+ *   ② 用户数据   → `~/.deepprof`（像 codex 的 `~/.codex`）——持久层，
+ *                  唯一需要备份的目录：config / voice / sessions / memory / exports / screenshots；
+ *   ③ 可再生状态 → `%LOCALAPPDATA%\deepprof` ——缓存 / 日志 / 临时文件，
+ *                  跟着机器走不值得漫游（Roaming 不用），随时可删、下次启动自动重建。
+ *
+ * 与 Python 侧共用同一套规则（config/paths.py）：都认 `DEEPPROF_HOME` 覆盖主目录。
+ *
+ * ⚠️ `app.setPath('userData', …)` **必须在 app ready 之前调用**，而且越早越好 ——
+ *    一旦有任何一个模块先碰过默认路径，Chromium 已经把 Cache 目录建出来了，
+ *    再改就会变成"两个目录各有一半状态"（比不改还难查）。
+ *    所以这段紧跟在 require 之后，是全文件第一件执行的事。
+ *
+ * ⚠️ `app.setPath` 对 `userData`/`logs` 这类键**要求目录已存在**，
+ *    不存在会抛。所以先 mkdir 再 set，顺序不能反。
+ * ══════════════════════════════════════════════════════════════ */
+const DEEPPROF_HOME = process.env.DEEPPROF_HOME || path.join(os.homedir(), '.deepprof')
+// 没有 LOCALAPPDATA 的环境（非 Windows / 受限沙箱）退回 ~/.deepprof/local
+const DEEPPROF_LOCAL = process.env.LOCALAPPDATA
+  ? path.join(process.env.LOCALAPPDATA, 'deepprof')
+  : path.join(DEEPPROF_HOME, 'local')
+
+/** mkdir -p，失败不致命（下面 setPath 会抛出更明确的信息） */
+function ensureDir(p) {
+  try {
+    fs.mkdirSync(p, { recursive: true })
+  } catch {
+    /* 交给调用方兜底 */
+  }
+  return p
+}
+
+/**
+ * 一次性迁移：旧版把 logs/tmp/Chromium 状态都写在 ~/.deepprof 下，
+ * 三层布局后它们归 %LOCALAPPDATA%。老目录存在且新目录为空才搬（move 不 copy，
+ * 避免"两个目录各有一半状态"）；迁移痕迹写 migrated.marker。
+ */
+function migrateLegacyDirs() {
+  const pairs = [
+    ['electron', 'cache'],
+    ['logs', 'logs'],
+    ['tmp', 'tmp'],
+  ]
+  const moved = []
+  for (const [fromName, toName] of pairs) {
+    const from = path.join(DEEPPROF_HOME, fromName)
+    const to = path.join(DEEPPROF_LOCAL, toName)
+    try {
+      if (!fs.existsSync(from)) continue
+      if (fs.existsSync(to) && fs.readdirSync(to).length > 0) continue
+      fs.rmSync(to, { recursive: true, force: true }) // 空目录占位也清掉再搬
+      fs.mkdirSync(path.dirname(to), { recursive: true })
+      fs.renameSync(from, to)
+      moved.push(`${fromName} → ${to}`)
+    } catch (err) {
+      console.error('[桌宠] 旧数据目录迁移失败（不影响启动）:', fromName, err.message)
+    }
+  }
+  if (moved.length) {
+    try {
+      fs.writeFileSync(
+        path.join(DEEPPROF_HOME, 'migrated.marker'),
+        JSON.stringify({ at: new Date().toISOString(), moved }, null, 2),
+        'utf8'
+      )
+    } catch { /* 迁移痕迹写不进也不致命 */ }
+  }
+}
+
+/** `~/.deepprof`（用户数据）与 `%LOCALAPPDATA%\deepprof`（可再生）下我们自己的文件 */
+const PATHS = {
+  home: ensureDir(DEEPPROF_HOME),
+  local: ensureDir(DEEPPROF_LOCAL),
+  // —— 可再生（%LOCALAPPDATA%\deepprof）——
+  electron: ensureDir(path.join(DEEPPROF_LOCAL, 'cache')), // Chromium 自己的状态
+  logs: ensureDir(path.join(DEEPPROF_LOCAL, 'logs')),
+  tmp: ensureDir(path.join(DEEPPROF_LOCAL, 'tmp')),
+  // —— 持久（~/.deepprof）——
+  sessions: ensureDir(path.join(DEEPPROF_HOME, 'sessions')), // 后端 SQLite 会话库
+  memory: ensureDir(path.join(DEEPPROF_HOME, 'memory')),     // 长期记忆 / 向量库
+  plugins: ensureDir(path.join(DEEPPROF_HOME, 'plugins')),   // 用户安装的第三方插件
+  screenshots: ensureDir(path.join(DEEPPROF_HOME, 'screenshots')),
+  config: path.join(DEEPPROF_HOME, 'config.json'),
+  voice: path.join(DEEPPROF_HOME, 'voice.json')
+}
+
+migrateLegacyDirs()
+
+app.setPath('userData', PATHS.electron)
+app.setPath('sessionData', PATHS.electron)
+app.setPath('logs', PATHS.logs)
+app.setPath('temp', PATHS.tmp)
+
+/**
+ * 读写 `~/.deepprof/*.json` 的小工具。
+ * 配置读不出来一律**回退到默认值**，绝不因为一个坏 JSON 让桌宠起不来。
+ */
+function readJsonFile(file, fallback = {}) {
+  try {
+    return { ...fallback, ...JSON.parse(fs.readFileSync(file, 'utf8')) }
+  } catch {
+    return { ...fallback }
+  }
+}
+function writeJsonFile(file, data) {
+  try {
+    ensureDir(path.dirname(file))
+    fs.writeFileSync(file, JSON.stringify(data, null, 2), 'utf8')
+    return true
+  } catch (err) {
+    console.error('[桌宠] 配置写入失败:', file, err.message)
+    return false
+  }
+}
+
+/**
+ * 用哪个 Python。允许用环境变量覆盖（有的机器是 `py` 或 `python3`）。
+ *
+ * ⚠️ 放在模块作用域：**语音合成**（say.py）和**后端监督器**（uvicorn）都要用它，
+ *    以前它藏在 setupIpc() 里面，监督器拿不到，只能再抄一份 —— 两份迟早不一致。
+ */
+const PY = process.env.DEEPPROF_PYTHON || 'python'
+
+/** 异步 sleep（等后端起来、重试探测用） */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 /**
  * 内容安全策略。
@@ -341,6 +472,281 @@ class MockRuntime extends EventEmitter {
 }
 
 /* =========================================================================
+ * BackendRuntime —— **真后端**（FastAPI + 教学策略图）的事件适配器
+ *
+ * ═══ 为什么要有这个类（2026-09-21）═══
+ *
+ * 此前桌宠**根本没接模型**：主进程只持有 MockRuntime，回复是一段写死的文案
+ * （见上面 SCRIPT）。界面上看起来在"思考—流式输出—切表情"，
+ * 但没有一个字来自模型。后端本身是好的（`api/` 257 个测试全绿），
+ * 缺的就是这条连接。
+ *
+ * 它与 MockRuntime **接口完全一致**（run / cancel / reconnect + 'event' 事件），
+ * 所以 setupIpc() 里的三个 handler、以及渲染进程，一行都不用改。
+ *
+ * ═══ 三条必须说清楚的适配细节 ═══
+ *
+ * 1. **`sequence` 用本地计数器，不用后端那个。**
+ *    渲染端靠 sequence 单调递增来丢弃"补发的旧事件"（App.jsx 的 lastSeqRef）。
+ *    后端的 sequence 是**每个会话各自从 1 开始**的，直接透传会低于本地已用过的值，
+ *    于是**所有事件都会被当成旧事件丢掉** —— 界面一动不动，且完全看不出原因。
+ *    所以：本地重新编号保证单调，但**保留后端的 `event_id`**，
+ *    event_id 那层去重仍然是真的。
+ *
+ * 2. **流式增量的字段名不一样。**
+ *    后端 `model.stream.delta` 的 payload 是 `{text: "新增的几个字"}`（增量），
+ *    而 Mock（以及渲染端）的契约是 `{delta: "目前为止的全文"}`（累积）。
+ *    所以这里要**累积**着转发 —— 直接把 text 塞进 delta，气泡里就只剩最后几个字。
+ *
+ * 3. **取消没有后端端点。**
+ *    直接 abort 掉 fetch，SSE 连接断开后 FastAPI 的生成器 finally 会 cancel 掉本轮任务
+ *    （见 api/routes/sessions.py 的 _teaching_event_stream）。本地照常发
+ *    agent.cancelled，界面上的表现与 Mock 一致。
+ * ========================================================================= */
+class BackendRuntime extends EventEmitter {
+  /**
+   * @param {string} baseUrl 形如 http://127.0.0.1:53124（末尾不带斜杠）
+   * @param {string} learnerId 学习者标识，用于后端按人隔离数据（§17.3）
+   */
+  constructor(baseUrl, learnerId = 'desktop') {
+    super()
+    this.baseUrl = baseUrl
+    this.learnerId = learnerId
+    this.sessionId = ''
+    this.traceId = null
+    this.ctrl = null // 当前这一轮的 AbortController
+    this.acc = '' // 累积的流式文本（见上面第 2 条）
+    this.lastSeq = 0 // 后端 sequence 水位，重连补事件用
+    this.cancelled = false
+    this.recoverTimer = null // 断线自动恢复的定时器（见 _scheduleRecover）
+  }
+
+  emitEvent(type, payload, source = 'runtime') {
+    this.emit('event', makeEvent(this.sessionId, this.traceId, type, payload, source))
+  }
+
+  /** 会话是懒创建的：第一次发言时才 POST /sessions */
+  async ensureSession() {
+    if (this.sessionId) return this.sessionId
+    const res = await fetch(`${this.baseUrl}/sessions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ session_id: '', learner_id: this.learnerId })
+    })
+    if (!res.ok) throw new Error(`创建会话失败：HTTP ${res.status}`)
+    const data = await res.json()
+    this.sessionId = String(data.session_id || '')
+    if (!this.sessionId) throw new Error('创建会话失败：后端没返回 session_id')
+    return this.sessionId
+  }
+
+  run(text, scenario = 'normal') {
+    this.cancelled = false
+    this.traceId = uid('trace')
+    this.acc = ''
+    this.ctrl = new AbortController()
+    this._clearRecover() // 新一轮开始，作废还没跑完的自动恢复
+
+    // 这三条与 Mock 保持一致：渲染端的"加载中"状态靠它们点亮
+    this.emitEvent('session.started', { resumed: false })
+    this.emitEvent('agent.turn.started', { input: text })
+
+    // ⚠️ run() 必须**立刻返回**：它是 ipcMain.handle 的同步返回值，
+    //    阻塞在这里会让渲染进程的 invoke 一直挂着（按钮看着像卡死）。
+    this._pump(String(text || '')).catch((err) => this._fail(err))
+  }
+
+  async _pump(text) {
+    const sid = await this.ensureSession()
+    if (this.cancelled) return
+
+    const res = await fetch(`${this.baseUrl}/sessions/${sid}/teaching-turn`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        // 后端把这个头当本轮 trace_id（settings.trace_id_header）
+        'x-trace-id': this.traceId || ''
+      },
+      body: JSON.stringify({
+        session_id: sid,
+        learner_id: this.learnerId,
+        request_id: uid('req'),
+        content: text
+      }),
+      signal: this.ctrl.signal
+    })
+    if (!res.ok) {
+      throw new Error(`教学轮失败：HTTP ${res.status} ${(await res.text()).slice(0, 200)}`)
+    }
+    if (!res.body) throw new Error('教学轮失败：后端没有返回流式响应体')
+
+    for await (const frame of readSseFrames(res.body)) {
+      if (frame.data) this._forward(frame.data)
+    }
+  }
+
+  /** 把一帧后端事件（§18.2 的 dict 形状）转成本地事件并转发 */
+  _forward(d) {
+    const type = String(d.type || '')
+    if (!type) return
+    if (typeof d.sequence === 'number') this.lastSeq = Math.max(this.lastSeq, d.sequence)
+
+    let payload = { ...(d.payload || {}) }
+    if (type === 'model.stream.delta') {
+      // 见类注释第 2 条：增量 → 累积
+      this.acc += String(payload.text || '')
+      payload = { delta: this.acc, index: this.acc.length }
+    }
+
+    const evt = makeEvent(this.sessionId, this.traceId, type, payload, d.source || 'runtime')
+    if (d.event_id) evt.event_id = String(d.event_id) // 保留后端 id：跨重连去重靠它
+    this.emit('event', evt)
+  }
+
+  _fail(err) {
+    if (this.cancelled) return
+    const message = String((err && err.message) || err).slice(0, 300)
+    this.emitEvent('model.failed', { code: 'BACKEND_ERROR', message })
+    this.emitEvent('agent.failed', { reason: 'backend', retryable: true, message })
+    this.traceId = null
+    // 中途断流不就此结束：退避重试把丢掉的事件补回来（见 _scheduleRecover）
+    this._scheduleRecover()
+  }
+
+  cancel() {
+    if (!this.traceId) return false
+    this.cancelled = true
+    this._clearRecover()
+    try {
+      this.ctrl && this.ctrl.abort()
+    } catch {
+      /* 已经结束了，忽略 */
+    }
+    // 与 Mock 一致：真后端发的是 agent.cancelled（不是 agent.failed）
+    this.emitEvent('agent.cancelled', { reason: 'cancelled', message: '本轮已取消' }, 'renderer')
+    this.traceId = null
+    return true
+  }
+
+  /**
+   * 断线**自动**恢复：按 1s / 2s / 4s 退避重试，最多 3 次。
+   *
+   * 每次做的事与手动 `reconnect()` 相同 —— GET events?from_sequence=lastSeq 补增量；
+   * 补到了就发 `session.resumed {replayed: n}` 让界面知道恢复了，之后不再重试。
+   * 3 次都失败就**静默放弃**：本轮失败已经在 `model.failed` / `agent.failed` 里报过，
+   * 这里没必要再发一条失败事件把状态机再切一次。
+   *
+   * ⚠️ 生命周期的三条边界：`run()` 开新轮、`cancel()` 用户取消，都会 `_clearRecover()`
+   *    作废挂着的重试 —— 不然会出现「上一轮的幽灵恢复」污染新轮的事件流。
+   */
+  _scheduleRecover() {
+    if (!this.sessionId || this.cancelled) return
+    this._clearRecover()
+    const BACKOFF_MS = [1000, 2000, 4000]
+    let attempt = 0
+    const tick = async () => {
+      this.recoverTimer = null
+      if (this.cancelled || !this.sessionId) return
+      try {
+        const res = await fetch(
+          `${this.baseUrl}/sessions/${this.sessionId}/events?from_sequence=${this.lastSeq}`
+        )
+        if (!res.ok) throw new Error(`回放失败：HTTP ${res.status}`)
+        const data = await res.json()
+        const events = data.events || []
+        for (const e of events) this._forward(e)
+        this.emitEvent('session.resumed', {
+          resumed_from: this.sessionId,
+          replayed: events.length
+        })
+        // 补到了，不再重试
+      } catch {
+        if (attempt < BACKOFF_MS.length) {
+          this.recoverTimer = setTimeout(tick, BACKOFF_MS[attempt++])
+        }
+      }
+    }
+    this.recoverTimer = setTimeout(tick, BACKOFF_MS[attempt++])
+  }
+
+  _clearRecover() {
+    if (this.recoverTimer) {
+      clearTimeout(this.recoverTimer)
+      this.recoverTimer = null
+    }
+  }
+
+  /**
+   * 断线重连：按 sequence 回放后端**已落盘**的事件（§18.2）。
+   *
+   * ⚠️ 这里刻意不发 `model.completed` 之类的"假回复"（Mock 会发一句"会话已恢复"）。
+   *    真后端的恢复 = 把丢掉的事件补回来，凭空造一句回复是 Mock 才该做的事。
+   */
+  async reconnect() {
+    if (!this.sessionId) {
+      this.emitEvent('session.resumed', { resumed_from: '' })
+      return
+    }
+    this.emitEvent('session.resumed', { resumed_from: this.sessionId })
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/sessions/${this.sessionId}/events?from_sequence=${this.lastSeq}`
+      )
+      if (!res.ok) throw new Error(`回放失败：HTTP ${res.status}`)
+      const data = await res.json()
+      for (const e of data.events || []) this._forward(e)
+    } catch (err) {
+      this.emitEvent('model.failed', {
+        code: 'REPLAY_FAILED',
+        message: String((err && err.message) || err).slice(0, 200)
+      })
+      this.emitEvent('agent.failed', { reason: 'backend', retryable: true })
+    }
+  }
+}
+
+/**
+ * 解析 SSE 响应体（`id:` / `event:` / `data:` 三段，帧之间空行分隔）。
+ *
+ * ⚠️ 必须**按空行切帧**而不是按行切：一条 data 行可能被 TCP 分片，
+ *    也可能一次读到好几帧。按行处理会拼出半个 JSON，然后 JSON.parse 失败 ——
+ *    表现就是"偶尔丢一段回复"，最难查的那类 bug。
+ */
+async function* readSseFrames(body) {
+  const reader = body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buf = ''
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      let idx
+      while ((idx = buf.indexOf('\n\n')) !== -1) {
+        const raw = buf.slice(0, idx)
+        buf = buf.slice(idx + 2)
+        const dataLines = raw
+          .split('\n')
+          .filter((l) => l.startsWith('data:'))
+          .map((l) => l.slice(5).trimStart())
+        if (!dataLines.length) continue
+        try {
+          yield { data: JSON.parse(dataLines.join('\n')) }
+        } catch {
+          /* 半帧/心跳，跳过 */
+        }
+      }
+    }
+  } finally {
+    try {
+      reader.releaseLock()
+    } catch {
+      /* 忽略 */
+    }
+  }
+}
+
+/* =========================================================================
  * 二、窗口与 IPC
  * ========================================================================= */
 
@@ -348,8 +754,24 @@ class MockRuntime extends EventEmitter {
 let win = null
 /** @type {Tray | null} */
 let tray = null
-/** @type {MockRuntime | null} */
+/** @type {MockRuntime | BackendRuntime | null} */
 let runtime = null
+
+/**
+ * Runtime 就绪信号。
+ *
+ * ⚠️ 为什么需要它：initRuntime() 现在是**异步**的（要等后端起来，最多 20 秒），
+ *    而渲染进程在窗口一创建就可以点按钮了。这段时间里 `runtime` 还是 null ——
+ *    如果直接返回 runtime_not_ready，用户看到的是"点了没反应"，
+ *    而实际上后端只是还在启动。这里让它**等一下**，而不是当场拒绝。
+ */
+let runtimeReadyResolve = null
+const runtimeReady = new Promise((resolve) => {
+  runtimeReadyResolve = resolve
+})
+
+/** 等 runtime 装配完成（已就绪时立即返回） */
+const whenRuntime = () => (runtime ? Promise.resolve(runtime) : runtimeReady)
 
 /** 渲染进程订阅事件用的频道名 */
 const EVENT_CHANNEL = 'runtime:event'
@@ -408,8 +830,31 @@ function createWindow() {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      // ⚠️ 显式钉死页面缩放（2026-09-21）—— 见下面 setVisualZoomLevelLimits 那段说明
+      zoomFactor: 1
     }
+  })
+
+  /* ══════════════════════════════════════════════════════════════
+   * 禁掉 Chromium 自带的【页面缩放】—— 这是「桌宠莫名其妙变小」的另一半根因
+   *
+   * 渲染层自己那个滚轮缩放（App.jsx 的 onWheel）只是"缩放角色"，
+   * 而 Chromium **还有一套独立的整页缩放**：Ctrl+滚轮、触控板双指捏合，
+   * 都会改 `webContents.zoomLevel` —— 整页 DOM 一起缩小，**桌宠窗口尺寸不变、
+   * 里面的小人却变小了**，而且：
+   *   · 界面上没有任何提示（没有缩放条）
+   *   · `zoomLevel` 按 origin **写进 session 持久化**，重启还在，越缩越小
+   * 这正好就是用户描述的"莫名其妙变小"。
+   *
+   * `setVisualZoomLevelLimits(1, 1)` 掐掉捏合缩放；
+   * `zoom-changed` 兜住 Ctrl+滚轮这条 —— 它会在用户请求缩放时触发，
+   * 我们直接把它拉回 1（这是 Electron 里禁用页面缩放的标准做法）。
+   * ══════════════════════════════════════════════════════════════ */
+  win.webContents.setVisualZoomLevelLimits(1, 1)
+  win.webContents.on('zoom-changed', (e) => {
+    e.preventDefault()
+    win.webContents.setZoomFactor(1)
   })
 
   // 置顶层级拉到最高，避免被其他窗口盖住
@@ -454,39 +899,42 @@ function createWindow() {
     }
 
     // 让 Electron 自己抓自己的窗口 —— 分层窗口用 GDI 截图抓不到，只能这么验证
+    //
+    // ⚠️ 2026-09-21：**默认不再截图**。
+    //    原来每次启动都无条件往 %TEMP% 写两张（`deepprof-window.png` / `-2s.png`），
+    //    那是排查白屏时临时加的诊断，不是产品行为 —— 用户机器上会白堆垃圾文件。
+    //    现在只在显式设了 `DEEPPROF_SNAP=1` 时才抓，落点也从 %TEMP% 换到
+    //    `~/.deepprof/screenshots/`（见文件头 PATHS 的说明）。
     const snap = async (tag) => {
       try {
         const img = await win.webContents.capturePage()
-        const out = path.join(app.getPath('temp'), `deepprof-window${tag}.png`)
-        require('fs').writeFileSync(out, img.toPNG())
+        const out = path.join(PATHS.screenshots, `window${tag}.png`)
+        fs.writeFileSync(out, img.toPNG())
         console.log(`[桌宠] 窗口自截图已保存${tag}:`, out)
       } catch (err) {
         console.error('[桌宠] 自截图失败:', err.message)
       }
     }
 
-    // ⚠️ 只抓这一张是没用的：此刻 React 刚挂载，Pixi 的贴图还在异步加载，
-    //    画布是空的，抓出来一片透明（看不出是"没渲染"还是"渲染成透明"）。
-    //    所以再过几秒抓一张 —— 那张才反映真实画面。
-    await snap('')
-    setTimeout(() => snap('-2s'), 2500)
-
-
-    // 连拍：桌宠是"溜达"的，只在启动瞬间抓一张会正好错过它在走的时刻。
-    // 平时别开（每次启动留一堆文件太吵），要查动画时设 DEEPPROF_SNAP=1 再启动。
+    // 诊断连拍：平时别开（每次启动留一堆文件太吵），要查动画时设 DEEPPROF_SNAP=1 再启动。
     //
     // ⚠️ 2026-09-20 加了间隔/张数可配：原来写死 2 秒 × 10 张，**抓不到眨眼**。
     //    眨眼闭眼只有 110ms，2 秒一采样撞上的概率约 5%。要查眨眼得把间隔压到
     //    100~200ms 连拍十几秒，比如：
     //        DEEPPROF_SNAP=1 DEEPPROF_SNAP_MS=120 DEEPPROF_SNAP_N=120 npm run dev
     if (process.env.DEEPPROF_SNAP) {
+      // ⚠️ 先抓一张「刚挂载」的，再抓一张「几秒后」的 —— 只抓前者是空的
+      //    （此刻 Pixi 的贴图还在异步加载，画布一片透明，看不出是"没渲染"还是"渲染成透明"）。
+      await snap('')
+      setTimeout(() => snap('-2s'), 2500)
       const every = Number(process.env.DEEPPROF_SNAP_MS) || 2000
       const count = Number(process.env.DEEPPROF_SNAP_N) || 10
       for (let i = 1; i <= count; i++) {
         setTimeout(() => snap(`-t${i}`), i * every)
       }
       console.log(
-        `[桌宠] 连拍模式已开启（DEEPPROF_SNAP）—— 每 ${every}ms 一张，共 ${count} 张`
+        `[桌宠] 连拍模式已开启（DEEPPROF_SNAP）—— 每 ${every}ms 一张，共 ${count} 张，` +
+          `落点 ${PATHS.screenshots}`
       )
     }
   })
@@ -865,24 +1313,45 @@ function setupIpc() {
 
   // ---- 会话 ----
   //
-  // ⚠️ 三条都先判 runtime 是否装配好。以前这里是裸调用，一旦装配缺失
-  //    （历史上真发生过：runtime 从未被赋值），渲染端只会收到一句
+  // ⚠️ 三条都先等 runtime 装配好（见 whenRuntime 的说明）。以前这里是裸调用，
+  //    一旦装配缺失（历史上真发生过：runtime 从未被赋值），渲染端只会收到一句
   //    "Cannot read properties of null"，界面上则是"点了没反应"，
   //    排查时完全看不出是主进程少了一行装配。这里让它**响亮地报错**。
   const noRuntime = { ok: false, error: 'runtime_not_ready' }
 
-  ipcMain.handle('session:send', (_e, text, scenario) => {
-    if (!runtime) return noRuntime
-    runtime.run(String(text || ''), scenario || 'normal')
+  ipcMain.handle('session:send', async (_e, text, scenario) => {
+    const rt = await whenRuntime()
+    if (!rt) return noRuntime
+    rt.run(String(text || ''), scenario || 'normal')
     return { ok: true }
   })
 
-  ipcMain.handle('session:cancel', () => ({ ok: runtime ? runtime.cancel() : false }))
-  ipcMain.handle('session:reconnect', () => {
-    if (!runtime) return noRuntime
-    runtime.reconnect()
+  ipcMain.handle('session:cancel', async () => {
+    const rt = await whenRuntime()
+    return { ok: rt ? rt.cancel() : false }
+  })
+
+  ipcMain.handle('session:reconnect', async () => {
+    const rt = await whenRuntime()
+    if (!rt) return noRuntime
+    rt.reconnect()
     return { ok: true }
   })
+
+  /**
+   * 当前运行模式：真后端 还是 演示模式（Mock）。
+   *
+   * 渲染进程**主动拉**（而不是等主进程推）：`runtime.mode` 那条推送是在
+   * initRuntime() 完成时发的，而那时渲染进程可能还没挂上监听 —— 推丢了，
+   * 界面就会一直显示"启动中"。拉取不存在这个问题。
+   */
+  ipcMain.handle('runtime:status', () => ({
+    ok: true,
+    ready: !!runtime,
+    mode: BACKEND.mode,
+    provider: BACKEND.provider,
+    reason: BACKEND.reason
+  }))
 
   // ---- 窗口 ----
   // 点击穿透：让鼠标能点到桌宠"身后"的桌面图标
@@ -939,7 +1408,9 @@ function setupIpc() {
     if (!data) return { ok: false, reason: '没有可导出的内容（未授权？）' }
     try {
       const fs = require('fs')
-      const dir = path.join(app.getPath('desktop'), 'DeepProf_偏好更新')
+      // ⚠️ 落点从「桌面」改到 `~/.deepprof/exports/`（2026-09-21）：
+      //    用户要求应用只碰 `~/.deepprof` 一个目录，不要再往桌面上扔文件夹。
+      const dir = ensureDir(path.join(PATHS.home, 'exports'))
       fs.mkdirSync(dir, { recursive: true })
       const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')
       const out = path.join(dir, `偏好更新_${stamp}.json`)
@@ -1071,7 +1542,7 @@ function setupIpc() {
     return path.join(__dirname, '../../tools/tts/say.py')
   }
   /** 用哪个 python。允许用环境变量覆盖（有的机器是 py 或 python3） */
-  const PY = process.env.DEEPPROF_PYTHON || 'python'
+  // PY 已提到模块作用域（语音合成与后端监督器共用，见文件上方）
 
   /**
    * 跑一次 say.py。
@@ -1099,12 +1570,81 @@ function setupIpc() {
       )
     })
 
+  /* ── 音色偏好（`~/.deepprof/voice.json`）──────────────────────────
+   *
+   * 为什么要落成文件、而不是只放在渲染进程的 localStorage：
+   *   合成发生在**主进程**（渲染进程没有起子进程的能力），所以"用哪个音色"
+   *   必须主进程读得到。放 localStorage 的话，主进程每次都得先问渲染进程，
+   *   而"启动时的问候语"是在窗口就绪之前就要念的 —— 那时还没有渲染进程可问。
+   *
+   * ⚠️ 这里**只做数据搬运，不做兜底音色的选择**：
+   *   合成失败一律返回 ok:false，由前端退回系统合成音（见 tts.js 的 speak）。
+   *   主进程偷偷换成另一个音色重试，会让"听起来不对"变成一个查不出的玄学问题。
+   *
+   * `engine` 是**给将来的语音包预留的**：目前只有 'edge-tts'，
+   * 以后接本地语音包时加一个分支即可，不用再动前端。
+   * ──────────────────────────────────────────────────────────────── */
+  const VOICE_DEFAULTS = {
+    engine: 'edge-tts',
+    voice: 'zh-CN-XiaoxiaoNeural',
+    rate: '-6%',
+    pitch: '+3Hz'
+  }
+
+  /** rate/pitch 直接进 argv，格式不对就让 say.py 报错，别在这里"猜用户想要什么" */
+  const RATE_RE = /^[+-]\d{1,3}%$/
+  const PITCH_RE = /^[+-]\d{1,3}Hz$/
+
+  function readVoicePref() {
+    const saved = readJsonFile(PATHS.voice, {})
+    const out = { ...VOICE_DEFAULTS }
+    if (typeof saved.voice === 'string' && saved.voice.trim()) out.voice = saved.voice.trim()
+    if (RATE_RE.test(saved.rate)) out.rate = saved.rate
+    if (PITCH_RE.test(saved.pitch)) out.pitch = saved.pitch
+    if (typeof saved.engine === 'string' && saved.engine.trim()) out.engine = saved.engine.trim()
+    return out
+  }
+
+  function writeVoicePref(patch = {}) {
+    const next = { ...readVoicePref(), ...patch }
+    writeJsonFile(PATHS.voice, next)
+    return next
+  }
+
+  ipcMain.handle('tts:get-voice', async () => ({ ok: true, ...readVoicePref() }))
+
+  ipcMain.handle('tts:set-voice', async (_e, patch) => {
+    const clean = {}
+    if (patch && typeof patch.voice === 'string' && patch.voice.trim()) clean.voice = patch.voice.trim()
+    if (patch && RATE_RE.test(patch.rate)) clean.rate = patch.rate
+    if (patch && PITCH_RE.test(patch.pitch)) clean.pitch = patch.pitch
+    return { ok: true, ...writeVoicePref(clean) }
+  })
+
+  /**
+   * 换音色菜单的音色表。
+   *
+   * ⚠️ 要联网（音色表来自微软端点），拿不到就返回 ok:false —— 菜单显示"取不到"，
+   *    用户仍然可以用当前音色。**不内置一份写死的清单**：那种清单过几个月
+   *    就和实际可用的音色对不上了，反而更难查（用户会以为是我们的 bug）。
+   */
+  ipcMain.handle('tts:list-voices', async () => {
+    const r = await runSay(['--list-voices'], 20000)
+    if (!r.ok) return { ok: false, reason: r.reason }
+    try {
+      return { ok: true, voices: JSON.parse(r.detail || '[]') }
+    } catch {
+      return { ok: false, reason: 'voice list parse failed' }
+    }
+  })
+
   /** 自检：神经语音到底能不能用（界面上的"语音"诊断按钮会用到） */
   ipcMain.handle('tts:selftest', async () => {
-    const r = await runSay(['--selftest'], 15000)
+    const v = readVoicePref()
+    const r = await runSay(['--selftest', '--voice', v.voice, '--rate', v.rate, '--pitch', v.pitch], 15000)
     if (!r.ok) console.warn('[桌宠] 神经语音不可用：', r.reason)
     else console.log('[桌宠] 神经语音可用')
-    return r
+    return { ...r, voice: v.voice }
   })
 
   ipcMain.handle('tts:synthesize', async (_e, text) => {
@@ -1114,14 +1654,25 @@ function setupIpc() {
     const clipped = t.length > 600 ? t.slice(0, 600) : t
 
     const fs = require('fs')
-    const os = require('os')
     const stamp = `${Date.now()}_${Math.floor(Math.random() * 1e6)}`
-    const txtPath = path.join(os.tmpdir(), `deepprof-tts-${stamp}.txt`)
-    const mp3Path = path.join(os.tmpdir(), `deepprof-tts-${stamp}.mp3`)
+    // ⚠️ 临时文件也落在 `~/.deepprof/tmp/`，不用系统 %TEMP% —— 见文件头 PATHS 的说明。
+    //    这样"应用碰过哪些地方"是可以一次性看全的（就一个 ~/.deepprof）。
+    const txtPath = path.join(PATHS.tmp, `tts-${stamp}.txt`)
+    const mp3Path = path.join(PATHS.tmp, `tts-${stamp}.mp3`)
+
+    // ⚠️ 每次合成**重新读一遍**配置：用户在菜单里换了音色，下一条回复就该是新声音，
+    //    不能等重启。读一个小 JSON 的开销可以忽略（合成本身要一秒多）。
+    const v = readVoicePref()
 
     try {
       fs.writeFileSync(txtPath, clipped, 'utf8')
-      const r = await runSay(['--text-file', txtPath, '--out', mp3Path])
+      const r = await runSay([
+        '--text-file', txtPath,
+        '--out', mp3Path,
+        '--voice', v.voice,
+        '--rate', v.rate,
+        '--pitch', v.pitch
+      ])
       if (!r.ok) return { ok: false, reason: r.reason }
 
       const buf = fs.readFileSync(mp3Path)
@@ -1129,7 +1680,12 @@ function setupIpc() {
 
       // 返回 data URL：渲染进程直接 new Audio(...) 就能播，不用碰文件系统。
       // ⚠️ 需要 CSP 里有 media-src data:，见 applyCsp()
-      return { ok: true, engine: 'edge-tts', audio: `data:audio/mpeg;base64,${buf.toString('base64')}` }
+      return {
+        ok: true,
+        engine: 'edge-tts',
+        voice: v.voice,
+        audio: `data:audio/mpeg;base64,${buf.toString('base64')}`
+      }
     } catch (err) {
       return { ok: false, reason: String(err.message || err).slice(0, 200) }
     } finally {
@@ -1168,7 +1724,195 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 /* =========================================================================
- * MockRuntime 的装配与事件转发
+ * 后端监督器 —— 桌宠启动时**自动拉起 Python 后端**
+ *
+ * ═══ 为什么由桌宠自己拉起 ═══
+ *
+ * 用户的要求是「桌宠自动拉起后端」（2026-09-21）。理由很实在：
+ * 桌宠是一个双击就能用的东西，让用户先开一个终端敲 uvicorn、再来点桌宠，
+ * 等于把"没接上模型"变成一个**每次都可能发生的操作事故**。
+ *
+ * ═══ 起不来怎么办 ═══
+ *
+ * **退回 MockRuntime**，并在事件流里发一条 `runtime.mode` 说明原因。
+ * 这不是"假装没事"：Mock 是刻意保留的离线演示能力（没有密钥、没装 Python
+ * 的机器上桌宠仍然能演示整套教学链路），但**界面上必须能看出现在是哪种模式**。
+ *
+ * ═══ 端口 ═══
+ *
+ * 不写死端口：向系统要一个空闲端口。写死 8000 会和用户机器上别的东西撞，
+ * 撞了的表现是"桌宠连不上后端"，而且换台机器才复现。
+ * 也支持 `DEEPPROF_API_URL` 直接接一个已经在跑的后端（开发时反复重启桌宠不用重开后端）。
+ * ========================================================================= */
+const BACKEND_HOST = '127.0.0.1'
+const BACKEND = { proc: null, url: '', mode: 'mock', reason: '', provider: '' }
+
+/** 仓库根目录（打包态下是 extraResources 复制进来的 backend/） */
+function projectRoot() {
+  if (!app.isPackaged) return path.resolve(__dirname, '../../..')
+  return path.join(process.resourcesPath || '', 'backend')
+}
+
+/** 向系统要一个空闲端口（listen(0) 让内核分配） */
+function findFreePort() {
+  return new Promise((resolve) => {
+    const net = require('net')
+    const srv = net.createServer()
+    srv.on('error', () => resolve(0))
+    srv.listen(0, BACKEND_HOST, () => {
+      const port = srv.address().port
+      srv.close(() => resolve(port))
+    })
+  })
+}
+
+/** 探一次 /health；顺带把 provider 名字记下来（界面上要显示用的哪个模型） */
+async function probeHealth(url, timeoutMs = 1500) {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${url}/health`, { signal: ctrl.signal })
+    if (!res.ok) return null
+    const data = await res.json()
+    return { provider: (data.runtime && data.runtime.provider) || '' }
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * 启动后端并等到它真的能响应 /health。
+ * @returns {Promise<string|null>} 可用时返回 baseUrl，否则 null（reason 里带原因）
+ */
+async function startBackend() {
+  // ① 用户指定了现成的后端就直接用它
+  const external = String(process.env.DEEPPROF_API_URL || '').trim().replace(/\/+$/, '')
+  if (external) {
+    const hit = await probeHealth(external)
+    if (hit) {
+      BACKEND.provider = hit.provider
+      return external
+    }
+    BACKEND.reason = `DEEPPROF_API_URL=${external} 没有响应 /health`
+    return null
+  }
+
+  // ② 找后端源码
+  const root = projectRoot()
+  if (!fs.existsSync(path.join(root, 'api', 'app.py'))) {
+    BACKEND.reason = `找不到后端源码：${path.join(root, 'api', 'app.py')}`
+    return null
+  }
+
+  const port = await findFreePort()
+  if (!port) {
+    BACKEND.reason = '找不到空闲端口'
+    return null
+  }
+  const url = `http://${BACKEND_HOST}:${port}`
+
+  // ③ 拉起 uvicorn
+  //
+  // ⚠️ `windowsHide: true` 是硬要求：不加的话会**弹出一个黑色控制台窗口**，
+  //    而这正是用户反馈的第 5 条问题。桌宠是桌面上的一个小人，
+  //    不该在启动时闪一个 cmd 出来。
+  //
+  // ⚠️ `detached: false` + 记录 pid：退出时要把这个子进程一起带走，
+  //    否则每开关一次桌宠就在后台留一个 uvicorn，端口越占越多。
+  let proc
+  try {
+    const { spawn } = require('child_process')
+
+    // ⚠️ 把 CLI 里选的模型带进子进程。
+    //    `deepprof` CLI 的 `/model` 会写 `~/.deepprof/config.json`，
+    //    而 settings.py 是按环境变量读配置的（LLM_PROVIDER / <PROVIDER>_MODEL）——
+    //    不注入的话，CLI 里换了模型、桌宠还是用 .env 里的旧值，两边对不上。
+    const cfg = readJsonFile(PATHS.config, {})
+    const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' }
+    const wantProvider = String(cfg.llm_provider || '').trim()
+    if (wantProvider) env.LLM_PROVIDER = wantProvider
+    const wantModel = String(cfg.llm_model || '').trim()
+    const modelKey = {
+      deepseek: 'DEEPSEEK_MODEL',
+      openai: 'OPENAI_MODEL',
+      qwen: 'QWEN_MODEL'
+    }[wantProvider]
+    if (wantModel && modelKey) env[modelKey] = wantModel
+
+    proc = spawn(
+      PY,
+      [
+        '-m', 'uvicorn', 'api.app:app',
+        '--host', BACKEND_HOST,
+        '--port', String(port),
+        '--log-level', 'warning'
+      ],
+      {
+        cwd: root,
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        env
+      }
+    )
+  } catch (err) {
+    BACKEND.reason = `启动 python 失败：${(err && err.message) || err}`
+    return null
+  }
+
+  BACKEND.proc = proc
+  let stderrTail = ''
+  proc.stderr.on('data', (d) => {
+    stderrTail = (stderrTail + String(d)).slice(-600)
+  })
+  proc.on('error', (err) => {
+    BACKEND.reason = `python 起不来（${PY} 在 PATH 里吗？）：${err.message}`
+  })
+  proc.on('exit', (code) => {
+    if (BACKEND.proc === proc) {
+      BACKEND.proc = null
+      if (code) BACKEND.reason = `后端进程退出（code=${code}）：${stderrTail.slice(-300)}`
+    }
+  })
+
+  // ④ 等它起来。首次启动要 import langgraph / 建库，给足时间（约 20 秒上限）
+  for (let i = 0; i < 80; i += 1) {
+    await sleep(250)
+    if (!BACKEND.proc) break // 进程已经挂了，不用再等
+    const hit = await probeHealth(url)
+    if (hit) {
+      BACKEND.provider = hit.provider
+      console.log(`[桌宠] 后端已就绪 ${url}（provider=${hit.provider || '未知'}）`)
+      return url
+    }
+  }
+
+  BACKEND.reason =
+    BACKEND.reason || `后端 20 秒内没有就绪：${stderrTail.slice(-300) || '没有输出'}`
+  try {
+    proc.kill()
+  } catch {
+    /* 忽略 */
+  }
+  BACKEND.proc = null
+  return null
+}
+
+/** 退出时把子进程一起带走（不留孤儿 uvicorn） */
+function stopBackend() {
+  if (!BACKEND.proc) return
+  const proc = BACKEND.proc
+  BACKEND.proc = null
+  try {
+    proc.kill()
+  } catch {
+    /* 忽略 */
+  }
+}
+
+/* =========================================================================
+ * Runtime 的装配与事件转发
  *
  * ⚠️ 这一段【曾经缺失过】——`let runtime = null` 从来没有被赋过值，
  *    而 session:send / cancel / reconnect 三个 handler 直接解引用它，
@@ -1179,16 +1923,41 @@ if (!app.requestSingleInstanceLock()) {
  *    编译产物 out/main/index.js 当时也带着同样的空洞，所以 dev 和 start 两种
  *    启动方式都坏。恢复时务必确认**两件事同时存在**：实例化 + event 转发。
  *    只加实例化不加转发，按钮会"看起来好了"但界面依然一动不动。
+ *
+ * ⚠️ 现在有**两个**实现（BackendRuntime / MockRuntime），但接口一致，
+ *    上面那三个 handler 与渲染进程都不需要知道用的是哪一个。
  * ========================================================================= */
-function initRuntime() {
-  runtime = new MockRuntime()
+async function initRuntime() {
+  const url = await startBackend()
+  BACKEND.url = url || ''
+  BACKEND.mode = url ? 'backend' : 'mock'
 
-  // MockRuntime 是 EventEmitter，这里把它的 'event' 转发到渲染进程。
-  // 这是【唯一】的事件出口 —— 见 docs/输入输出.md §〇：
-  // 渲染进程只有 runtime:event 一条入口，不得另开专用推送通道。
+  if (url) {
+    runtime = new BackendRuntime(url)
+  } else {
+    console.warn('[桌宠] 后端不可用，退回演示模式（Mock）：', BACKEND.reason)
+    runtime = new MockRuntime()
+  }
+
+  // Runtime 是 EventEmitter，这里把它的 'event' 转发到渲染进程。
+  // 这是【唯一】的事件出口 —— 渲染进程只有 runtime:event 一条入口，
+  // 不得另开专用推送通道。
   runtime.on('event', (evt) => {
     if (win && !win.isDestroyed()) win.webContents.send(EVENT_CHANNEL, evt)
   })
+
+  // 告诉界面现在是"真模型"还是"演示模式"。
+  // ⚠️ 必须有这条：否则用户看到回复在流式输出，**无法分辨那是模型说的还是写死的文案** ——
+  //    而"桌宠没接模型"正是之前一直没被发现的原因。
+  const modeEvt = makeEvent('', null, 'runtime.mode', {
+    mode: BACKEND.mode,
+    provider: BACKEND.provider,
+    reason: BACKEND.reason
+  }, 'main')
+  if (win && !win.isDestroyed()) win.webContents.send(EVENT_CHANNEL, modeEvt)
+
+  // 放行所有"等 runtime"的 IPC（见 whenRuntime）
+  runtimeReadyResolve(runtime)
 }
 
 app.whenReady().then(() => {
@@ -1197,8 +1966,21 @@ app.whenReady().then(() => {
   startThroughWatch() // 动态点击穿透：主进程每 50ms 问一次系统光标位置
 
   createTray()
-  initRuntime() // ⚠️ 必须在 setupIpc() 之前 —— 三个 session handler 都依赖它
+  // ⚠️ setupIpc() 先于 initRuntime()：initRuntime 现在要等后端起来（最多 20 秒），
+  //    而渲染进程在窗口一创建就会调 runtime:status —— 先注册才拿得到状态。
+  //    三个 session handler 内部用 whenRuntime() 等就绪，不会在这个窗口期失效。
   setupIpc()
+  // 不 await：后端在后台起来，界面照常可用（状态显示"正在启动后端…"）。
+  initRuntime().catch((err) => {
+    console.error('[桌宠] Runtime 装配失败，退回演示模式：', err)
+    BACKEND.mode = 'mock'
+    BACKEND.reason = String((err && err.message) || err)
+    runtime = new MockRuntime()
+    runtime.on('event', (evt) => {
+      if (win && !win.isDestroyed()) win.webContents.send(EVENT_CHANNEL, evt)
+    })
+    runtimeReadyResolve(runtime)
+  })
   startRoaming()
 
   // 紧急出口：不管窗口跑到哪、状态多奇怪，按快捷键都能把小人叫回来或直接退出。
@@ -1223,6 +2005,9 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  // ⚠️ 一定要把自动拉起的后端带走：留着它会在后台占着端口和内存，
+  //    用户开关几次桌宠之后机器上就挂了一串 uvicorn（而且完全看不见）。
+  stopBackend()
 })
 
 /* =========================================================================

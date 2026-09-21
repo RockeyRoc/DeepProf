@@ -6,3 +6,8 @@ release/
 .DS_Store
 .env
 .env.local
+
+# npm / Electron 的下载缓存（见 .npmrc）。
+# 放在工程内是为了不往 %LOCALAPPDATA% 写东西 —— 用户的要求是
+# 「最多只在用户目录里创一个 .deepprof」（2026-09-21）。
+.cache/
