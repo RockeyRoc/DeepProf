@@ -8,8 +8,8 @@
 /*
  * ⚠️ 2026-09-19 清理：这里原先还 import 了 `assets/pet/` 根目录下 4 张 642×1024 的旧图
  *    （`idle` / `happy` / `quiz` / `sorry`.png），并配了一张「表情名 → 素材地址」的
- *    `ASSETS` 表和 `assetUrl()`。那 4 张图**已移出交付目录**
- *    （见 `ASSETS_LICENSE.md` §八 第 3 条），所以这段 import + `ASSETS` + `assetUrl()`
+ *    `ASSETS` 表和 `assetUrl()`。那 4 张图**已移出交付目录**，
+ *    所以这段 import + `ASSETS` + `assetUrl()`
  *    本次一并删除 —— 它们全项目无人 import，属于死代码
  *    （见 `shared/contracts/INCONSISTENCIES.md` 第 18 条）。
  *

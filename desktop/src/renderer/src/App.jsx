@@ -150,8 +150,7 @@ export default function App() {
    *    任务书 §16.4 第二条要求「先用 PNG 跑通表情状态，再接 Live2D」，
    *    必须真的能切过去才算接上。
    *
-   * ⚠️ Live2D 用的是官方 Haru 样例模型，**仅开发期验证链路**，不进最终交付物
-   *    （见 ASSETS_LICENSE.md）。
+   * ⚠️ Live2D 用的是官方 Haru 样例模型，**仅开发期验证链路**，不进最终交付物。
    */
   const [mode, setMode] = useState('png')
   const [manualExpr, setManualExpr] = useState(null)
@@ -794,7 +793,7 @@ export default function App() {
           {/*
             Live2D 本轮不提供 —— 这是【范围决定】，不是故障。
             对外（评审 / 使用者）只说"本轮不做、当前用什么方案"，
-            不解释内部的素材移出过程（那是仓库内部视角，见 ASSETS_LICENSE.md）。
+            不解释内部的素材移出过程（那是仓库内部视角）。
             所以这里做成"说明了本轮范围"，而不是让人切进去看一个空白。
           */}
           <button

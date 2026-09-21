@@ -12,8 +12,7 @@
 > 移出前位置：`desktop/src/renderer/public/live2d/`
 > 开发机位置：`_素材工作区/_第三方样例模型/`（**不在本仓库内**）
 > 相关文档：[`../../../docs/DeepProf_素材授权调研.md`](../../../docs/DeepProf_素材授权调研.md)、
-> [`../../../docs/DeepProf_原创角色设定.md`](../../../docs/DeepProf_原创角色设定.md) §三、
-> [`../../../docs/ASSETS_LICENSE.md`](../../../docs/ASSETS_LICENSE.md) §五 / §六
+> [`../../../docs/DeepProf_原创角色设定.md`](../../../docs/DeepProf_原创角色设定.md) §三
 
 ---
 
@@ -49,7 +48,7 @@
 > （Live2D Cubism Core 运行时，约 207 KB）**后来也一并移到了本目录**（本目录下同名文件）。
 >
 > 移它的理由**不是"授权禁止"**：它属「Live2D 专有软件许可协议」下的 **Redistributable Code**，
-> **本来允许随应用分发**（与样例模型是两份授权，别混为一谈，详见 `ASSETS_LICENSE.md` §5.1）。
+> **本来允许随应用分发**（与样例模型是两份授权，别混为一谈）。
 > 真正理由是**已经用不上**——样例模型移走 + 右键菜单 Live2D 入口停用之后，
 > 这个专有二进制在交付物里只是死重量。移走只赚不亏。
 >
@@ -163,7 +162,7 @@ Move-Item "$dst\shizuku" $pub   # 可选：没人用它，只有音效
    - `live2dSetup.js` 里 `install(PIXI)` 必须在任何 Pixi 对象之前执行。
    （详见 `desktop/docs/启动说明.md` §5.3）
 
-**验证完请务必再把它移回本目录**，并在 `ASSETS_LICENSE.md` 里更新状态 —— 别让它又悄悄漂回交付目录。
+**验证完请务必再把它移回本目录** —— 别让它又悄悄漂回交付目录。
 
 ---
 
