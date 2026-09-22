@@ -94,7 +94,8 @@ Pop-Location
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
 | `GET` | `/health` | Runtime、Provider、能力、绑定和 Sandbox 健康检查 |
-| `GET` / `POST` | `/sessions`、`/sessions/{id}/messages` | 查看 Session 并发送消息 |
+| `GET` | `/sessions`、`/sessions/{id}/messages` | 查看 Session 与历史消息 |
+| `POST` | `/commands` | 发送客户端命令或消息 |
 | `GET` | `/sessions/{id}/events?from_sequence=0` | 为断线客户端补发事件 |
 | `GET` / `PUT` | `/providers`、`/providers/{id}` | 管理 OpenAI-compatible Profile |
 | `GET` / `POST` | `/resources`、`/search`、`/resources/{id}/activate` | 管理与检索资源库 |

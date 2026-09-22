@@ -94,7 +94,8 @@ Without a command, the CLI opens its interactive REPL. Use `/login` to configure
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Runtime, provider, capability, binding, and sandbox health |
-| `GET` / `POST` | `/sessions`, `/sessions/{id}/messages` | Inspect sessions and send messages |
+| `GET` | `/sessions`, `/sessions/{id}/messages` | Inspect sessions and read transcripts |
+| `POST` | `/commands` | Send a client command/message |
 | `GET` | `/sessions/{id}/events?from_sequence=0` | Replay events for reconnecting clients |
 | `GET` / `PUT` | `/providers`, `/providers/{id}` | Manage OpenAI-compatible profiles |
 | `GET` / `POST` | `/resources`, `/search`, `/resources/{id}/activate` | Manage and search the resource library |
