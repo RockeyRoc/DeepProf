@@ -1,21 +1,25 @@
-"""记忆层：接口、服务与 SQLite 实现（§5.5 / D-3）。"""
-from .base import (
-    InMemoryMemoryStore,
-    MemoryQuery,
+"""Runtime 记忆系统。"""
+
+from runtime.memory.base import (
+    SCOPE_AFFECTIVE,
+    SCOPE_EPISODIC,
+    SCOPE_LONG_TERM,
+    SCOPE_WORKING,
     MemoryRecord,
     MemoryStore,
-    MemoryType,
+    validate_record,
 )
-from .service import MemoryService, build_working_memory
-from .sqlite_memory import SqliteMemoryStore
+from runtime.memory.service import MemoryService
+from runtime.memory.sqlite_memory import SqliteMemoryStore
 
 __all__ = [
-    "MemoryType",
+    "SCOPE_AFFECTIVE",
+    "SCOPE_EPISODIC",
+    "SCOPE_LONG_TERM",
+    "SCOPE_WORKING",
     "MemoryRecord",
-    "MemoryQuery",
-    "MemoryStore",
-    "InMemoryMemoryStore",
-    "SqliteMemoryStore",
     "MemoryService",
-    "build_working_memory",
+    "MemoryStore",
+    "SqliteMemoryStore",
+    "validate_record",
 ]

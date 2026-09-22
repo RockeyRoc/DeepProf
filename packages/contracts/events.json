@@ -1,0 +1,88 @@
+{
+  "contract_version": "1.4.0",
+  "_source_of_truth": "shared/contracts 的 v0.5 内容迁移到 packages/contracts；与 runtime/core/events.py 的 EventType 保持一致（守卫见 tests/test_contract_consistency.py）。",
+  "envelope": {
+    "event_id": "string, 事件唯一标识；重复 event_id 视为幂等重放",
+    "session_id": "string",
+    "trace_id": "string, 同一轮教学/工具链路的关联标识",
+    "sequence": "integer, 同一 session 内单调递增；SSE 重连按此补发",
+    "type": "string, 见 events",
+    "payload": "object, 事件载荷；pedagogy.* 不得含学生正文",
+    "source": "string, 产生该事件的组件（runtime | api | provider | tool | plugin | library）",
+    "timestamp": "string, ISO-8601 UTC",
+    "client_id": "string | null, 可选；发起命令的前端标识",
+    "surface": "string | null, 可选；desktop | cli | pet",
+    "audience": "string | null, 可选；事件定向投递用"
+  },
+  "events": {
+    "session.started": { "payload": { "title": "string", "learner_id": "string" } },
+    "session.resumed": { "payload": { "from_sequence": "integer" } },
+    "session.compacted": { "payload": { "before": "integer", "after": "integer" } },
+    "session.ended": { "payload": { "reason": "string" } },
+    "agent.started": { "payload": { "request_id": "string" } },
+    "agent.turn.started": { "payload": { "turn": "integer" } },
+    "agent.turn.completed": { "payload": { "turn": "integer", "status": "string" } },
+    "agent.failed": { "payload": { "error": { "code": "string", "message": "string", "details": "object" } } },
+    "model.requested": { "payload": { "role": "string", "provider_profile": "string", "model": "string" } },
+    "model.stream.delta": { "payload": { "text": "string" } },
+    "model.completed": { "payload": { "usage": "object", "model": "string" } },
+    "model.failed": { "payload": { "error": { "code": "string", "message": "string", "details": "object" } } },
+    "tool.requested": { "payload": { "tool": "string", "arguments": "object" } },
+    "tool.approved": { "payload": { "tool": "string", "approved_by": "string" } },
+    "tool.started": { "payload": { "tool": "string" } },
+    "tool.completed": { "payload": { "tool": "string", "result": "object" } },
+    "tool.failed": { "payload": { "tool": "string", "error": { "code": "string", "message": "string" } } },
+    "memory.read": { "payload": { "scope": "string", "count": "integer" } },
+    "memory.write": { "payload": { "scope": "string", "count": "integer" } },
+    "plugin.started": { "payload": { "plugin_id": "string", "version": "string" } },
+    "plugin.stopped": { "payload": { "plugin_id": "string" } },
+    "plugin.failed": { "payload": { "plugin_id": "string", "error": { "code": "string", "message": "string" } } },
+    "library.imported": { "payload": { "resource_id": "string", "source_type": "string", "hash": "string", "duplicate": "boolean" } },
+    "library.crawled": { "payload": { "resource_id": "string", "source_url": "string", "hash": "string" } },
+    "library.indexed": { "payload": { "resource_id": "string", "chunks": "integer" } },
+    "pedagogy.node.entered": { "payload": { "node": "string" } },
+    "pedagogy.decision": {
+      "payload": {
+        "node": "string",
+        "action": "string",
+        "reason": "string",
+        "evidence_sufficient": "boolean",
+        "evidence_count": "integer",
+        "attempt_count": "integer",
+        "wrong_streak": "integer",
+        "hint_level": "integer | null",
+        "turn_count": "integer",
+        "max_turns": "integer",
+        "capability": "string",
+        "capability_status": "string",
+        "answer_leaked": "boolean, 仅 hint/test 声明",
+        "content_length": "integer, 只记长度，不记学生正文"
+      }
+    },
+    "pedagogy.node.exited": { "payload": { "node": "string", "next": "string | null" } },
+    "pedagogy.attempt": {
+      "payload": {
+        "attempt_id": "string, 作答事件唯一标识（幂等键）",
+        "learner_id": "string",
+        "item_id": "string, 题目标识（题库未接入时不产出该事件）",
+        "concept_ids": "string[]",
+        "correct": "boolean, 必须显式给出（判分缺失时不产出该事件）",
+        "timestamp": "string, ISO8601",
+        "hint_count": "integer"
+      },
+      "_note": "字段与 models/learner/attempt.py 的 Attempt 一致；session_id/trace_id 由事件外层携带（§18.2）"
+    },
+    "quiz.completed": { "payload": { "item_id": "string", "correct": "boolean", "hint_count": "integer" } }
+  },
+  "_sse_frames": {
+    "passthrough": [
+      "session.started",
+      "model.stream.delta",
+      "pedagogy.decision"
+    ],
+    "synthetic": [
+      "pedagogy.result"
+    ]
+  },
+  "_privacy": "pedagogy.decision 不得包含学生正文；学生文本只存在于决策 params 供能力层使用。"
+}

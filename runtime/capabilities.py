@@ -1,257 +1,193 @@
-"""通用能力执行层：把声明式请求变成实际结果（DESIGNv0.4 §4.4 / §7.1）。
+"""通用能力分发器（D-7 的 HOW 侧）。
 
-Runtime 在这里只提供**与教学无关的通用原语**；教学语义（用哪个 Skill、用哪段
-模板、写什么提示词）全部来自调用方注入的数据（见 graph/education/bindings.py）。
-因此本模块里不会出现任何教学动作名（hint / teach / ask …），
-`tests/test_architecture_boundaries.py` 有对应的词汇守卫。
+Runtime **不认识** hint/teach/ask 等教学词汇：动作名只出现在注入的绑定表里。
+本模块只做四件事：查绑定、解析参数、执行通用原语、归一化结果。
 
-六个内置原语：
-
-    render_template     确定性渲染，**绝不调用模型**——提示强度必须是可控自变量，
-                        不能因为换模型而漂移（§3.4 研究问题 1）
-    invoke_skill        按名调用一个 Skill；可选取正文（content_field），
-                        或只问状态（不声明 content_field）
-    retrieve_evidence   经检索 Skill 取可定位证据；取不到就报证据不足，绝不编造来源（§7.3）
-    generate_grounded   只用给定证据生成正文，并回传可定位引用（不含原文，§6.4）
-    read_memory         读学情记忆（身份取调用上下文，检索口径来自绑定）
-    write_memory        写学情增量（记录由策略层构造，§5.5）
-
-这些原语拿到的是 **RuntimeHost（宽面）**——图节点拿不到它，
-所以"图只声明 WHAT"不靠自觉，靠类型与守卫（见 runtime/core/ports.py）。
-
-绑定数据里的字符串支持 ``${字段}`` 占位，取值来自请求 dict（支持 ``a.b`` 路径）。
-整串占位（``"${level}"``）保留原类型，内嵌占位（``"第 ${level} 级"``）按文本插值。
-引用到不存在的字段会记入 ``missing``，由分发器显式失败——绑定写错必须响，
-不能悄悄给模型喂一句字面量 ``${params.query}``。
-
-分发器（``ActionDispatcher``）是这两者的黏合层，它同样不认识教学动作，
-只按注入的绑定表把请求翻成通用能力调用。
+失败必须显式（§7.3）：no_binding / capability_not_found / invalid_request / error(template_not_found)，
+不用兜底文案掩盖装配缺陷。
 """
+
 from __future__ import annotations
 
 import json
 import re
-from collections import OrderedDict
-from typing import Any, Protocol, runtime_checkable
+from dataclasses import dataclass, field
+from typing import Any, Awaitable, Callable
 
-from .core.ports import RuntimeHost
+from runtime.core.errors import ProviderError
+from runtime.core.ports import RuntimeHost
 
-#: 同一轮内证据检索的备忘上限：按 trace 保留最近若干轮，避免长期运行下无界增长。
-#: 16 足够覆盖并发中同时在跑的会话数级（每轮结束即不再被命中）。
-EVIDENCE_MEMO_TRACES = 16
+# ---- CapabilityResult.status ----
+STATUS_SUCCESS = "success"
+STATUS_INSUFFICIENT_EVIDENCE = "insufficient_evidence"
+STATUS_NO_BINDING = "no_binding"
+STATUS_CAPABILITY_NOT_FOUND = "capability_not_found"
+STATUS_INVALID_REQUEST = "invalid_request"
+STATUS_ERROR = "error"
 
-# ======================================================================
-# 一、结果构造（字段与 graph/education/contracts.py 的 CapabilityResult 对齐）
-# ======================================================================
-def capability_result(
-    *,
-    status: str,
-    content: str = "",
-    evidence: list[dict[str, Any]] | None = None,
-    records: list[dict[str, Any]] | None = None,
-    action: str = "",
-    capability: str = "",
-    error: dict[str, Any] | None = None,
-    metadata: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """构造 CapabilityResult 的 dict 形态（端口只传 dict，§7.1）。"""
-    return {
-        "status": status,
-        "content": content,
-        "evidence": list(evidence or []),
-        "records": list(records or []),
-        "action": action,
-        "capability": capability,
-        "error": error,
-        "metadata": dict(metadata or {}),
-    }
+# 只有只读且同轮内稳定的能力才允许备忘；有副作用的能力绝不能缓存
+MEMOIZABLE = frozenset({"retrieve_evidence"})
+
+PRIMITIVE_NAMES = (
+    "render_template",
+    "invoke_skill",
+    "retrieve_evidence",
+    "generate_grounded",
+    "read_memory",
+    "write_memory",
+)
+
+_PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
+_LOCATOR_FIELDS = ("document_id", "chunk_id", "page", "source")
+
+#: 送入模型前每条证据原文的截断长度（绑定可用 ``max_chars`` 覆盖）
+DEFAULT_EVIDENCE_MAX_CHARS = 600
 
 
-def _failed(
-    status: str, code: str, message: str, **metadata: Any
-) -> dict[str, Any]:
-    return capability_result(
-        status=status,
-        error={"code": code, "message": message},
-        metadata=metadata,
+class SkillUnavailable(Exception):
+    """Skill 没有返回可用正文：交给绑定声明的兜底文案，并带回 Skill 状态元信息。"""
+
+    def __init__(self, message: str, *, metadata: dict[str, Any] | None = None) -> None:
+        super().__init__(message)
+        self.metadata = dict(metadata or {})
+
+
+class _TemplateNotFound(Exception):
+    def __init__(self, key: str) -> None:
+        super().__init__(key)
+        self.key = key
+
+
+class _FieldResolver:
+    """从决策里解析 ``${a.b}`` 占位符；缺失字段统一收集后再报错。"""
+
+    def __init__(self, decision: dict[str, Any]) -> None:
+        self._decision = decision
+        self.missing: list[str] = []
+
+    def resolve(self, value: Any) -> Any:
+        if isinstance(value, str):
+            return self._resolve_str(value)
+        if isinstance(value, dict):
+            return {key: self.resolve(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self.resolve(item) for item in value]
+        return value
+
+    def _resolve_str(self, value: str) -> Any:
+        full = _PLACEHOLDER.fullmatch(value)
+        if full:
+            return self._lookup(full.group(1).strip())
+        return _PLACEHOLDER.sub(lambda m: _stringify(self._lookup(m.group(1).strip())), value)
+
+    def _lookup(self, path: str) -> Any:
+        current: Any = self._decision
+        for part in path.split("."):
+            if isinstance(current, dict) and part in current:
+                current = current[part]
+            else:
+                self.missing.append(path)
+                return None
+        return current
+
+
+def _stringify(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def render_block(block: Any, decision: dict[str, Any], missing: list[str] | None = None) -> str:
+    """渲染绑定模板块：固定模板 或 按取值选模板。
+
+    两种记法可以混用：``${字段}`` 从决策取值（分发器统一口径），
+    ``{字段}`` 从模板块自己的 ``values`` 取值（策略文案的口径）。
+    ``values`` 里的值本身也可以写成 ``${字段}``，先解析再用于填充——
+    这样“绑定的数据来源”只有一个口径，不会出现两套写法。
+
+    传入 ``missing`` 时，解析不到的字段会被收集起来，供调用方显式报错（§7.3）。
+    """
+    if block is None:
+        return ""
+    if isinstance(block, str):
+        resolver = _FieldResolver(decision)
+        text = str(resolver.resolve(block) or "")
+        _note_missing(missing, resolver.missing)
+        return text
+    if not isinstance(block, dict):
+        raise _TemplateNotFound(str(block))
+
+    resolver = _FieldResolver(decision)
+    values = {key: resolver.resolve(item) for key, item in (block.get("values") or {}).items()}
+    scope = {**decision, **values}
+
+    if "templates" in block:
+        select = block.get("select")
+        if select is None:
+            raise _TemplateNotFound("")
+        key = _FieldResolver(scope).resolve(str(select))
+        templates = block.get("templates") or {}
+        if key is None or str(key) not in templates:
+            raise _TemplateNotFound(str(key))
+        chosen: Any = templates[str(key)]
+    else:
+        chosen = block.get("template")
+
+    if isinstance(chosen, dict):
+        # 允许嵌套块（如 {"template": {...}}）
+        return render_block(chosen, scope, missing)
+    if chosen is None:
+        raise _TemplateNotFound("template")
+    resolved = str(_FieldResolver(scope).resolve(str(chosen)) or "")
+    _note_missing(missing, resolver.missing)
+    return format_text(resolved, values)
+
+
+def _note_missing(target: list[str] | None, paths: list[str]) -> None:
+    """把解析不到的字段名收集到调用方给的列表里（未提供则忽略）。"""
+    if target is None:
+        return
+    for path in paths:
+        if path not in target:
+            target.append(path)
+
+
+def locator_of(item: dict[str, Any]) -> dict[str, Any]:
+    """把证据归一化为可定位引用，丢弃原文。"""
+    locator = {key: item.get(key) for key in _LOCATOR_FIELDS if item.get(key) is not None}
+    if "hash" in item:
+        locator["hash"] = item["hash"]
+    return locator
+
+
+def is_locatable(item: dict[str, Any]) -> bool:
+    """命中是否带齐可定位标识（缺一条就不算引用，§7.3 不编造引用）。"""
+    return bool(
+        str(item.get("document_id") or item.get("doc_id") or "")
+        and str(item.get("chunk_id") or item.get("chunk") or "")
+        and item.get("page") is not None
     )
 
 
-# ======================================================================
-# 二、Capability 协议与注册表
-# ======================================================================
-@runtime_checkable
-class Capability(Protocol):
-    """一个可被通用分发的执行单元：参数与结果都是 dict，不认识教学词汇。"""
-
-    name: str
-
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        """执行并返回 ``{"status", "content", "evidence", "records", "metadata", "error"}``。"""
-
-
-class CapabilityRegistry:
-    """进程内能力注册表（名字是纯字符串键，注册表不理解其语义）。"""
-
-    def __init__(self) -> None:
-        self._capabilities: dict[str, Capability] = {}
-
-    def register(self, capability: Capability) -> Capability:
-        name = str(getattr(capability, "name", "") or "")
-        if not name:
-            raise ValueError("Capability 必须有 name")
-        if name in self._capabilities:
-            raise ValueError(f"Capability 名称重复: {name}")
-        self._capabilities[name] = capability
-        return capability
-
-    def get(self, name: str) -> Capability | None:
-        return self._capabilities.get(str(name or ""))
-
-    def has(self, name: str) -> bool:
-        return str(name or "") in self._capabilities
-
-    def names(self) -> list[str]:
-        return sorted(self._capabilities)
-
-
-# ======================================================================
-# 三、占位解析（绑定数据 → 能力参数）
-# ======================================================================
-_PLACEHOLDER = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_.]*)\}")
-
-
-def resolve_placeholders(
-    value: Any, source: dict[str, Any], missing: list[str] | None = None
-) -> Any:
-    """把绑定数据里的 ``${字段}`` 换成请求里的真实取值（递归 dict / list）。"""
-    if isinstance(value, str):
-        exact = _PLACEHOLDER.fullmatch(value)
-        if exact:
-            found, resolved = _lookup(source, exact.group(1))
-            if not found:
-                _note_missing(missing, exact.group(1))
-                return ""
-            return resolved
-        return _PLACEHOLDER.sub(
-            lambda match: _interpolate(source, match.group(1), missing), value
-        )
-    if isinstance(value, dict):
-        return {key: resolve_placeholders(item, source, missing) for key, item in value.items()}
-    if isinstance(value, list):
-        return [resolve_placeholders(item, source, missing) for item in value]
-    return value
-
-
-def _lookup(source: Any, path: str) -> tuple[bool, Any]:
-    current = source
-    for part in str(path).split("."):
-        if isinstance(current, dict) and part in current:
-            current = current[part]
-        else:
-            return False, None
-    return True, current
-
-
-def _interpolate(source: dict[str, Any], path: str, missing: list[str] | None) -> str:
-    found, resolved = _lookup(source, path)
-    if not found:
-        _note_missing(missing, path)
-        return "${" + path + "}"  # 保留原样，便于在最终文本里定位写错的绑定
-    return "" if resolved is None else str(resolved)
-
-
-def _note_missing(missing: list[str] | None, path: str) -> None:
-    if missing is not None:
-        missing.append(str(path))
-
-
-# ======================================================================
-# 四、通用小工具（渲染、证据、流式收集）
-# ======================================================================
 class _SafeValues(dict):
-    """缺键时保留 ``{key}`` 字面量，避免策略模板多写一个占位符就崩掉整轮教学。"""
+    """缺键时保留 ``{key}`` 字面量：策略模板多写一个占位符不该崩掉整轮教学。"""
 
     def __missing__(self, key: str) -> str:
         return "{" + str(key) + "}"
 
 
-def render_text(template: str, values: dict[str, Any] | None = None) -> str:
-    """确定性模板渲染（支持 ``fallback`` / ``render_template`` 两处复用）。"""
+def format_text(template: str, values: dict[str, Any] | None = None) -> str:
+    """按 ``{字段}`` 渲染模板（策略文案用的单花括号记法）。"""
     return str(template or "").format_map(_SafeValues(dict(values or {})))
 
 
-def render_bound_block(bound: Any) -> str | None:
-    """渲染一个**绑定模板块**；找不到模板时返回 None（由调用方决定是报错还是省略）。
-
-    绑定模板块只有两种形态，``fallback`` / ``prefix`` / ``suffix`` /
-    ``insufficient_text`` 以及 ``render_template`` 能力都复用同一套语义，
-    因此"加一段可评审文案"永远是加数据，不是加代码：
-
-        {"template": "...", "values": {...}}                        固定模板
-        {"templates": {...}, "select": "<字段>", "values": {...}}   按取值选模板
-
-    选模板用的键来自 ``values`` 里 ``select`` 指名的那个字段——它通常由
-    ``${...}`` 占位从决策请求解析而来，所以"选哪段文案"这条规则写在绑定里，
-    而 Runtime 依然不知道那些取值（"correct" / "2"）是什么意思。
-    """
-    if not isinstance(bound, dict):
-        return None
-    values = dict(bound.get("values") or {})
-    template = bound.get("template")
-    if template is None:
-        select = str(bound.get("select") or "")
-        template = _pick_template(
-            dict(bound.get("templates") or {}), values.get(select) if select else ""
-        )
-    if template is None:
-        return None
-    return render_text(str(template), values)
-
-
-def _uses_selection(bound: Any) -> bool:
-    """该模板块是否声明了"按取值选模板"（用于区分"没声明"与"选了但没选到"）。"""
-    return isinstance(bound, dict) and "templates" in bound
-
-
-def _wrap(content: str, resolved: dict) -> str:
-    """按绑定给正文加上 prefix / suffix（可选；到这一步已校验过 select 能选到）。"""
-    prefix = render_bound_block(resolved.get("prefix")) or ""
-    suffix = render_bound_block(resolved.get("suffix")) or ""
-    return f"{prefix}{content}{suffix}"
-
-
-def is_locatable(evidence: dict[str, Any]) -> bool:
-    """命中是否带齐可定位标识（document_id / chunk_id / page，§18.2 Evidence 契约）。
-
-    该不变量原先只写在图节点的证据获取里（§7.3 不编造引用）；
-    证据获取下沉到能力层后，判定也随之下沉，图与能力层共用同一条规则。
-    """
-    return bool(
-        str(evidence.get("document_id") or evidence.get("doc_id") or "")
-        and str(evidence.get("chunk_id") or evidence.get("chunk") or "")
-        and evidence.get("page") is not None
-    )
-
-
-def locator_ref(evidence: dict[str, Any]) -> dict[str, Any]:
-    """把一条证据压成可进状态的引用：只保留定位字段，丢弃原文（§6.4）。"""
-    document_id = str(evidence.get("document_id") or evidence.get("doc_id") or "")
-    chunk_id = str(evidence.get("chunk_id") or evidence.get("chunk") or "")
-    page = evidence.get("page")
-    return {
-        "evidence_id": str(
-            evidence.get("evidence_id") or f"{document_id}#{chunk_id}@{page}"
-        ),
-        "document_id": document_id,
-        "chunk_id": chunk_id,
-        "page": page,
-        "source": str(evidence.get("source") or ""),
-    }
-
-
 def build_evidence_block(evidence: list[dict[str, Any]], *, max_chars: int) -> str:
-    """把证据原文拼成给模型的片段块，并按上限截断（避免超长与隐私复制）。"""
+    """把证据**原文**拼成给模型的片段块（每段带定位，按上限截断）。
+
+    原文只在这一次生成里使用，用完即弃；回传策略层的结果只保留可定位引用（§6.4）。
+    """
     lines: list[str] = []
     for index, item in enumerate(evidence, start=1):
         text = str(item.get("text") or "")[:max_chars]
@@ -265,138 +201,19 @@ def build_evidence_block(evidence: list[dict[str, Any]], *, max_chars: int) -> s
     return "\n".join(lines)
 
 
-async def collect_stream(port: RuntimeHost, request: dict, ctx: dict) -> str:
-    """消费 port.generate 的流式增量，返回完整文本（任何失败返回空串，§7.3）。"""
-    parts: list[str] = []
-    final = ""
-    async for chunk in port.generate(request, ctx):
-        kind = str(chunk.get("type") or "")
-        if kind == "delta":
-            parts.append(str(chunk.get("text") or ""))
-        elif kind == "done":
-            final = str(chunk.get("content") or "")
-        elif kind == "error":
-            return ""
-    return final or "".join(parts)
+def lookup_path(source: Any, path: str) -> tuple[bool, Any]:
+    """按 ``a.b`` 点路径取值。"""
+    current = source
+    for part in str(path).split("."):
+        if isinstance(current, dict) and part in current:
+            current = current[part]
+        else:
+            return False, None
+    return True, current
 
 
-def _pick_template(templates: dict, key: Any) -> Any:
-    """按选中键取模板。
-
-    键在 JSON 往返或 ``str(bool)`` 之后可能是 ``"2"`` / ``"True"``，
-    此处做两次归一化（原样 → 小写 → 数字），避免绑定只因为大小写就失效。
-    """
-    if not isinstance(templates, dict) or not templates:
-        return None
-    if key in templates:
-        return templates[key]
-    text = str(key)
-    for candidate in (text, text.lower()):
-        if candidate in templates:
-            return templates[candidate]
-    if text.isdigit() and int(text) in templates:
-        return templates[int(text)]
-    return None
-
-
-# ======================================================================
-# 五、四个内置原语
-# ======================================================================
-class TemplateCapability:
-    """确定性渲染：不调用模型，保证提示强度可复现、可评审。
-
-    params 本身就是一个绑定模板块（见 render_bound_block）；选不到模板时必须
-    **显式失败**，不能给一段空文案——空提示和"没给提示"对学生是同一件事，
-    对审计却完全不同。
-    """
-
-    name = "render_template"
-
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        text = render_bound_block(params)
-        if text is None:
-            select = str(params.get("select") or "")
-            key = dict(params.get("values") or {}).get(select)
-            return _failed(
-                "error",
-                "template_not_found",
-                f"绑定数据里没有可用的模板（select={select or '-'} key={key!r}）",
-            )
-        return {
-            "status": "success",
-            "content": text,
-            "metadata": {
-                "select": str(params.get("select") or ""),
-                "key": str(dict(params.get("values") or {}).get(params.get("select"))),
-            },
-        }
-
-
-class SkillCapability:
-    """按名调用 Skill；名字由绑定数据给出，Runtime 不硬编码任何 Skill 名。
-
-    两个可选参数让绑定足以描述"从 Skill 结果里取哪一段"：
-
-    content_field
-        取哪一段作为回复正文，支持 ``a.b`` 点路径（如 ``item.stem``）。
-        也可以是一个绑定模板块——按决策取值选字段名（Test 在出题/评价两种模式下
-        读的是 Skill 结果的不同位置），于是"哪种模式读哪里"由绑定声明。
-
-        **声明了它 = "我需要正文"**：取不到就判为失败，好让绑定的 fallback 接手。
-        **不声明 = "我只问状态"**（如 Diagnosis 只回 not_implemented）：调用本身
-        完成即算成功，结论看 metadata.skill_status 与透传字段。
-    passthrough
-        Skill 结果里**要原样带回决策层**的字段白名单（如
-        ``item_bank_connected``）。白名单之外一律不带回——能力层不该把自己 casing
-        的全部内部结构倒给策略层。
-    """
-
-    name = "invoke_skill"
-
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        skill = str(params.get("skill") or "")
-        if not skill:
-            return _failed("invalid_request", "missing_skill", "invoke_skill 缺少 skill 名")
-        payload = dict(params.get("input") or {})
-        info = dict(await port.invoke_skill(skill, payload, ctx) or {})
-        status = str(info.get("status") or "")
-        metadata: dict[str, Any] = {
-            "skill": skill,
-            "skill_status": status or "unknown",
-            "source": str(info.get("source") or "skill"),
-            **_passthrough(info, params.get("passthrough")),
-        }
-        if "content_field" not in params:
-            # 只问状态：Skill 被如实调用并回传了结果，就算这次调用成功；
-            # "它自己回的是 not_implemented 还是 ok"由 skill_status 表达，
-            # 决策事件里能看到，不需要在这一层替策略层下判断。
-            return {"status": "success", "content": "", "metadata": metadata}
-
-        content = _pick_content(info, params.get("content_field"))
-        if status == "ok" and content:
-            return {"status": "success", "content": content, "metadata": metadata}
-        return {
-            "status": "error",
-            "content": "",
-            "error": {
-                "code": "skill_unavailable",
-                "message": f"Skill {skill} 未返回可用内容（status={status or 'unknown'}）",
-            },
-            "metadata": metadata,
-        }
-
-
-def _pick_content(info: dict[str, Any], field: Any) -> str:
-    """从 Skill 结果里取出回复正文（字段路径，或按取值选字段名的模板块）。"""
-    name = render_bound_block(field) if isinstance(field, dict) else str(field or "")
-    if not name:
-        return ""
-    found, value = _lookup(info, name)
-    return str(value or "").strip() if found else ""
-
-
-def _passthrough(info: dict[str, Any], names: Any) -> dict[str, Any]:
-    """按白名单把 Skill 结果里的字段带回策略层（值缺失就不带，保持"没有"语义）。"""
+def passthrough_fields(info: dict[str, Any], names: Any) -> dict[str, Any]:
+    """按白名单把 Skill 结果里的字段带回策略层（值缺失就不带，保持“没有”语义）。"""
     carried: dict[str, Any] = {}
     for name in names or []:
         key = str(name)
@@ -405,429 +222,492 @@ def _passthrough(info: dict[str, Any], names: Any) -> dict[str, Any]:
     return carried
 
 
-class MemoryReadCapability:
-    """读学情记忆：身份取自调用上下文，检索口径来自绑定（§5.5 / §7.1）。
-
-    身份（learner_id）是每次调用都有的上下文事实，因此从 ctx 取，不要求决策
-    再抄一遍；"查哪一类记忆、查多少条、key 用什么"才是策略，由绑定声明。
-    """
-
-    name = "read_memory"
-
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        query = dict(params.get("query") or {})
-        query.setdefault("learner_id", str((ctx or {}).get("learner_id") or ""))
-        records = [
-            dict(item)
-            for item in (await port.read_memory(query, ctx) or [])
-            if isinstance(item, dict)
-        ]
-        return {
-            "status": "success",
-            "content": "",
-            "records": records,
-            "metadata": {"count": len(records)},
-        }
+def pick_content(info: dict[str, Any], field: Any) -> str:
+    """从 Skill 结果里取出回复正文（字段路径，或按取值选字段名的模板块）。"""
+    name = render_block(field, {}) if isinstance(field, dict) else str(field or "")
+    if not name:
+        return ""
+    found, value = lookup_path(info, name)
+    return str(value or "").strip() if found else ""
 
 
-class MemoryWriteCapability:
-    """写学情增量：记录由策略层构造（来源、置信度、过期策略、可撤回都在里面）。
-
-    空列表直接算成功且不写盘——"本轮没有可写的增量"与"写入 0 条"是同一件事，
-    不必为此多走一次存储（§5.5 缺 learner_id 时宁可不写）。
-    """
-
-    name = "write_memory"
-
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        records = [
-            dict(item) for item in (params.get("records") or []) if isinstance(item, dict)
-        ]
-        if records:
-            await port.write_memory(records, ctx)
-        return {
-            "status": "success",
-            "content": "",
-            "metadata": {"written": len(records)},
-        }
+@dataclass(slots=True)
+class _PrimitiveResult:
+    content: str = ""
+    evidence: list[dict[str, Any]] = field(default_factory=list)
+    records: list[dict[str, Any]] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
+    #: 原语自报的状态（如「检索不到可定位证据」）；留空表示 success
+    status: str = ""
 
 
-class EvidenceRetrievalCapability:
-    """经检索 Skill 取可定位证据；取不到就报证据不足，绝不编造来源（§7.3）。"""
+Primitive = Callable[
+    ["ActionDispatcher", dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]]],
+    Awaitable[_PrimitiveResult],
+]
 
-    name = "retrieve_evidence"
 
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        skill = str(params.get("skill") or "")
-        if not skill:
-            return _failed(
-                "invalid_request", "missing_skill", "retrieve_evidence 缺少检索 Skill 名"
+class ActionDispatcher:
+    """按注入的绑定表把声明式决策落地为一次能力执行。"""
+
+    def __init__(self, host: RuntimeHost, bindings: dict[str, dict[str, Any]] | None = None) -> None:
+        self._host = host
+        self._bindings: dict[str, dict[str, Any]] = dict(bindings or {})
+        self._memo: dict[str, _PrimitiveResult] = {}
+        self._memo_trace: str | None = None
+
+    # ---- 装配状态 ----
+
+    @property
+    def bindings(self) -> dict[str, dict[str, Any]]:
+        return dict(self._bindings)
+
+    def binding_summary(self) -> dict[str, str]:
+        """供 /health 暴露的非敏感装配状态。"""
+        return {action: str(binding.get("capability", "")) for action, binding in self._bindings.items()}
+
+    def set_bindings(self, bindings: dict[str, dict[str, Any]]) -> None:
+        self._bindings = dict(bindings)
+
+    # ---- 主入口 ----
+
+    async def execute(self, decision: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        action = str(decision.get("action") or "")
+        binding = self._bindings.get(action)
+        if binding is None:
+            return self._result(action, "", STATUS_NO_BINDING, metadata={"registered_actions": sorted(self._bindings)})
+
+        capability = str(binding.get("capability") or "")
+        primitive = _PRIMITIVES.get(capability)
+        if primitive is None:
+            return self._result(
+                action,
+                capability,
+                STATUS_CAPABILITY_NOT_FOUND,
+                metadata={"registered_capabilities": list(PRIMITIVE_NAMES)},
             )
-        info = dict(await port.invoke_skill(skill, dict(params.get("input") or {}), ctx) or {})
-        status = str(info.get("status") or "")
-        evidence = [
-            item
+
+        self._ensure_trace(ctx)
+
+        resolver = _FieldResolver(decision)
+        params = resolver.resolve(dict(binding.get("params") or {}))
+        missing = resolver.missing
+        if missing:
+            return self._result(
+                action,
+                capability,
+                STATUS_INVALID_REQUEST,
+                error={"code": "missing_fields", "message": f"绑定引用了不存在的字段: {missing}"},
+                metadata={"missing_fields": missing},
+            )
+
+        # 证据前置：取不到可定位证据就不执行主能力、不调模型
+        raw_evidence: list[dict[str, Any]] = []
+        evidence_spec = binding.get("evidence")
+        if evidence_spec or decision.get("require_evidence"):
+            spec = evidence_spec or {"capability": "retrieve_evidence"}
+            raw_evidence = await self._collect_evidence(spec, decision, ctx)
+            if not raw_evidence:
+                try:
+                    text = render_block(binding.get("insufficient_text"), decision)
+                except _TemplateNotFound as exc:
+                    return self._result(
+                        action,
+                        capability,
+                        STATUS_ERROR,
+                        error={"code": "template_not_found", "message": f"选不到模板: {exc.key}"},
+                    )
+                return self._result(
+                    action,
+                    capability,
+                    STATUS_INSUFFICIENT_EVIDENCE,
+                    content=text,
+                    metadata={"evidence_count": 0},
+                )
+
+        block_missing: list[str] = []
+        degraded_to_fallback = False
+        try:
+            prefix = render_block(binding.get("prefix"), decision, block_missing)
+            suffix = render_block(binding.get("suffix"), decision, block_missing)
+        except _TemplateNotFound as exc:
+            return self._result(
+                action,
+                capability,
+                STATUS_ERROR,
+                error={"code": "template_not_found", "message": f"选不到模板: {exc.key}"},
+            )
+        if block_missing:
+            return self._result(
+                action,
+                capability,
+                STATUS_INVALID_REQUEST,
+                error={"code": "missing_fields", "message": f"绑定引用了不存在的字段: {block_missing}"},
+                metadata={"missing_fields": block_missing},
+            )
+
+        try:
+            outcome = await self._run_primitive(
+                capability,
+                primitive,
+                decision,
+                params,
+                ctx,
+                raw_evidence,
+                memo=bool(binding.get("memo", capability in MEMOIZABLE)),
+            )
+            status = outcome.status or STATUS_SUCCESS
+        except Exception as exc:  # 主能力失败 → 确定性兜底
+            fallback = binding.get("fallback")
+            if fallback is None:
+                return self._result(
+                    action,
+                    capability,
+                    STATUS_ERROR,
+                    error={"code": "capability_failed", "message": str(exc)},
+                    metadata={"error_type": type(exc).__name__},
+                )
+            try:
+                text = render_block(fallback, decision, block_missing)
+            except _TemplateNotFound as exc2:
+                return self._result(
+                    action,
+                    capability,
+                    STATUS_ERROR,
+                    error={"code": "template_not_found", "message": f"选不到兜底模板: {exc2.key}"},
+                )
+            if block_missing:
+                return self._result(
+                    action,
+                    capability,
+                    STATUS_INVALID_REQUEST,
+                    error={"code": "missing_fields", "message": f"兜底模板引用了不存在的字段: {block_missing}"},
+                    metadata={"missing_fields": block_missing},
+                )
+            outcome = _PrimitiveResult(content=text, metadata={"degraded_from": capability, "error": str(exc)})
+            outcome.metadata.update(getattr(exc, "metadata", None) or {})
+            status = STATUS_SUCCESS
+            degraded_to_fallback = True
+
+        content = "".join(part for part in (prefix, outcome.content, suffix) if part)
+        merged_metadata = dict(outcome.metadata)
+        # 失败已降级成兜底文案时**不附引用**（§7.3）：既然这一轮没有依据可以生成，
+        # 把检索到的片段挂在这句“生成失败”旁边，只会让学生以为讲解是有出处的。
+        evidence_items = [] if degraded_to_fallback else (outcome.evidence or raw_evidence)
+        merged_metadata.setdefault("evidence_count", len(raw_evidence))
+        merged_metadata.setdefault("evidence_attached", bool(evidence_items))
+        # 跨回策略层的证据一律是**可定位引用**：原文只在本次执行内部使用（§6.4）
+        return self._result(
+            action,
+            capability,
+            status,
+            content=content,
+            evidence=[locator_of(item) for item in evidence_items if isinstance(item, dict)],
+            records=outcome.records,
+            metadata=merged_metadata,
+        )
+
+    # ---- 证据 ----
+
+    async def _collect_evidence(
+        self, spec: dict[str, Any], decision: dict[str, Any], ctx: dict[str, Any]
+    ) -> list[dict[str, Any]]:
+        """执行证据能力，产出**原始**命中（含原文，供本次生成使用）。
+
+        只保留带齐定位标识的命中：无法定位的“来源”等于不可验证的来源（§7.3）。
+        """
+        capability = str(spec.get("capability") or "retrieve_evidence")
+        primitive = _PRIMITIVES.get(capability)
+        if primitive is None:
+            return []
+        resolver = _FieldResolver(decision)
+        params = resolver.resolve(dict(spec.get("params") or {}))
+        if resolver.missing:
+            return []
+        try:
+            outcome = await self._run_primitive(
+                capability,
+                primitive,
+                decision,
+                params,
+                ctx,
+                [],
+                memo=bool(spec.get("memo", capability in MEMOIZABLE)),
+            )
+        except Exception:
+            return []
+        return [dict(item) for item in outcome.evidence if is_locatable(item)]
+
+    async def _run_primitive(
+        self,
+        capability: str,
+        primitive: Primitive,
+        decision: dict[str, Any],
+        params: dict[str, Any],
+        ctx: dict[str, Any],
+        evidence: list[dict[str, Any]],
+        *,
+        memo: bool,
+    ) -> _PrimitiveResult:
+        """执行一个原语，按需在**同一轮内**复用只读结果。
+
+        备忘录按 ``(trace_id, 能力, 参数)`` 索引：Assess 的探路与 Teach 的取原文
+        参数相同即得同一结果，既省一次向量查询，也避免“Assess 判证据充分、
+        Teach 却说证据不足”的自相矛盾。有副作用的能力绝不缓存。
+        """
+        self._ensure_trace(ctx)
+        usable = memo and capability in MEMOIZABLE and self._memo_trace is not None
+        key = self._memo_key(capability, params) if usable else ""
+        if usable and key in self._memo:
+            cached = self._memo[key]
+            return _PrimitiveResult(
+                content=cached.content,
+                evidence=[dict(item) for item in cached.evidence],
+                records=[dict(item) for item in cached.records],
+                metadata=dict(cached.metadata),
+                status=cached.status,
+            )
+        outcome = await primitive(self, decision, params, ctx, evidence)
+        if usable:
+            self._memo[key] = _PrimitiveResult(
+                content=outcome.content,
+                evidence=[dict(item) for item in outcome.evidence],
+                records=[dict(item) for item in outcome.records],
+                metadata=dict(outcome.metadata),
+                status=outcome.status,
+            )
+        return outcome
+
+    def _memo_key(self, capability: str, params: dict[str, Any]) -> str:
+        payload = json.dumps(params, ensure_ascii=False, sort_keys=True, default=str)
+        return f"{self._memo_trace}|{capability}|{payload}"
+
+    def _ensure_trace(self, ctx: dict[str, Any]) -> None:
+        """同一轮内证据只检索一次；跨轮（trace_id 不同）天然隔离；无 trace_id 不备忘。"""
+        trace = ctx.get("trace_id")
+        if trace != self._memo_trace:
+            self._memo.clear()
+            self._memo_trace = trace
+
+    # ---- 结果 ----
+
+    @staticmethod
+    def _result(
+        action: str,
+        capability: str,
+        status: str,
+        *,
+        content: str = "",
+        evidence: list[dict[str, Any]] | None = None,
+        records: list[dict[str, Any]] | None = None,
+        error: dict[str, Any] | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return {
+            "content": content,
+            "evidence": list(evidence or []),
+            "records": list(records or []),
+            "status": status,
+            "capability": capability,
+            "action": action,
+            "error": error,
+            "metadata": dict(metadata or {}),
+        }
+
+
+# ---- 六个通用原语 ----
+
+async def _render_template(
+    dispatcher: ActionDispatcher,
+    decision: dict[str, Any],
+    params: dict[str, Any],
+    ctx: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> _PrimitiveResult:
+    """确定性渲染：绝不调用模型，保证提示强度不因换模型而漂移。
+
+    ``params`` 本身就是一个绑定模板块（固定模板 / 按取值选模板），
+    因此“哪一级提示说哪句话”永远是绑定数据，不是代码。
+    """
+    block: Any = params
+    if not (isinstance(params, dict) and ("template" in params or "templates" in params)):
+        block = {"template": params.get("text", "")}
+    text = render_block(block, decision)
+    return _PrimitiveResult(content=text, evidence=data_evidence(params))
+
+
+async def _invoke_skill(
+    dispatcher: ActionDispatcher,
+    decision: dict[str, Any],
+    params: dict[str, Any],
+    ctx: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> _PrimitiveResult:
+    """按名调用 Skill；名字由绑定数据给出，Runtime 不硬编码任何 Skill 名。
+
+    两个可选参数让绑定足以描述“从 Skill 结果里取哪一段”：
+
+    ``content_field``
+        取哪一段作正文（支持 ``a.b`` 点路径，或按取值选字段名的模板块）；
+        **不声明**时是“只问状态”的调用——Skill 被如实调用并回传结果就算成功，
+        结论看 ``metadata.skill_status``（如未接入的学情模型），不当失败处理。
+    ``passthrough``
+        Skill 结果里要原样带回策略层的字段白名单（如题库是否接入）。
+    """
+    skill = str(params.get("skill") or "")
+    if not skill:
+        raise ValueError("invoke_skill 缺少 skill 名")
+    payload = dict(params.get("input") or {})
+    if evidence:
+        payload.setdefault("evidence", evidence)
+    info = dict(await dispatcher._host.invoke_skill(skill, payload, ctx) or {})
+    status = str(info.get("status") or "")
+    metadata: dict[str, Any] = {
+        "skill": skill,
+        "skill_status": status or "unknown",
+        "source": str(info.get("source") or "skill"),
+        **passthrough_fields(info, params.get("passthrough")),
+    }
+    records = [dict(item) for item in (info.get("records") or []) if isinstance(item, dict)]
+    if "content_field" not in params:
+        return _PrimitiveResult(content="", records=records, metadata=metadata)
+
+    content = pick_content(info, params.get("content_field"))
+    if status == "ok" and content:
+        return _PrimitiveResult(content=content, records=records, metadata=metadata)
+    raise SkillUnavailable(
+        f"Skill {skill} 未返回可用内容（status={status or 'unknown'}）", metadata=metadata
+    )
+
+
+async def _retrieve_evidence(
+    dispatcher: ActionDispatcher,
+    decision: dict[str, Any],
+    params: dict[str, Any],
+    ctx: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> _PrimitiveResult:
+    """取可定位证据：优先经检索 Skill（可做规范化/过滤），否则直接调检索 Tool。
+
+    取不到就返回空证据——由分发器的前置门决定“不调用主能力”，
+    **绝不编造来源**（§7.3）。回传的原文只在本轮能力内部使用。
+    """
+    skill = str(params.get("skill") or "")
+    if skill:
+        info = dict(await dispatcher._host.invoke_skill(skill, dict(params.get("input") or {}), ctx) or {})
+        items = [
+            dict(item)
             for item in (info.get("evidence") or [])
             if isinstance(item, dict) and is_locatable(item)
         ]
-        metadata = {"skill": skill, "retrieval_status": status, "note": str(info.get("note") or "")}
-        if status != "ok" or not evidence:
-            return {
-                "status": "insufficient_evidence",
-                "content": "",
-                "evidence": [],
-                "metadata": metadata,
-            }
-        return {
-            "status": "success",
-            "content": "",
-            "evidence": evidence,
-            "metadata": metadata,
+        status = str(info.get("status") or "")
+        metadata = {
+            "skill": skill,
+            "retrieval_status": status or "unknown",
+            "note": str(info.get("note") or ""),
         }
+        if status != "ok" or not items:
+            return _PrimitiveResult(evidence=[], metadata=metadata, status=STATUS_INSUFFICIENT_EVIDENCE)
+        return _PrimitiveResult(evidence=items, metadata=metadata)
+
+    tool = str(params.get("tool") or "retrieve_evidence")
+    arguments = dict(params.get("arguments") or {})
+    raw = await dispatcher._host.call_tool(tool, arguments, ctx)
+    items = raw.get("evidence") if isinstance(raw, dict) else None
+    return _PrimitiveResult(
+        evidence=[dict(item) for item in (items or []) if isinstance(item, dict) and is_locatable(item)]
+    )
 
 
-class GroundedGenerationCapability:
-    """只用给定证据生成正文，并回传可定位引用（原文不进结果，§6.4）。"""
+async def _generate_grounded(
+    dispatcher: ActionDispatcher,
+    decision: dict[str, Any],
+    params: dict[str, Any],
+    ctx: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> _PrimitiveResult:
+    """只用给定证据生成正文：原文进提示词，回传结果只有可定位引用（§6.4）。
 
-    name = "generate_grounded"
-
-    async def execute(self, params: dict, ctx: dict, port: RuntimeHost) -> dict:
-        evidence = [item for item in (params.get("evidence") or []) if isinstance(item, dict)]
-        if not evidence:
-            return _failed(
-                "insufficient_evidence",
-                "evidence_required",
-                "generate_grounded 只在有证据时生成，禁止无证据自由发挥（§7.3）",
-            )
+    提示词由绑定声明（``system_prompt`` + ``prompt_template`` + ``values``），
+    其中 ``{evidence_block}`` 由本次执行填入证据原文——策略层因此既不需要
+    也没有能力自己拼教材原文（§7.3 不编造引用）。
+    """
+    prompt_template = str(params.get("prompt_template") or "")
+    if prompt_template:
         values = dict(params.get("values") or {})
         values["evidence_block"] = build_evidence_block(
-            evidence, max_chars=int(params.get("max_chars") or 600)
+            evidence, max_chars=int(params.get("max_chars") or DEFAULT_EVIDENCE_MAX_CHARS)
         )
-        request = {
-            "messages": [
-                {"role": "system", "content": str(params.get("system_prompt") or "")},
-                {"role": "user", "content": render_text(str(params.get("prompt_template") or ""), values)},
-            ],
-            "temperature": params.get("temperature"),
-            "stream": True,
-            "metadata": dict(params.get("metadata") or {}),
-        }
-        content = await collect_stream(port, request, ctx)
-        if not content:
-            return _failed(
-                "error",
-                "generation_failed",
-                "模型未返回内容或流式生成失败；调用方应改用确定性失败表述",
+        messages: list[dict[str, Any]] = []
+        system_prompt = str(params.get("system_prompt") or "")
+        if system_prompt:
+            messages.append({"role": "system", "content": system_prompt})
+        messages.append({"role": "user", "content": format_text(prompt_template, values)})
+    else:
+        messages = list(params.get("messages") or [])
+
+    request = {
+        "role": params.get("role") or "tutor.default",
+        "messages": messages,
+        "model": params.get("model"),
+        "max_tokens": params.get("max_tokens"),
+        "temperature": params.get("temperature"),
+        "tools": list(params.get("tools") or []),
+    }
+    parts: list[str] = []
+    metadata: dict[str, Any] = {"evidence_count": len(evidence)}
+    async for frame in dispatcher._host.generate(request, {**ctx, "evidence": evidence}):
+        kind = frame.get("type")
+        if kind == "delta":
+            parts.append(str(frame.get("text", "")))
+        elif kind == "error":
+            error = dict(frame.get("error") or {})
+            raise ProviderError(
+                str(error.get("message") or "模型生成失败"),
+                kind=str((error.get("details") or {}).get("kind", "unknown")),
+                details=error.get("details") or {},
             )
-        return {
-            "status": "success",
-            "content": content,
-            "evidence": [locator_ref(item) for item in evidence],
-            "metadata": {"evidence_count": len(evidence)},
-        }
+        elif kind == "usage":
+            metadata["usage"] = dict(frame.get("usage") or {})
+    return _PrimitiveResult(content="".join(parts), evidence=evidence, metadata=metadata)
 
 
-def default_capabilities() -> CapabilityRegistry:
-    """装配六个通用原语；它们都不含教学语义，因此可以默认注册。
-
-    (render_template / invoke_skill / retrieve_evidence / generate_grounded
-     / read_memory / write_memory)
-    """
-    registry = CapabilityRegistry()
-    for capability in (
-        TemplateCapability(),
-        SkillCapability(),
-        EvidenceRetrievalCapability(),
-        GroundedGenerationCapability(),
-        MemoryReadCapability(),
-        MemoryWriteCapability(),
-    ):
-        registry.register(capability)
-    return registry
+async def _read_memory(
+    dispatcher: ActionDispatcher,
+    decision: dict[str, Any],
+    params: dict[str, Any],
+    ctx: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> _PrimitiveResult:
+    query = dict(params.get("query") or params)
+    records = await dispatcher._host.read_memory(query, ctx)
+    return _PrimitiveResult(records=[dict(item) for item in (records or [])])
 
 
-# ======================================================================
-# 六、通用分发器
-# ======================================================================
-class ActionDispatcher:
-    """查绑定表 → 按名解析 capability → 执行 → 归一化结果（§4.4）。
-
-    它住在 runtime 侧，却不认识任何教学动作：``hint`` / ``teach`` / ``ask``
-    这些词只出现在**注入的绑定数据**里（graph/education/bindings.py）。
-    若把映射写成这里的 if/elif，只是把耦合从结构搬到了词汇，边界并未立起来。
-
-    一个绑定可以做四件事：执行一个通用能力、按需先取证据（require_evidence）、
-    给正文加 prefix / suffix 段落、在失败时改用确定性 fallback。这四件事都不看
-    动作名，只看绑定里写了什么。
-
-    装配失败一律显式失败，不静默兜底（不要用"自由发挥的文本"掩盖漏装配）：
-        no_binding / capability_not_found / invalid_request / template_not_found
-    """
-
-    def __init__(
-        self,
-        capabilities: CapabilityRegistry,
-        bindings: dict[str, dict] | None = None,
-        *,
-        port: RuntimeHost | None = None,
-    ) -> None:
-        self.capabilities = capabilities
-        self.bindings: dict[str, dict] = {}
-        self._port = port
-        self._evidence_memo: OrderedDict[str, dict[str, dict]] = OrderedDict()
-        self.set_bindings(bindings or {})
-
-    def set_bindings(self, bindings: dict[str, dict]) -> None:
-        """替换绑定表；绑定是数据，随时可由组合根重装（换人才、换课程都能改表）。"""
-        self.bindings = {
-            str(key): dict(value) for key, value in dict(bindings or {}).items()
-        }
-
-    async def execute(self, request: dict, ctx: dict) -> dict:
-        payload = dict(request or {})
-        action = str(payload.get("action") or "")
-        binding = self.bindings.get(action)
-        if binding is None:
-            return capability_result(
-                status="no_binding",
-                action=action,
-                error={
-                    "code": "no_binding",
-                    "message": f"没有为动作 {action!r} 注入绑定（组合根未装配）",
-                },
-                metadata={"known_actions": sorted(self.bindings)},
-            )
-
-        missing: list[str] = []
-        resolved = resolve_placeholders(binding, payload, missing)
-        if missing:
-            return capability_result(
-                status="invalid_request",
-                action=action,
-                error={
-                    "code": "missing_fields",
-                    "message": f"绑定引用了请求里不存在的字段: {sorted(set(missing))}",
-                },
-                metadata={"missing_fields": sorted(set(missing))},
-            )
-
-        name = str(resolved.get("capability") or "")
-        capability = self.capabilities.get(name)
-        if capability is None:
-            return capability_result(
-                status="capability_not_found",
-                action=action,
-                capability=name,
-                error={"code": "capability_not_found", "message": f"能力未注册: {name}"},
-                metadata={"known_capabilities": self.capabilities.names()},
-            )
-
-        params = dict(resolved.get("params") or {})
-        metadata: dict[str, Any] = {}
-
-        # require_evidence 是分发器的通用前置条件（不看动作名，只看这个布尔）：
-        # 缺证据时不执行主能力、不调用模型，改用绑定声明的确定性表述（§7.3）。
-        if payload.get("require_evidence"):
-            evidence, retrieval_meta = await self._fulfil_evidence(payload, resolved, ctx)
-            metadata.update(retrieval_meta)
-            if not evidence:
-                return capability_result(
-                    status="insufficient_evidence",
-                    content=render_bound_block(resolved.get("insufficient_text")) or "",
-                    action=action,
-                    capability=name,
-                    metadata=metadata,
-                )
-            params["evidence"] = evidence
-            metadata["evidence_count"] = len(evidence)
-
-        # prefix / suffix：围绕正文的固定或按取值选择的段落（开头框架、结尾说明）。
-        # 它们和 fallback 共用"绑定模板块"语义；声明了 select 却选不到模板时
-        # 必须显式失败——悄悄少一段会让学生看到半截回复，且没人会发现。
-        for key in ("prefix", "suffix"):
-            block = resolved.get(key)
-            if _uses_selection(block) and render_bound_block(block) is None:
-                select = str(block.get("select") or "")
-                return capability_result(
-                    status="error",
-                    action=action,
-                    capability=name,
-                    error={
-                        "code": "template_not_found",
-                        "message": (
-                            f"{key} 没选到模板（select={select or '-'} "
-                            f"key={dict(block.get('values') or {}).get(select)!r}）"
-                        ),
-                    },
-                )
-
-        outcome = await self._execute_capability(
-            name, params, ctx, memo=bool(resolved.get("memo"))
-        )
-        status = str(outcome.get("status") or "error")
-        content = str(outcome.get("content") or "")
-        # 出站边界（§6.4 / §7.3）：能力内部可以带证据原文（当次生成用完即弃），
-        # 但跨回策略层的结果只保留可定位引用，绝不携带原文——
-        # 否则 retrieved_evidence_refs 这类状态字段会把教材正文复制进来。
-        evidence = [
-            locator_ref(item)
-            for item in (outcome.get("evidence") or [])
-            if isinstance(item, dict)
-        ]
-        # records 是结构化记录（学情记忆），不是教材原文，因此原样带回；
-        # 由策略层决定怎么解释（如 record_id 与误解标签）。
-        records = [item for item in (outcome.get("records") or []) if isinstance(item, dict)]
-        metadata = {**metadata, **dict(outcome.get("metadata") or {})}
-
-        # fallback 是策略侧声明的确定性兜底：宁可话术朴素，也不让模型自由发挥。
-        # 声明了"按取值选模板"却选不到时同样显式失败——静默跳过兜底会让
-        # 学生收到一句空话，而绑定作者以为自己已经配了兜底。
-        fallback = resolved.get("fallback")
-        if status != "success" and isinstance(fallback, dict):
-            text = render_bound_block(fallback)
-            if text is None:
-                return capability_result(
-                    status="error",
-                    action=action,
-                    capability=name,
-                    error={
-                        "code": "template_not_found",
-                        "message": (
-                            "fallback 没选到模板（select="
-                            f"{fallback.get('select') or '-'} "
-                            f"key={dict(fallback.get('values') or {}).get(fallback.get('select'))!r}）"
-                        ),
-                    },
-                    metadata=metadata,
-                )
-            content = text
-            evidence = []
-            metadata["degraded_from"] = status
-            status = "success"
-
-        if status == "success":
-            content = _wrap(content, resolved)
-
-        return capability_result(
-            status=status,
-            content=content,
-            evidence=evidence,
-            records=records,
-            action=action,
-            capability=name,
-            error=outcome.get("error"),
-            metadata=metadata,
-        )
-
-    async def _fulfil_evidence(
-        self, payload: dict, resolved: dict, ctx: dict
-    ) -> tuple[list[dict], dict]:
-        """满足 require_evidence：返回（可定位证据, 元信息），空列表表示未满足。
-
-        两条判断顺序有意如此：
-        1. 决策已声明本轮无证据（策略层判过 Assess 的结论）→ **不再硬找**，
-           省掉一次检索，也避免"证据不足还要试一下"的含糊语义；
-        2. 声明有证据时，必须真的取到**带可定位标识**的命中才算数——
-           策略层的判断不能替代分发器对证据的实际校验（§7.3 不编造引用）。
-        """
-        if not payload.get("evidence_sufficient"):
-            return [], {"evidence_skipped": "declared_insufficient"}
-        bound = resolved.get("evidence")
-        if not isinstance(bound, dict):
-            return [], {"evidence_skipped": "no_evidence_source"}
-        retrieval = await self._execute_bound(bound, ctx)
-        meta = {"retrieval": dict(retrieval.get("metadata") or {})}
-        if str(retrieval.get("status") or "") != "success":
-            return [], meta
-        return [
-            item for item in (retrieval.get("evidence") or []) if isinstance(item, dict)
-        ], meta
-
-    async def _execute_capability(
-        self, name: str, params: dict, ctx: dict, *, memo: bool = False
-    ) -> dict:
-        """执行一个能力；``memo=True`` 时在同一轮内按 (能力名, 参数) 复用结果。
-
-        为什么要备忘：Assess 先探一次证据来定 `evidence_sufficient`，Teach / Correct
-        随后还要取原文来生成——参数完全相同，结果理应相同。重复检索的代价不只是
-        多一次查询：两次结果若不一致，就会出现"Assess 判证据充分、Teach 却说证据不足"。
-
-        `memo` 由**绑定声明**（`"memo": true`），只应用于只读且同轮内结果稳定的能力
-        （目前只有证据检索）。不声明的能力一律真调用——写学情、调模型这类有副作用的
-        能力绝不能缓存，所以默认值是"不备忘"。
-
-        作用域刻意是**单轮**：键含 trace_id，跨轮不复用，不会拿到上一轮的陈旧证据；
-        `ctx` 没有 trace_id 时不备忘（无法判断是否同一轮，宁可多查一次）。
-        """
-        if not memo:
-            return await self._run_capability(name, params, ctx)
-        bucket = self._memo_for(str((ctx or {}).get("trace_id") or ""))
-        spec = json.dumps(
-            {"capability": name, "params": params},
-            sort_keys=True,
-            ensure_ascii=False,
-            default=str,
-        )
-        if bucket is not None and spec in bucket:
-            return dict(bucket[spec])
-        outcome = await self._run_capability(name, params, ctx)
-        if bucket is not None:
-            bucket[spec] = dict(outcome)
-        return outcome
-
-    def _memo_for(self, trace_id: str) -> dict[str, dict] | None:
-        """取该 trace 的检索备忘桶（LRU，保留最近 EVIDENCE_MEMO_TRACES 轮）。"""
-        if not trace_id:
-            return None
-        bucket = self._evidence_memo.get(trace_id)
-        if bucket is not None:
-            self._evidence_memo.move_to_end(trace_id)
-            return bucket
-        bucket = {}
-        self._evidence_memo[trace_id] = bucket
-        while len(self._evidence_memo) > EVIDENCE_MEMO_TRACES:
-            self._evidence_memo.popitem(last=False)
-        return bucket
-
-    async def _run_capability(self, name: str, params: dict, ctx: dict) -> dict:
-        """按名解析并执行能力；未注册返回结构化失败（不抛异常打断图）。"""
-        capability = self.capabilities.get(name)
-        if capability is None:
-            return {
-                "status": "capability_not_found",
-                "content": "",
-                "evidence": [],
-                "metadata": {"capability": name},
-            }
-        return dict(await capability.execute(dict(params or {}), ctx, self._port) or {})
-
-    async def _execute_bound(self, bound: dict, ctx: dict) -> dict:
-        """执行绑定里的子能力（如证据获取），参数已由分发器解析完毕。"""
-        return await self._execute_capability(
-            str(bound.get("capability") or ""),
-            dict(bound.get("params") or {}),
-            ctx,
-            memo=bool(bound.get("memo")),
-        )
+async def _write_memory(
+    dispatcher: ActionDispatcher,
+    decision: dict[str, Any],
+    params: dict[str, Any],
+    ctx: dict[str, Any],
+    evidence: list[dict[str, Any]],
+) -> _PrimitiveResult:
+    records = list(params.get("records") or [])
+    await dispatcher._host.write_memory(records, ctx)
+    return _PrimitiveResult(metadata={"written": len(records)})
 
 
-__all__ = [
-    "ActionDispatcher",
-    "Capability",
-    "CapabilityRegistry",
-    "EvidenceRetrievalCapability",
-    "GroundedGenerationCapability",
-    "MemoryReadCapability",
-    "MemoryWriteCapability",
-    "SkillCapability",
-    "TemplateCapability",
-    "build_evidence_block",
-    "capability_result",
-    "collect_stream",
-    "default_capabilities",
-    "is_locatable",
-    "locator_ref",
-    "render_bound_block",
-    "render_text",
-    "resolve_placeholders",
-]
+def data_evidence(params: dict[str, Any]) -> list[dict[str, Any]]:
+    items = params.get("evidence")
+    if isinstance(items, list):
+        return [locator_of(item) for item in items if isinstance(item, dict)]
+    return []
+
+
+_PRIMITIVES: dict[str, Primitive] = {
+    "render_template": _render_template,
+    "invoke_skill": _invoke_skill,
+    "retrieve_evidence": _retrieve_evidence,
+    "generate_grounded": _generate_grounded,
+    "read_memory": _read_memory,
+    "write_memory": _write_memory,
+}

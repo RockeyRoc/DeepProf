@@ -1,0 +1,25 @@
+{
+  "contract_version": "1.4.0",
+  "ProviderProfile": {
+    "profile_id": "string",
+    "display_name": "string",
+    "protocol": "openai_compatible | native | local",
+    "base_url": "string",
+    "api_key_ref": "string, 只存 SecretStore 引用，不存明文",
+    "default_model": "string",
+    "models": "array, 手工配置或探测缓存",
+    "api_mode": "chat_completions | responses | auto",
+    "extra_headers": "object",
+    "timeout_ms": "integer",
+    "max_retries": "integer",
+    "capabilities": "object, stream/tools/json/vision/reasoning 等",
+    "enabled": "boolean"
+  },
+  "_secret_boundary": "api_key_ref 之外不得出现任何明文密钥；Profile 导出默认剔除 secret。",
+  "_logical_roles": {
+    "tutor.default": "教学主线默认模型角色",
+    "quiz.generator": "出题/判分模型角色",
+    "paper.reader": "论文阅读模型角色",
+    "local.offline": "离线本地模型角色"
+  }
+}

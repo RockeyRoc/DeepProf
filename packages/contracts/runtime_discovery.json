@@ -1,0 +1,13 @@
+{
+  "contract_version": "1.0.0",
+  "RuntimeGatewayRecord": {
+    "protocol_version": "1",
+    "base_url": "loopback http URL",
+    "pid": "integer",
+    "owner": "desktop | cli",
+    "started_at": "ISO-8601 UTC string",
+    "owner_token": "opaque random string"
+  },
+  "storage": "${DEEPPROF_HOME}/gateway.json",
+  "security": "Only 127.0.0.1, localhost, or ::1 HTTP URLs are accepted; owner_token is required for cleanup."
+}

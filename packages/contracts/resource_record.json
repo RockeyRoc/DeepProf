@@ -1,0 +1,22 @@
+{
+  "contract_version": "1.0.0",
+  "ResourceRecord": {
+    "resource_id": "string",
+    "document_id": "string",
+    "course_id": "string | null",
+    "type": "textbook | lecture | paper | quiz_bank | student_upload",
+    "title": "string",
+    "tags": "array[string]",
+    "source_type": "import | upload | crawl",
+    "source_url": "string",
+    "license": "string",
+    "hash": "string, SHA-256",
+    "status": "draft | active | archived",
+    "owner_id": "string",
+    "visibility": "private | public",
+    "version_of": "string | null",
+    "created_by": "string",
+    "created_at": "string, ISO-8601 UTC",
+    "updated_at": "string, ISO-8601 UTC"
+  }
+}

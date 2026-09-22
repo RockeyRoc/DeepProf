@@ -1,4 +1,4 @@
-"""Pedagogical Graph 状态定义（DESIGNv0.4 §6.4）。
+"""Pedagogical Graph 状态定义（DESIGNv0.6 §6.4）。
 
 两条硬约束：
 1. **只放 JSON 友好类型**：状态要能进 LangGraph checkpoint、能随事件回放（§18.2）；
@@ -19,6 +19,7 @@
   student_stopped / turn_count / max_turns      退出与防无限追问（§7.3）
   strategy_note                                 本轮策略备注（复盘用）
 """
+
 from __future__ import annotations
 
 from typing import Any, TypedDict

@@ -1,4 +1,4 @@
-"""学情记忆进入生成上下文的链路测试（DESIGNv0.4 §6.2 / §6.4 / §13.2）。
+"""学情记忆进入生成上下文的链路测试（DESIGNv0.6 §6.2 / §6.4 / §13.2）。
 
 背景：跨轮记忆探针实验（tests/experiment/memory_probe.py）证实——
 记忆读写每轮都在发生，但召回内容从未进入生成提示词，跨轮个性化是空转。
@@ -23,9 +23,8 @@ from graph.education.nodes.update_profile import update_profile
 from graph.education.policies import (
     MEMORY_NOTE_MAX_CHARS,
     MEMORY_NOTE_MAX_RECORDS,
-    STUDENT_CONTEXT_KEY_PREFIX,
+    TAG_STUDENT_CONTEXT,
     memory_note,
-    student_context_key,
 )
 from graph.education.state import new_state
 from runtime.testing import FakeRuntime
@@ -50,14 +49,16 @@ BASE_STATE = {
 MEMORY_RECORDS = [
     {
         "record_id": "r_ctx",
-        "memory_type": "long_term",
-        "key": f"{STUDENT_CONTEXT_KEY_PREFIX}导数",
+        "scope": "long_term",
+        "tags": [TAG_STUDENT_CONTEXT],
+        "concept_ids": ["导数"],
         "content": "学生自述背景（原文摘录，可撤回）：我之前用牛顿迭代法算过题",
     },
     {
         "record_id": "r_obs",
-        "memory_type": "long_term",
-        "key": "concept:导数",
+        "scope": "long_term",
+        "tags": ["observation"],
+        "concept_ids": ["导数"],
         "content": "知识点「导数」规则化观察：本轮动作=teach",
     },
 ]
@@ -109,18 +110,16 @@ def test_memory_note_declares_non_evidence_status():
 # 二、写入侧：UpdateProfile 落学生自述背景记录
 # ======================================================================
 def test_update_profile_writes_student_context_record():
-    """有 user_input → 追加一条 context: 前缀的 long_term 背景记录（可撤回、有界）。"""
+    """有 user_input → 追加一条 student_context 标签的 long_term 背景记录（可撤回、有界）。"""
     port = make_port()
     state = new_state(**BASE_STATE, user_input="我之前用牛顿迭代法算过题")
     asyncio.run(update_profile(state, port))
 
-    context_records = [
-        r for r in port.written_memories if str(r.get("key", "")).startswith(STUDENT_CONTEXT_KEY_PREFIX)
-    ]
+    context_records = [r for r in port.written_memories if TAG_STUDENT_CONTEXT in (r.get("tags") or [])]
     assert len(context_records) == 1
     record = context_records[0]
-    assert record["memory_type"] == "long_term"
-    assert record["key"] == student_context_key("导数")
+    assert record["scope"] == "long_term"
+    assert record["concept_ids"] == ["导数"]
     assert "牛顿迭代法" in record["content"]
     assert record["revocable"] is True
     assert len(record["content"]) < 200, "摘录必须有界，不能把整轮输入复制进记忆"
@@ -132,9 +131,7 @@ def test_update_profile_skips_context_without_user_input():
     state = new_state(**BASE_STATE, user_input="")
     asyncio.run(update_profile(state, port))
 
-    assert not [
-        r for r in port.written_memories if str(r.get("key", "")).startswith(STUDENT_CONTEXT_KEY_PREFIX)
-    ]
+    assert not [r for r in port.written_memories if TAG_STUDENT_CONTEXT in (r.get("tags") or [])]
 
 
 # ======================================================================

@@ -1,4 +1,4 @@
-"""Attempt（一次作答尝试）—— 教育组 → 数据组的交接契约（DESIGNv0.4 §18.2 / §16.6）。
+"""Attempt（一次作答尝试）—— 教育组 → 数据组的交接契约（DESIGNv0.6 §18.2 / §16.6）。
 
 字段严格取自 §18.2 的 Attempt 行：
     attempt_id, learner_id, item_id, concept_ids, correct, timestamp, hint_count

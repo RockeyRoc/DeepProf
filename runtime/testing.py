@@ -1,125 +1,217 @@
-"""FakeRuntime：RuntimePort 的确定性实现（DESIGNv0.4 §16.3）。
+"""测试与离线运行辅助：内存装配、脚本化的 Fake Provider 与记录型 Host。"""
 
-用途：
-- 教育组在没有真实 Runtime / 没有密钥时开发与测试教学图；
-- 集成测试精确控制"证据不足""连续答错"等分支场景。
-
-它严格遵守 RuntimePort 契约，因此可以直接替换真实 Runtime，
-不需要改教学图的任何一行代码。
-
-`execute` 走的是**真实的通用分发器**（runtime/capabilities.py），只有模型与
-Skill 被脚本化。这样图侧测试跑的是与生产同一条分发路径（含证据前置条件、
-确定性兜底、学情记忆读写），而不是一个"假装返回结果"的替身；绑定表由测试
-显式注入，因为 Runtime 侧不得内置任何教学绑定。
-
-它同时满足 RuntimePort（窄面：execute / emit）与 RuntimeHost（宽面：
-invoke_skill / call_tool / generate / read_memory / write_memory）——
-与 RuntimeService 一致，否则图侧测试与生产的端口形状会悄悄漂移。
-"""
 from __future__ import annotations
 
-from typing import Any, AsyncIterator, Iterable
+from typing import Any, AsyncIterator
 
-from .capabilities import ActionDispatcher, CapabilityRegistry, default_capabilities
-from .core.ports import RuntimeContext, RuntimeHost, RuntimePort
+from config.settings import Settings
+from runtime.capabilities import ActionDispatcher
+from runtime.core.events import InMemoryEventStore
+from runtime.core.session import InMemorySessionStore
+from runtime.memory.service import MemoryService
+from runtime.memory.sqlite_memory import SqliteMemoryStore
+from runtime.providers.fake import FakeProvider
+from runtime.providers.profiles import ProviderProfile
+from runtime.providers.registry import ProviderRegistry
+from runtime.providers.secrets import InMemorySecretStore
+from runtime.service import RuntimeService
+
+FAKE_PROFILE_ID = "fake"
 
 
-class FakeRuntime:
-    """记录调用 + 脚本化返回的假 Runtime。"""
+def make_settings(**overrides: Any) -> Settings:
+    settings = Settings()
+    for key, value in overrides.items():
+        setattr(settings, key, value)
+    return settings
+
+
+def make_fake_provider(
+    *, script: list[Any] | None = None, profile_id: str = FAKE_PROFILE_ID
+) -> FakeProvider:
+    return FakeProvider(profile_id, script=script)
+
+
+def make_service(
+    *,
+    bindings: dict[str, dict[str, Any]] | None = None,
+    script: list[Any] | None = None,
+    provider: Any | None = None,
+    settings: Settings | None = None,
+    skills: Any | None = None,
+    tools: Any | None = None,
+    memory: MemoryService | None = None,
+) -> RuntimeService:
+    """构造全内存的 RuntimeService，供单元测试使用。"""
+    resolved = settings or make_settings()
+    fake = provider or make_fake_provider(script=script)
+    registry = ProviderRegistry(InMemorySecretStore(), settings=resolved)
+    registry.add(
+        ProviderProfile(
+            profile_id=FAKE_PROFILE_ID,
+            display_name="Fake",
+            protocol="native",
+            default_model="fake-model",
+            capabilities={"stream": True},
+        ),
+        fake,
+    )
+    registry.set_role("tutor.default", FAKE_PROFILE_ID, "fake-model")
+
+    service = RuntimeService(
+        router=registry,
+        settings=resolved,
+        event_store=InMemoryEventStore(),
+        session_store=InMemorySessionStore(),
+        skills=skills,
+        tools=tools,
+        memory=memory or MemoryService(SqliteMemoryStore(path=":memory:")),
+        bindings=bindings or {},
+    )
+    return service
+
+
+class RecordingHost:
+    """记录所有能力调用的 Host，用于断言分发器“调了什么、怎么调的”。"""
 
     def __init__(
         self,
         *,
-        replies: Iterable[str] | None = None,
-        tool_results: dict[str, dict] | None = None,
-        skill_results: dict[str, dict] | None = None,
-        memories: list[dict] | None = None,
-        action_bindings: dict[str, dict] | None = None,
-        capability_registry: CapabilityRegistry | None = None,
-        default_reply: str = "（FakeRuntime）请先说说你的思路。",
+        evidence: list[dict[str, Any]] | None = None,
+        skill_result: dict[str, Any] | None = None,
+        tool_result: dict[str, Any] | None = None,
+        model_text: str = "generated",
+        memory_records: list[dict[str, Any]] | None = None,
+        fail_skills: set[str] | None = None,
     ) -> None:
-        self._replies = list(replies or [])
-        self._tool_results = dict(tool_results or {})
-        self._skill_results = dict(skill_results or {})
-        self._memories = list(memories or [])
-        self._default_reply = default_reply
-        self.capabilities = capability_registry or default_capabilities()
-        self.dispatcher = ActionDispatcher(self.capabilities, action_bindings, port=self)
-        self.calls: list[dict[str, Any]] = []  # 供测试断言调用顺序与参数
-        self.events: list[dict] = []
-        self.written_memories: list[dict] = []
+        self.evidence = evidence if evidence is not None else []
+        self.skill_result = skill_result or {}
+        self.tool_result = tool_result or {}
+        self.model_text = model_text
+        self.memory_records = memory_records or []
+        self.fail_skills = fail_skills or set()
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.emitted: list[dict[str, Any]] = []
 
-    # ---------- RuntimePort ----------
-    async def execute(self, request: dict, ctx: dict) -> dict:
-        """按注入的绑定表真实分发；没注入绑定时返回 no_binding（与生产一致）。"""
-        self._record("execute", request=request, ctx=ctx)
+    async def execute(self, request: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append(("execute", request))
+        return {}
+
+    async def emit(self, event: dict[str, Any]) -> None:
+        self.emitted.append(event)
+
+    async def invoke_skill(self, name: str, input: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append(("invoke_skill", {"name": name, "input": input}))
+        if name in self.fail_skills:
+            raise RuntimeError(f"skill {name} failed")
+        return dict(self.skill_result)
+
+    async def call_tool(self, name: str, arguments: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+        self.calls.append(("call_tool", {"name": name, "arguments": arguments}))
+        if name == "retrieve_evidence":
+            return {"evidence": [dict(item) for item in self.evidence]}
+        return dict(self.tool_result)
+
+    async def generate(self, request: dict[str, Any], ctx: dict[str, Any]):
+        self.calls.append(("generate", request))
+        yield {"type": "delta", "text": self.model_text}
+        yield {"type": "finish", "finish_reason": "stop"}
+
+    async def read_memory(self, query: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
+        self.calls.append(("read_memory", query))
+        return [dict(item) for item in self.memory_records]
+
+    async def write_memory(self, records: list[dict[str, Any]], ctx: dict[str, Any]) -> None:
+        self.calls.append(("write_memory", {"records": records}))
+        return None
+
+    def called(self, kind: str) -> list[dict[str, Any]]:
+        return [payload for name, payload in self.calls if name == kind]
+
+
+class FakeRuntime:
+    """脚本化的 Runtime 测试替身：**真实分发器** + 记录型 Host + 真实绑定表。
+
+    与 ``RecordingHost`` 的区别：它同时实现窄面（``execute`` / ``emit``），
+    因此可以直接当 ``RuntimePort`` 交给教学图；分发器仍是生产实现，
+    所以断言验证的是“绑定表 + 分发器”的真实行为，而不是替身的臆想。
+
+    脚本内容（全部可选，未声明的按“没有”语义返回）：
+
+    - ``replies``：依次返回的模型文本（最后一轮之后重复最后一条）；
+    - ``skill_results``：按 Skill 名返回的固定结果；
+    - ``tool_results``：按 Tool 名返回的固定结果，未声明时回 ``evidence``；
+    - ``memories``：``read_memory`` 的召回结果；
+    - ``evidence``：未声明 tool_results 时的检索命中。
+    """
+
+    def __init__(
+        self,
+        *,
+        replies: list[str] | None = None,
+        skill_results: dict[str, dict[str, Any]] | None = None,
+        tool_results: dict[str, dict[str, Any]] | None = None,
+        memories: list[dict[str, Any]] | None = None,
+        evidence: list[dict[str, Any]] | None = None,
+        action_bindings: dict[str, dict[str, Any]] | None = None,
+    ) -> None:
+        self.replies = [str(item) for item in (replies or ["（模型回复）"])]
+        self.skill_results = {name: dict(value) for name, value in (skill_results or {}).items()}
+        self.tool_results = {name: dict(value) for name, value in (tool_results or {}).items()}
+        self.memory_records = [dict(item) for item in (memories or [])]
+        self.evidence = [dict(item) for item in (evidence or [])]
+        self.events: list[dict[str, Any]] = []
+        self.calls: list[tuple[str, dict[str, Any]]] = []
+        self.written_memories: list[dict[str, Any]] = []
+        self._reply_index = 0
+        self.dispatcher = ActionDispatcher(self, action_bindings or {})
+
+    # ---- 窄面（教学图唯一可依赖的面） ----
+
+    async def execute(self, request: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
         return await self.dispatcher.execute(request, ctx)
 
-    async def invoke_skill(self, name: str, input: dict, ctx: dict) -> dict:
-        self._record("invoke_skill", name=name, input=input, ctx=ctx)
-        if name in self._skill_results:
-            return dict(self._skill_results[name])
-        return {"status": "ok", "skill": name, "result": {}, "source": "fake_runtime"}
+    async def emit(self, event: dict[str, Any]) -> None:
+        self.events.append(dict(event))
 
-    async def call_tool(self, name: str, arguments: dict, ctx: dict) -> dict:
-        self._record("call_tool", name=name, arguments=arguments, ctx=ctx)
-        if name in self._tool_results:
-            return dict(self._tool_results[name])
-        return {"ok": False, "content": "", "data": {}, "error": {
-            "code": "insufficient_evidence",
-            "message": f"（FakeRuntime）没有 {name} 的结果",
-        }}
+    # ---- 宽面（能力实现可用） ----
 
-    async def generate(self, request: dict, ctx: dict) -> AsyncIterator[dict]:
-        self._record("generate", request=request, ctx=ctx)
-        text = self._replies.pop(0) if self._replies else self._default_reply
-        for index in range(0, len(text), 8):
-            yield {"type": "delta", "text": text[index : index + 8]}
-        yield {
-            "type": "done",
-            "content": text,
-            "tool_calls": [],
-            "finish_reason": "stop",
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0},
-        }
+    async def invoke_skill(
+        self, name: str, input: dict[str, Any], ctx: dict[str, Any]
+    ) -> dict[str, Any]:
+        self.calls.append(("invoke_skill", {"name": name, "input": dict(input)}))
+        if name in self.skill_results:
+            return dict(self.skill_results[name])
+        return {"status": "not_implemented", "skill": name}
 
-    async def read_memory(self, query: dict, ctx: dict) -> list[dict]:
-        self._record("read_memory", query=query, ctx=ctx)
-        memory_type = str(query.get("memory_type") or "")
-        return [
-            record
-            for record in self._memories
-            if not memory_type or record.get("memory_type") == memory_type
-        ]
+    async def call_tool(
+        self, name: str, arguments: dict[str, Any], ctx: dict[str, Any]
+    ) -> dict[str, Any]:
+        self.calls.append(("call_tool", {"name": name, "arguments": dict(arguments)}))
+        if name in self.tool_results:
+            return dict(self.tool_results[name])
+        return {"evidence": [dict(item) for item in self.evidence]}
 
-    async def write_memory(self, records: list[dict], ctx: dict) -> None:
-        self._record("write_memory", records=records, ctx=ctx)
-        self.written_memories.extend(records)
+    async def generate(self, request: dict[str, Any], ctx: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
+        self.calls.append(("generate", {"request": dict(request)}))
+        index = min(self._reply_index, len(self.replies) - 1)
+        self._reply_index += 1
+        yield {"type": "delta", "text": self.replies[index]}
+        yield {"type": "finish", "finish_reason": "stop"}
 
-    async def emit(self, event: dict) -> None:
-        self._record("emit", event=event)
-        self.events.append(event)
+    async def read_memory(self, query: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
+        self.calls.append(("read_memory", dict(query)))
+        return [dict(item) for item in self.memory_records]
 
-    # ---------- 测试辅助 ----------
-    def calls_of(self, method: str) -> list[dict]:
-        return [call for call in self.calls if call["method"] == method]
+    async def write_memory(self, records: list[dict[str, Any]], ctx: dict[str, Any]) -> None:
+        self.calls.append(("write_memory", {"records": [dict(item) for item in records]}))
+        self.written_memories.extend(dict(item) for item in records)
+        return None
+
+    # ---- 断言辅助 ----
+
+    def calls_of(self, kind: str) -> list[dict[str, Any]]:
+        return [payload for name, payload in self.calls if name == kind]
 
     def event_types(self) -> list[str]:
-        return [str(event.get("type", "")) for event in self.events]
-
-    def _record(self, method: str, **payload: Any) -> None:
-        self.calls.append({"method": method, **payload})
-
-
-def make_context(
-    session_id: str = "sess_test",
-    learner_id: str = "learner_test",
-    trace_id: str = "trace_test",
-) -> RuntimeContext:
-    """构造测试用上下文。"""
-    return RuntimeContext(
-        session_id=session_id, learner_id=learner_id, trace_id=trace_id
-    )
-
-
-__all__ = ["FakeRuntime", "RuntimeHost", "RuntimePort", "RuntimeContext", "make_context"]
+        return [str(event.get("type") or "") for event in self.events]

@@ -1,0 +1,18 @@
+:root {
+  --dp-ink: #17233f;
+  --dp-muted: #6f7d96;
+  --dp-surface: #f7f9fc;
+  --dp-panel: #ffffff;
+  --dp-accent: #4c76d9;
+  --dp-accent-soft: #e9efff;
+  --dp-success: #2c9b73;
+  --dp-warning: #c98625;
+  --dp-danger: #c85b65;
+  --dp-line: #e7ebf3;
+  --dp-radius-md: 12px;
+  --dp-shadow: 0 12px 36px rgba(29, 47, 84, 0.1);
+}
+
+* { box-sizing: border-box; }
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }

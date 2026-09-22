@@ -1,61 +1,52 @@
-"""用户目录三层布局测试（config/paths.py ↔ desktop/src/main/index.js 的 PATHS）。
+"""三层目录布局：程序文件 / 用户数据 / 可再生状态的解析规则。"""
 
-布局约定（模仿 Codex 桌面端）：
-- 用户数据（持久）→ ``~/.deepprof``，``DEEPPROF_HOME`` 可覆盖（CLI 与 Electron 都认）；
-- 可再生状态     → ``%LOCALAPPDATA%\\deepprof``，无该环境变量时退回 ``~/.deepprof/local``。
-
-Python 侧的存储默认值（sqlite / vector / plugins）必须落在用户数据目录，
-不能依赖 CWD 或安装目录（安装目录只读）。
-"""
 from __future__ import annotations
 
 from pathlib import Path
 
-from config.paths import (
-    deepprof_home,
-    local_data_dir,
-    plugins_default_dir,
-    sqlite_default_path,
-    vector_default_path,
-)
+from config import paths
+from config.settings import Settings
 
 
-def test_deepprof_home_env_override(tmp_path, monkeypatch):
-    """DEEPPROF_HOME 优先：开发调试可把用户数据指到仓库内，与个人数据隔离。"""
-    target = tmp_path / "isolated-home"
-    monkeypatch.setenv("DEEPPROF_HOME", str(target))
-    assert deepprof_home() == target
-
-
-def test_deepprof_home_defaults_to_user_profile(monkeypatch):
-    """未设置 DEEPPROF_HOME 时落在用户主目录（~/.deepprof，像 codex 的 ~/.codex）。"""
+def test_home_defaults_to_dot_deepprof(monkeypatch):
     monkeypatch.delenv("DEEPPROF_HOME", raising=False)
-    assert deepprof_home() == Path.home() / ".deepprof"
+    assert paths.deepprof_home() == Path.home() / ".deepprof"
 
 
-def test_local_data_dir_uses_localappdata(tmp_path, monkeypatch):
-    """可再生状态归 %LOCALAPPDATA%\\deepprof（Roaming 不用，缓存不值得漫游）。"""
-    monkeypatch.delenv("DEEPPROF_HOME", raising=False)
-    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "localappdata"))
-    assert local_data_dir() == tmp_path / "localappdata" / "deepprof"
+def test_home_honors_env_override(isolated_home):
+    assert paths.deepprof_home() == isolated_home
 
 
-def test_local_data_dir_falls_back_without_localappdata(tmp_path, monkeypatch):
-    """没有 LOCALAPPDATA 的环境退回 ~/.deepprof/local，保证任何环境都有明确落点。"""
-    monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
-    monkeypatch.delenv("LOCALAPPDATA", raising=False)
-    assert local_data_dir() == tmp_path / "home" / "local"
+def test_home_expands_tilde(monkeypatch):
+    monkeypatch.setenv("DEEPPROF_HOME", "~/custom-deepprof")
+    assert paths.deepprof_home() == Path.home() / "custom-deepprof"
 
 
-def test_storage_defaults_live_under_user_home(tmp_path, monkeypatch):
-    """存储默认值（留空配置时）必须全部落在 ~/.deepprof 下，且目录自动创建。"""
-    monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
-    home = tmp_path / "home"
+def test_ensure_layout_creates_user_data_dirs(isolated_home):
+    home = paths.ensure_layout()
+    assert home == isolated_home
+    for directory in (paths.logs_dir(), paths.temp_dir(), paths.plugins_dir(), paths.pets_dir()):
+        assert directory.is_dir()
 
-    assert sqlite_default_path() == home / "sessions" / "deepprof.db"
-    assert vector_default_path() == home / "memory" / "vector_store"
-    assert plugins_default_dir() == home / "plugins"
 
-    assert (home / "sessions").is_dir()
-    assert (home / "memory").is_dir()
-    assert (home / "plugins").is_dir()
+def test_empty_settings_paths_resolve_under_home(isolated_home):
+    settings = Settings()
+    assert settings.resolved_sqlite_path == isolated_home / "sessions.sqlite"
+    assert settings.resolved_vector_db_path == isolated_home / "vectors"
+    assert settings.resolved_plugin_dir == isolated_home / "plugins"
+
+
+def test_explicit_settings_paths_win(tmp_path):
+    settings = Settings(sqlite_path=str(tmp_path / "custom.sqlite"))
+    assert settings.resolved_sqlite_path == (tmp_path / "custom.sqlite").resolve()
+
+
+def test_regenerable_state_is_deletable(isolated_home):
+    """删除可再生状态层必须安全：只影响缓存/日志/临时，不影响配置。"""
+    paths.ensure_layout()
+    (paths.log_file()).write_text("log", encoding="utf-8")
+    import shutil
+
+    shutil.rmtree(paths.logs_dir())
+    assert not paths.logs_dir().exists()
+    assert paths.deepprof_home().exists()

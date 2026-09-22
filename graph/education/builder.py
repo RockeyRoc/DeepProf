@@ -1,10 +1,10 @@
-"""教学策略图组装与对外入口（DESIGNv0.4 §6.1 / §7.3 / §16.3）。
+"""教学策略图组装与对外入口（DESIGNv0.6 §6.1 / §7.3 / §16.3）。
 
 对外两个入口：
 
 1. `build_education_graph(port)` —— 用 LangGraph StateGraph 组装八个节点与条件边。
    节点函数用 functools.partial 绑定 port，使 LangGraph 只看到 `(state) -> dict`，
-   从而保证"节点只依赖 RuntimePort"这条边界在编译期就被固化（§4.4）。
+   从而保证“节点只依赖 RuntimePort”这条边界在编译期就被固化（§4.4）。
 2. `run_teaching_turn(port, state)` —— 跑一轮图并返回最终状态。
    API 与测试统一使用它；每次调用重建图（编译成本低），避免在模块里缓存
    带 port 的闭包导致测试之间互相污染。
@@ -17,12 +17,13 @@
     reflect ─(条件边)→ update_profile
     update_profile → END
 
-防无限追问由三层保证（§7.3、§16.3 验收"图不能形成无限追问"）：
+防无限追问由三层保证（§7.3、§16.3 验收“图不能形成无限追问”）：
     ① assess 递增 turn_count，达到 max_turns 直接出 reflect 并结束；
     ② 唯一的回退边（test → assess）同时受 hint_level < HINT_MAX_LEVEL 与
        turn_count < max_turns 限制；
     ③ 编译/调用时设置 recursion_limit 作为最后兜底。
 """
+
 from __future__ import annotations
 
 from functools import partial
@@ -33,8 +34,8 @@ from langgraph.graph.state import CompiledStateGraph
 
 from runtime.core.ports import RuntimePort
 
-from .nodes.assess import assess
 from .nodes.ask import ask
+from .nodes.assess import assess
 from .nodes.correct import correct
 from .nodes.hint import hint
 from .nodes.reflect import reflect
@@ -103,9 +104,7 @@ async def run_teaching_turn(port: RuntimePort, state: dict) -> dict:
     merged = new_state(**dict(state or {}))
     graph = build_education_graph(port)
     max_turns = int(merged.get("max_turns") or MAX_TURNS_DEFAULT)
-    result = await graph.ainvoke(
-        merged, config={"recursion_limit": recursion_limit(max_turns)}
-    )
+    result = await graph.ainvoke(merged, config={"recursion_limit": recursion_limit(max_turns)})
     return dict(result)
 
 

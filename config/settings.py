@@ -1,88 +1,127 @@
-"""DeeepProf 全局配置。
+"""运行时设置。默认值必须与 ``.env.example`` 一致（守卫见 tests/test_config_consistency.py）。"""
 
-从 .env 文件加载，密钥不硬编码。
-切换 LLM 只需改 .env 中的 LLM_PROVIDER，业务代码无需改动。
-"""
 from __future__ import annotations
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from config import paths
+
+TRUTHY = {"1", "true", "yes", "on"}
 
 
-class Settings(BaseSettings):
-    """全局配置。
+def _env_str(key: str, default: str) -> str:
+    value = os.environ.get(key)
+    return default if value is None else value
 
-    通过环境变量或 .env 覆盖默认值。
-    所有密钥字段默认空串，缺 key 时由 adapter 层抛清晰错误。
-    """
 
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",  # .env 里有未声明字段时忽略，避免报错
-    )
+def _env_int(key: str, default: int) -> int:
+    raw = os.environ.get(key)
+    if raw is None or raw.strip() == "":
+        return default
+    return int(raw)
 
-    # ========== LLM 适配层 ==========
-    llm_provider: str = "deepseek"  # deepseek | openai | qwen
 
-    # DeepSeek
-    deepseek_api_key: str = ""
-    deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_model: str = "deepseek-flash"
+def _env_float(key: str, default: float) -> float:
+    raw = os.environ.get(key)
+    if raw is None or raw.strip() == "":
+        return default
+    return float(raw)
 
-    # OpenAI
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-5.6-luna"
 
-    # 本地/云端 Qwen（通过 OpenAI 兼容接口）
-    qwen_api_key: str = ""
-    qwen_base_url: str = "https://api.qnaigc.com/v1"
-    qwen_model: str = "qwen/qwen3.8-flash-next"
+def _env_bool(key: str, default: bool) -> bool:
+    raw = os.environ.get(key)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in TRUTHY
 
-    # 对话参数
-    llm_temperature: float = 0.7
+
+def _env_list(key: str, default: list[str]) -> list[str]:
+    raw = os.environ.get(key)
+    if raw is None or raw.strip() == "":
+        return list(default)
+    return [item.strip() for item in raw.split(",") if item.strip()]
+
+
+@dataclass(slots=True)
+class Settings:
+    """DeepProf Runtime 的可配置项。"""
+
+    # 模型调用
     llm_max_tokens: int = 4096
-    # 单次模型调用的连接/读空闲超时（秒）。SDK 默认 600s 曾导致流式挂起
-    # 10 分钟才失败；调小以便快速失败并进入降级文案
     llm_timeout_seconds: float = 120.0
+    llm_max_retries: int = 2
+    stream_include_usage: bool = True
 
-    # ========== 记忆与存储（DESIGNv0.4 D-3：抽象接口 + 本地 SQLite） ==========
-    # 留空 = 用户数据目录默认位置（见 config/paths.py）：
-    #   sqlite_path   → ~/.deepprof/sessions/deepprof.db
-    #   vector_db_path → ~/.deepprof/memory/vector_store
-    # 开发者可在 .env 里写相对路径（相对项目根）或绝对路径覆盖。
+    # Provider 能力探测
+    probe_max_tokens: int = 512
+
+    # API / Gateway（0 = 动态端口，仅监听环回地址）
+    api_host: str = "127.0.0.1"
+    api_port: int = 0
+
+    # 存储路径（留空 => 解析到用户数据根）
     sqlite_path: str = ""
     vector_db_path: str = ""
-    sqlite_busy_timeout_ms: int = 5000  # WAL 下的写锁等待，避免并发写直接失败
+    plugin_dir: str = ""
+    library_dir: str = ""
 
-    # ========== Runtime ==========
-    runtime_source: str = "deepprof.runtime"  # 事件默认 source，便于轨迹溯源
-    agent_max_turns: int = 8  # 单次 run 的模型—工具循环上限，防止无限循环
-    # 单次工具执行的超时上限（秒）。工具可能有网络/磁盘 IO，挂起会把 Agent 循环
-    # 无限拖住（与 llm_timeout_seconds 同一类防护）；工具可用 timeout_seconds 覆盖
-    tool_timeout_seconds: float = Field(default=30.0, gt=0)
-    session_compact_keep: int = 12  # compact 时保留最近 N 条消息
-    trace_id_header: str = "x-trace-id"  # API 侧透传 trace_id 的请求头
+    # Resource library / offline retrieval
+    library_chunk_size: int = 800
+    library_chunk_overlap: int = 120
+    library_max_import_bytes: int = 50_000_000
+    library_crawl_delay_seconds: float = 1.0
+    library_allowlist: list[str] = field(default_factory=list)
+    library_tos_confirmed_domains: list[str] = field(default_factory=list)
 
-    # ========== Sandbox（DESIGNv0.4 D-5：目录白名单 + 审批） ==========
-    # 逗号分隔：相对路径相对项目根，~/ 开头相对用户主目录（会话库/记忆在 ~/.deepprof，
-    # 工具要能读写它们，故默认放行）
-    sandbox_allowed_roots: str = "data,media,docs,~/.deepprof"
-    sandbox_allow_network: bool = False
-    sandbox_allow_process: bool = False
+    # 沙箱
+    sandbox_allowlist: list[str] = field(default_factory=lambda: ["~/.deepprof"])
 
-    # ========== Plugin（DESIGNv0.4 D-4：仅受信 Python 插件） ==========
-    # 留空 = ~/.deepprof/plugins（用户装的插件跟用户数据走，不污染程序目录）
-    plugin_dir: str = ""  # 第三方插件扫描目录
-    plugin_trusted_only: bool = True  # 只加载受信、审核后的 Python 插件
-    # 运维维护的插件信任清单（外部裁定）：清单外的插件一律拒绝安装。
-    # 放在插件包之外是关键——plugin.json 里的 trusted 由插件自己写，不能作为依据。
-    plugin_trust_store: str = "plugins/trusted.json"
+    # 功能开关
+    screenshot_enabled: bool = False
 
-    # ========== 宠物侧 ==========
-    affinity_init: int = Field(default=30, ge=0, le=100)  # 好感度初值 [0,100]
+    log_level: str = "INFO"
 
+    @classmethod
+    def from_env(cls) -> "Settings":
+        return cls(
+            llm_max_tokens=_env_int("DEEPPROF_LLM_MAX_TOKENS", 4096),
+            llm_timeout_seconds=_env_float("DEEPPROF_LLM_TIMEOUT_SECONDS", 120.0),
+            llm_max_retries=_env_int("DEEPPROF_LLM_MAX_RETRIES", 2),
+            stream_include_usage=_env_bool("DEEPPROF_STREAM_INCLUDE_USAGE", True),
+            probe_max_tokens=_env_int("DEEPPROF_PROBE_MAX_TOKENS", 512),
+            api_host=_env_str("DEEPPROF_API_HOST", "127.0.0.1"),
+            api_port=_env_int("DEEPPROF_API_PORT", 0),
+            sqlite_path=_env_str("DEEPPROF_SQLITE_PATH", ""),
+            vector_db_path=_env_str("DEEPPROF_VECTOR_DB_PATH", ""),
+            plugin_dir=_env_str("DEEPPROF_PLUGIN_DIR", ""),
+            library_dir=_env_str("DEEPPROF_LIBRARY_DIR", ""),
+            library_chunk_size=_env_int("DEEPPROF_LIBRARY_CHUNK_SIZE", 800),
+            library_chunk_overlap=_env_int("DEEPPROF_LIBRARY_CHUNK_OVERLAP", 120),
+            library_max_import_bytes=_env_int("DEEPPROF_LIBRARY_MAX_IMPORT_BYTES", 50_000_000),
+            library_crawl_delay_seconds=_env_float("DEEPPROF_LIBRARY_CRAWL_DELAY_SECONDS", 1.0),
+            library_allowlist=_env_list("DEEPPROF_LIBRARY_ALLOWLIST", []),
+            library_tos_confirmed_domains=_env_list("DEEPPROF_LIBRARY_TOS_CONFIRMED_DOMAINS", []),
+            sandbox_allowlist=_env_list("DEEPPROF_SANDBOX_ALLOWLIST", ["~/.deepprof"]),
+            screenshot_enabled=_env_bool("DEEPPROF_SCREENSHOT_ENABLED", False),
+            log_level=_env_str("DEEPPROF_LOG_LEVEL", "INFO"),
+        )
 
-# 单例：业务层直接 `from config import settings`
-settings = Settings()
+    # ---- 解析后的路径（留空 => 用户数据根） ----
+
+    @property
+    def resolved_sqlite_path(self) -> Path:
+        return paths.expand(self.sqlite_path) if self.sqlite_path else paths.sessions_db()
+
+    @property
+    def resolved_vector_db_path(self) -> Path:
+        return paths.expand(self.vector_db_path) if self.vector_db_path else paths.vector_db_dir()
+
+    @property
+    def resolved_plugin_dir(self) -> Path:
+        return paths.expand(self.plugin_dir) if self.plugin_dir else paths.plugins_dir()
+
+    @property
+    def resolved_library_dir(self) -> Path:
+        return paths.expand(self.library_dir) if self.library_dir else paths.library_dir()

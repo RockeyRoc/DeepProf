@@ -1,9 +1,0 @@
-﻿mode,run,wall_ms,internal_window_shown_ms,process_start_epoch,spawn_overhead_ms,marker,exit
-prod,1,516.2,481.7,1789793262600.0,34.6,app-log,1
-prod,2,469.8,432.4,1789793264840.3,37.8,app-log,1
-prod,3,551.3,510.9,1789793267003.6,36.7,app-log,1
-prod,4,478.6,437.0,1789793269312.3,37.9,app-log,1
-prod,5,473.5,434.3,1789793271507.0,39.3,app-log,1
-dev,1,1392.8,487.7,1789793276437.3,905.8,app-log,1
-dev,2,1394.7,489.9,1789793279520.5,902.5,app-log,1
-dev,3,1495.8,551.5,1789793282663.7,944.3,app-log,1

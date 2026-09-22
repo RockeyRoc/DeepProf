@@ -1,0 +1,28 @@
+{
+  "contract_version": "1.4.0",
+  "_owner": "Runtime 回传的结构化结果。",
+  "CapabilityResult": {
+    "content": "string, 面向学生的正文；可能为空（如只取状态的调用）",
+    "evidence": "array, 教材证据的可定位引用（document_id/chunk_id/page/source），不含原文",
+    "records": "array, 结构化记录（学情记忆等），供图侧解释而不进状态正文",
+    "status": "success | insufficient_evidence | no_binding | capability_not_found | invalid_request | error",
+    "capability": "string, 这次实际执行了哪个能力",
+    "action": "string, 这次实际执行的决策动作（审计用）",
+    "error": "object | null, 结构化错误 {code, message}",
+    "metadata": "object, 能力名 / Skill 原状态 / 降级来源 degraded_from / 透传字段"
+  },
+  "statuses": [
+    "success",
+    "insufficient_evidence",
+    "no_binding",
+    "capability_not_found",
+    "invalid_request",
+    "error"
+  ],
+  "_failure_contract": {
+    "no_binding": "组合根漏装配；正文为空",
+    "capability_not_found": "绑定写错能力名；回传已注册能力清单",
+    "invalid_request": "绑定引用了不存在的字段；回传 missing_fields",
+    "error(template_not_found)": "选不到模板 / 兜底模板缺失；主能力执行前即失败"
+  }
+}

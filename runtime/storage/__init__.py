@@ -1,28 +1,18 @@
-"""存储层：抽象接口 + SQLite 实现（D-3）。"""
-from .base import (
-    EventStore,
-    InMemoryEventStore,
-    InMemoryProfileStore,
-    InMemorySessionStore,
-    ProfileStore,
-    SessionStore,
-)
-from .sqlite_store import (
-    SqliteDatabase,
-    SqliteEventStore,
-    SqliteProfileStore,
-    SqliteSessionStore,
-)
+"""Runtime 存储层。"""
+
+from runtime.storage.base import EventStorePort, MemoryStorePort, ResourceStorePort, SessionStorePort
+from runtime.storage.migrations import connect, connect_memory
+from runtime.storage.resource_store import SqliteResourceStore
+from runtime.storage.sqlite_store import SqliteEventStore, SqliteSessionStore
 
 __all__ = [
-    "EventStore",
-    "SessionStore",
-    "ProfileStore",
-    "InMemoryEventStore",
-    "InMemorySessionStore",
-    "InMemoryProfileStore",
-    "SqliteDatabase",
+    "EventStorePort",
+    "MemoryStorePort",
+    "ResourceStorePort",
+    "SessionStorePort",
     "SqliteEventStore",
+    "SqliteResourceStore",
     "SqliteSessionStore",
-    "SqliteProfileStore",
+    "connect",
+    "connect_memory",
 ]

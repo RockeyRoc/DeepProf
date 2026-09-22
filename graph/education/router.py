@@ -1,17 +1,18 @@
-"""条件路由与教学动作决策（DESIGNv0.4 §6.2 / §7.3 / §16.3）。
+"""条件路由与教学动作决策（DESIGNv0.6 §6.2 / §7.3 / §16.3）。
 
-本模块是"教师此刻应该怎么教"的唯一判定处，分两层：
+本模块是“教师此刻应该怎么教”的唯一判定处，分两层：
 
 1. `decide_action(state)` —— 纯函数决策，Assess 节点调用它并把结果写入
    `next_action` 与 `last_assessment`。判定依据全部来自状态字段与 policies 常量，
    优先级与理由见函数 docstring（这也是教师评审与实验复盘的对照口径）。
 2. `route_from_*` —— LangGraph 条件边函数，把状态映射到下一个节点名或 END。
-   它们只做"安全兜底"（停止、超轮次、未知动作），不重复业务判断，
+   它们只做“安全兜底”（停止、超轮次、未知动作），不重复业务判断，
    保证即使状态被外部写坏也不会走出非法分支。
 
 覆盖的分支（§6.2 六类教学动作 + 退出）：
     Assess → Teach / Ask / Hint / Correct / Test / Reflect / END
 """
+
 from __future__ import annotations
 
 from langgraph.graph import END
@@ -45,35 +46,35 @@ def decide_action(state: PedagogyState) -> tuple[str, str]:
     优先级与依据（§6.2 触发条件）：
 
     1. 学生主动停止（student_stopped）→ end
-       不产出任何教学动作，直接收束（§16.3 验收："学生停止时退出"）。
+       不产出任何教学动作，直接收束（§16.3 验收：“学生停止时退出”）。
     2. 达到最大轮次（turn_count ≥ max_turns）→ reflect
        交由 Reflect 选择回退、换策略或求助教师，避免无限追问（§7.3）。
     3. 稳定错误 / 概念混淆 → correct
        概念混淆：误解条目 ≥ MISCONCEPTION_LIMIT 即可纠错；
        稳定错误：wrong_streak ≥ CORRECT_WRONG_STREAK **且提示阶梯已用尽**
        （hint_level ≥ HINT_MAX_LEVEL）。两者都表示继续追问只会强化错误
-       （§6.2 Correct："出现稳定错误或概念混淆"）。
+       （§6.2 Correct：“出现稳定错误或概念混淆”）。
     4. 尝试受阻 → hint
        wrong_streak ≥ 1 时给提示，从轻到重，每次升一级直至 HINT_MAX_LEVEL。
        第 3 条的 hint_level 条件保证这条阶梯不会被纠错提前打断，
-       因此 1—3 级会依次真实出现，不存在"定义了却走不到"的档位。
+       因此 1—3 级会依次真实出现，不存在“定义了却走不到”的档位。
        每一级（含最高级）都不给出最终答案：第 3 级起开始给脚手架，
-       因此显式声明"不给出最终答案"，避免单次答错就纠错、剥夺学生自己推理的机会。
+       因此显式声明“不给出最终答案”，避免单次答错就纠错、剥夺学生自己推理的机会。
     5. 需要验证理解 → test
        attempt_count ≥ QUIZ_AFTER_ATTEMPTS 且本轮没有未处理的错误
        （有错时先走 Hint/Correct，测验留到状态干净之后，避免边讲边测）。
     6. 先验不足 → teach
        学生自述缺少先验（前置概念未学）且尚无作答尝试：此时追问等于要求他
        推理一个还没学过的前置概念，只会强化挫败；直接讲解并把起点前移到
-       前置概念（§16.3"先验不足"样例，起讲点由 policies.teach_prior_note 决定）。
+       前置概念（§16.3“先验不足”样例，起讲点由 policies.teach_prior_note 决定）。
     7. 主动求讲解 / 概念缺失 → teach
        命中讲解意图且没有任何作答尝试（attempt_count == 0）：
-       学生还没开始推理，此时直接分层讲解比追问更有效（§16.3"主动求讲解"样例）。
+       学生还没开始推理，此时直接分层讲解比追问更有效（§16.3“主动求讲解”样例）。
     8. 默认 → ask
        最保守也最不泄露答案的苏格拉底追问（§6.3 Socratic）。
 
     注意：证据不足**不**改变动作选择，只改变输出方式——Teach / Correct 在
-    evidence_sufficient=False 时必须给出"证据不足"表述且不带任何来源（§7.3）。
+    evidence_sufficient=False 时必须给出“证据不足”表述且不带任何来源（§7.3）。
     """
     if state.get("student_stopped"):
         return ACTION_END, "学生主动停止，本轮不再产出教学动作（§16.3）"
@@ -92,9 +93,8 @@ def decide_action(state: PedagogyState) -> tuple[str, str]:
     misconceptions = list(state.get("misconceptions") or [])
 
     # 稳定错误：连续答错达到阈值，**且提示阶梯已用尽**。
-    # 加 hint_level 这一重条件，是为了让"从轻到重给提示"这条教学路径真正走得完：
+    # 加 hint_level 这一重条件，是为了让“从轻到重给提示”这条教学路径真正走得完：
     # 否则连错到阈值就会打断提示、直接纠错，高等级提示模板永远轮不到（等于死代码）。
-    # CORRECT_WRONG_STREAK 仍表示"这已是稳定错误"，只是纠错要等提示脚手架用尽后再执行。
     if wrong_streak >= CORRECT_WRONG_STREAK and hint_level >= HINT_MAX_LEVEL:
         return (
             ACTION_CORRECT,

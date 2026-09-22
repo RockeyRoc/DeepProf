@@ -1,77 +1,100 @@
-"""配置一致性守护测试。
+"""配置一致性：settings 默认值必须与 .env.example 声明对齐，防止配置漂移。"""
 
-背景：``.env.example`` 是给使用者复制的模板，``config/settings.py`` 的默认值是
-"没写 .env 时的兜底"。两者描述同一套配置，一旦漂移就会出现"文档说 A、默认值是 B"
-的隐性坑。本仓库已真实发生过两次：
-
-1. ``.env.example`` 写 ``DEEPSEEK_MODEL=deepseek-flash``，settings 默认却是
-   ``deepseek-chat``——后者是未文档化的遗留别名（端点 ``/models`` 只列
-   ``deepseek-flash``、``deepseek-v4-pro``），随时可能被下线。
-2. ``LLM_MAX_TOKENS`` 模板 4096、默认 1024，而 1024 在推理模型下会先被
-   reasoning token 耗尽，导致正文为空（``finish_reason=length``）。
-
-本测试的策略：把"已知且有意为之"的差异显式登记在 ``KNOWN_DIVERGENCES``，
-其余任何差异都判失败；同时**已修复却仍挂在例外表里**的过期条目也判失败，
-避免例外表长期失真后失去守护作用。
-"""
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
+import pytest
+
 from config.settings import Settings
 
-ENV_EXAMPLE = Path(__file__).resolve().parents[1] / ".env.example"
+ROOT = Path(__file__).resolve().parents[1]
+ENV_EXAMPLE = ROOT / ".env.example"
 
-# 模板里的密钥占位符形如 {{your_deepseek_api_key}}，本就应与空默认值不同
-_PLACEHOLDER = re.compile(r"^\{\{.*\}\}$")
+# settings 字段 -> .env.example 中的键
+FIELD_TO_ENV = {
+    "llm_max_tokens": "DEEPPROF_LLM_MAX_TOKENS",
+    "llm_timeout_seconds": "DEEPPROF_LLM_TIMEOUT_SECONDS",
+    "llm_max_retries": "DEEPPROF_LLM_MAX_RETRIES",
+    "stream_include_usage": "DEEPPROF_STREAM_INCLUDE_USAGE",
+    "probe_max_tokens": "DEEPPROF_PROBE_MAX_TOKENS",
+    "api_host": "DEEPPROF_API_HOST",
+    "api_port": "DEEPPROF_API_PORT",
+    "sqlite_path": "DEEPPROF_SQLITE_PATH",
+    "vector_db_path": "DEEPPROF_VECTOR_DB_PATH",
+    "plugin_dir": "DEEPPROF_PLUGIN_DIR",
+    "library_dir": "DEEPPROF_LIBRARY_DIR",
+    "library_chunk_size": "DEEPPROF_LIBRARY_CHUNK_SIZE",
+    "library_chunk_overlap": "DEEPPROF_LIBRARY_CHUNK_OVERLAP",
+    "library_max_import_bytes": "DEEPPROF_LIBRARY_MAX_IMPORT_BYTES",
+    "library_crawl_delay_seconds": "DEEPPROF_LIBRARY_CRAWL_DELAY_SECONDS",
+    "library_allowlist": "DEEPPROF_LIBRARY_ALLOWLIST",
+    "library_tos_confirmed_domains": "DEEPPROF_LIBRARY_TOS_CONFIRMED_DOMAINS",
+    "sandbox_allowlist": "DEEPPROF_SANDBOX_ALLOWLIST",
+    "screenshot_enabled": "DEEPPROF_SCREENSHOT_ENABLED",
+    "log_level": "DEEPPROF_LOG_LEVEL",
+}
 
-# 已知且有意为之的差异：ENV 名 -> 原因。
-# 当前已无差异——模板与 settings 默认值应完全一致。
-# 若确有无法通过"改成一致"解决的差异，在此登记并写明原因；
-# 一旦该差异被修复，必须同步删除条目，否则本测试会判失败。
-KNOWN_DIVERGENCES: dict[str, str] = {}
 
-
-def _parse_env_example() -> dict[str, str]:
-    """解析 .env.example 的 KEY=VALUE，忽略注释、空行与行内注释。"""
-    values: dict[str, str] = {}
-    for raw in ENV_EXAMPLE.read_text(encoding="utf-8").splitlines():
-        line = raw.strip()
+def _env_entries() -> dict[str, str]:
+    entries: dict[str, str] = {}
+    for line in ENV_EXAMPLE.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
         key, _, value = line.partition("=")
-        values[key.strip()] = value.split("#")[0].strip()
-    return values
+        entries[key.strip()] = value.strip()
+    return entries
 
 
-def test_env_example_matches_settings_defaults():
-    """模板声明值必须与 settings 默认值一致，除非显式登记为例外。"""
-    template = _parse_env_example()
-    defaults = Settings(_env_file=None)
-
-    divergent: list[str] = []
-    for name in Settings.model_fields:
-        env_name = name.upper()
-        if env_name not in template:
-            continue
-        declared = template[env_name]
-        if _PLACEHOLDER.match(declared):  # 密钥占位符，本就该不同
-            continue
-        actual = str(getattr(defaults, name))
-        if declared.lower() != actual.lower():
-            divergent.append(env_name)
-
-    new_drift = sorted(set(divergent) - set(KNOWN_DIVERGENCES))
-    stale_exception = sorted(set(KNOWN_DIVERGENCES) - set(divergent))
-    assert not new_drift, f"新出现的漂移（请修正后保持两边一致）: {new_drift}"
-    assert not stale_exception, f"例外表已过期（差异已修复，请从 KNOWN_DIVERGENCES 移除）: {stale_exception}"
+def test_every_settings_field_is_documented():
+    declared = set(Settings().__slots__)
+    documented = {FIELD_TO_ENV[field] for field in declared if field in FIELD_TO_ENV}
+    assert declared == set(FIELD_TO_ENV), (
+        f"新增/删除设置项后必须同步 FIELD_TO_ENV；未覆盖: {sorted(declared - set(FIELD_TO_ENV))}"
+    )
+    assert documented == set(FIELD_TO_ENV.values())
 
 
-def test_env_example_documents_every_setting():
-    """每个配置项都要在模板中有说明，避免新增配置只活在代码里。"""
-    template = _parse_env_example()
+def test_env_example_keys_exist():
+    entries = _env_entries()
+    missing = [key for key in FIELD_TO_ENV.values() if key not in entries]
+    assert not missing, f".env.example 缺少键: {missing}"
 
-    missing = [name for name in Settings.model_fields if name.upper() not in template]
 
-    assert not missing, f"这些配置项未在 .env.example 中说明: {missing}"
+@pytest.mark.parametrize("field,env_key", sorted(FIELD_TO_ENV.items()))
+def test_default_matches_env_example(field: str, env_key: str):
+    expected = getattr(Settings(), field)
+    raw = _env_entries()[env_key]
+    if raw == "":
+        actual = "" if isinstance(expected, str) else None
+        assert expected in ("", None) or expected == [], (
+            f"{env_key} 留空表示“使用默认”，但默认值是 {expected!r}"
+        )
+        return
+    if isinstance(expected, bool):
+        actual: object = raw.lower() in {"1", "true", "yes", "on"}
+    elif isinstance(expected, int):
+        actual = int(raw)
+    elif isinstance(expected, float):
+        actual = float(raw)
+    elif isinstance(expected, list):
+        actual = [item.strip() for item in raw.split(",") if item.strip()]
+    else:
+        actual = raw
+    assert actual == expected, f"{env_key} 声明 {actual!r} 与默认值 {expected!r} 不一致"
+
+
+def test_env_example_has_no_duplicate_keys():
+    keys = re.findall(r"^(DEEPPROF_[A-Z0-9_]+)=", ENV_EXAMPLE.read_text(encoding="utf-8"), re.M)
+    duplicates = {key for key in keys if keys.count(key) > 1}
+    assert not duplicates, f".env.example 重复键: {sorted(duplicates)}"
+
+
+def test_defaults_are_sane():
+    settings = Settings()
+    assert settings.api_host == "127.0.0.1", "工作台只允许监听环回地址"
+    assert settings.llm_max_tokens >= 4096, "过小的 max_tokens 会导致推理模型空正文截断"
+    assert settings.screenshot_enabled is False, "截图默认必须关闭"
+    assert settings.probe_max_tokens >= 256, "过小的探测预算会让推理模型假阴性"

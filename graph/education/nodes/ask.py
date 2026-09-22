@@ -1,4 +1,4 @@
-"""Ask 节点：给出追问决策，不生成问题正文（DESIGNv0.4 §4.4 / §6.2 / §6.3）。
+"""Ask 节点：给出追问决策，不生成问题正文（DESIGNv0.6 §4.4 / §6.2 / §6.3）。
 
 进入条件：学生具备推理基础（Assess 决策为 ask）。
 
@@ -58,14 +58,15 @@ async def ask(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         ),
     )
 
-    # Skill 命中 → socratic_skill；被策略模板兜底 → policy_template。
-    # 判定依据来自能力层的降级标记，节点不自己解析正文。
+    # Skill 命中 → skill；被绑定声明的策略模板兜底 → policy_template。
+    # 审计标签刻意不带 Skill 名：节点不该知道是哪个能力做的（§4.4），
+    # 具体能力名只在决策事件的 capability 字段里（由 Runtime 回传）。
     degraded = bool(result.metadata.get("degraded_from"))
-    source_kind = "policy_template" if degraded else "socratic_skill"
+    source_kind = "policy_template" if degraded else "skill"
     reason = (
-        "Socratic Skill 不可用，改用策略模板追问"
+        "能力不可用，改用绑定声明的策略模板追问"
         if degraded
-        else "Socratic Skill 生成递进追问（avoid_answer=True，不泄露结论）"
+        else "由绑定的教育能力生成递进追问（avoid_answer=True，不泄露结论）"
     )
 
     await emit_decision(

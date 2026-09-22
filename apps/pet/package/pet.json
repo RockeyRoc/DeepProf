@@ -1,0 +1,24 @@
+{
+  "id": "deepprof-tutor",
+  "displayName": "DeepProf 娘",
+  "description": "DeepProf 的学习陪伴桌宠。动作由 RuntimeEvent 投影驱动。",
+  "spriteVersionNumber": 1,
+  "spritesheetPath": "spritesheet.webp",
+  "actions": [
+    "idle",
+    "running-right",
+    "running-left",
+    "waving",
+    "jumping",
+    "failed",
+    "waiting",
+    "running",
+    "review"
+  ],
+  "atlas": {
+    "columns": 8,
+    "rows": 9,
+    "width": 1536,
+    "height": 1872
+  }
+}

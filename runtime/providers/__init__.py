@@ -1,28 +1,44 @@
-"""模型与语音 Provider 适配层。
+"""Provider Hub：多套 OpenAI-compatible Profile + 本地 Adapter。"""
 
-新增供应商时：继承 Provider 实现 generate/stream/capabilities，
-并在 factory.get_provider() 注册分支，业务代码无需改动。
-"""
-from .base import ModelChunk, ModelRequest, ModelResponse, Provider, ProviderCapabilities
-from .factory import get_provider
-from .fake import FakeProvider
+from runtime.providers.base import Provider, probe_provider
+from runtime.providers.capabilities import (
+    ALL_CAPABILITIES,
+    REQUIRED_CAPABILITIES,
+    missing_capabilities,
+    normalize_capabilities,
+)
+from runtime.providers.factory import build_registry, load_profiles, save_profiles
+from runtime.providers.fake import FakeProvider
+from runtime.providers.local import LocalProvider
+from runtime.providers.openai_compatible import OpenAICompatibleProvider
+from runtime.providers.profiles import ProviderProfile
+from runtime.providers.registry import ModelRouter, ProviderRegistry, default_provider_factory
+from runtime.providers.secrets import (
+    ChainedSecretStore,
+    EnvSecretStore,
+    InMemorySecretStore,
+    SecretStore,
+)
 
 __all__ = [
-    "Provider",
-    "ProviderCapabilities",
-    "ModelRequest",
-    "ModelResponse",
-    "ModelChunk",
+    "ALL_CAPABILITIES",
+    "ChainedSecretStore",
+    "EnvSecretStore",
     "FakeProvider",
-    "OpenAICompatProvider",
-    "get_provider",
+    "InMemorySecretStore",
+    "LocalProvider",
+    "ModelRouter",
+    "OpenAICompatibleProvider",
+    "Provider",
+    "ProviderProfile",
+    "ProviderRegistry",
+    "REQUIRED_CAPABILITIES",
+    "SecretStore",
+    "build_registry",
+    "default_provider_factory",
+    "load_profiles",
+    "missing_capabilities",
+    "normalize_capabilities",
+    "probe_provider",
+    "save_profiles",
 ]
-
-
-def __getattr__(name: str):
-    """延迟导入真实供应商实现，避免无密钥/无 SDK 场景导入失败。"""
-    if name == "OpenAICompatProvider":
-        from .openai_compat import OpenAICompatProvider
-
-        return OpenAICompatProvider
-    raise AttributeError(name)

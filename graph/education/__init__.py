@@ -1,4 +1,4 @@
-"""Pedagogical Graph：LangGraph 教学策略图（DESIGNv0.4 §6）。
+"""Pedagogical Graph：LangGraph 教学策略图（DESIGNv0.6 §6）。
 
 LangGraph 的唯一职责（§6.1）：把教育策略表达为有状态图，
 通过 DeepProf Runtime 提供的稳定端口调用模型、工具、记忆与技能。

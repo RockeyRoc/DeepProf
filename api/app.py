@@ -1,54 +1,156 @@
-"""FastAPI 应用工厂（DESIGNv0.4 §8：FastAPI + SSE）。
+"""Gateway 组合根：装配 Runtime、注入绑定表、暴露环回地址 API。
 
-用法：
-    # 生产
-    uvicorn api.app:app --host 0.0.0.0 --port 8000
-    # 测试 / 嵌入（注入 Runtime，不触网、不读真实密钥）
-    app = create_app(runtime=service)
-
-依赖规则（§9.1）：UI / API → Pedagogical Graph → Runtime Port → Runtime Services。
-
-本模块是**装配入口**：create_app 调 `deps.configure_runtime` 把能力实现
-（tools / skills）与教学动作绑定表注册进 Runtime。装配函数放在 `api/deps.py`
-而不是这里，是为了让"进程内默认单例"与"create_app 构造的实例"共用同一套装配
-（否则单例会漏掉绑定，跑到教学链路才失败）。`runtime/` 自身不反向依赖它们
-（否则会破坏 §9.1 的依赖方向）。
-路由函数不导入任何能力实现，也不持有与回传 Provider 密钥（§16.4）。
+绑定表（action → capability）由本层从图侧数据读取并注入 Runtime；
+Runtime 自身不认识任何教学词汇（§4.4、§16.1 第 4 条）。
+教育 Skill、检索 Tool 与绑定表都在这里装配，缺一样都会在 /health 里显式暴露。
 """
+
 from __future__ import annotations
 
-from fastapi import FastAPI
+from typing import Any
 
-from runtime.service import RuntimeService, build_runtime_service
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
-from .deps import configure_runtime
-from .routes import health, sessions
+from api import events, health, library as library_api, providers, sessions
+from config.settings import Settings
+from graph.education.bindings import ACTION_BINDINGS
+from library.service import ResourceLibrary
+from runtime.assembly import build_runtime_service
+from runtime.core.errors import RuntimeFailure
+from runtime.service import RuntimeService
+from runtime.storage.resource_store import SqliteResourceStore
+from skills import register_default_skills
+from tools.retrieval import build_search_textbook_tool
 
-__all__ = ["create_app", "app"]
+__all__ = ["app", "create_app", "build_service_with_bindings"]
+
+# Runtime 结构化错误 → HTTP 状态码
+_ERROR_STATUS = {
+    "session_not_found": 404,
+    "tool_not_found": 404,
+    "skill_not_found": 404,
+    "plugin_not_found": 404,
+    "sandbox_denied": 403,
+    "approval_required": 409,
+    "invalid_arguments": 422,
+    "invalid_memory_record": 422,
+    "domain_denied": 403,
+    "tos_not_confirmed": 403,
+    "robots_denied": 403,
+    "resource_not_found": 404,
+    "resource_forbidden": 403,
+    "file_not_found": 404,
+    "size_limit": 413,
+    "duplicate": 409,
+    "invalid_request": 422,
+}
 
 
-def create_app(runtime: RuntimeService | None = None) -> FastAPI:
-    """构建 FastAPI 应用。
+def build_service_with_bindings(
+    *,
+    settings: Settings | None = None,
+    bindings: dict[str, dict[str, Any]] | None = None,
+    with_education: bool = True,
+) -> RuntimeService:
+    """装配可运行的 Runtime：注入教学绑定表，并注册教育与检索能力。
 
-    Args:
-        runtime: 注入的 RuntimeService；留空则用 ``build_runtime_service()``
-            （按 .env 构造 Provider 与 SQLite），再由 ``configure_runtime`` 装配。
+    ``with_education=False`` 用于只验证 Runtime 装配的场合（此时 ``execute``
+    会显式返回 ``no_binding``，并由 /health 暴露缺口）。
     """
-    service = configure_runtime(runtime or build_runtime_service())
-
-    application = FastAPI(
-        title="DeepProf API",
-        version="0.4.0",
-        description=(
-            "DeepProf 会话接入与流式输出层（DESIGNv0.4 §8）。"
-            "流式使用 SSE，事件形状与 RuntimeEvent 一致（§18.2）。"
-        ),
+    service = build_runtime_service(
+        settings=settings, bindings=bindings if bindings is not None else ACTION_BINDINGS
     )
-    application.state.runtime = service
-    application.include_router(health.router)
-    application.include_router(sessions.router)
-    return application
+    _attach_library(service)
+    if with_education:
+        register_default_skills(service.skills)
+        service.tools.register(build_search_textbook_tool(service.library.search))
+    return service
 
 
-#: 供 uvicorn / 部署直接使用的实例
+def create_app(
+    *,
+    service: RuntimeService | None = None,
+    settings: Settings | None = None,
+    bindings: dict[str, dict[str, Any]] | None = None,
+) -> FastAPI:
+    app = FastAPI(title="DeepProf Gateway", version="0.6.1")
+    app.state.service = service or build_service_with_bindings(settings=settings, bindings=bindings)
+    _attach_library(app.state.service)
+
+    @app.exception_handler(RuntimeFailure)
+    async def _runtime_failure_handler(request: Request, exc: RuntimeFailure) -> JSONResponse:
+        """把 Runtime 的结构化错误映射为合适的 HTTP 状态码，保留 kind 供前端分流。"""
+        kind = str(exc.details.get("kind", ""))
+        return JSONResponse(status_code=_ERROR_STATUS.get(kind, 400), content={"error": exc.to_dict()})
+
+    @app.exception_handler(HTTPException)
+    async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        """Keep gateway transport status and a stable structured error envelope."""
+        detail = exc.detail
+        if isinstance(detail, dict):
+            code = str(detail.get("code") or "http_error")
+            message = str(detail.get("message") or detail.get("detail") or code)
+            details = detail.get("details") if isinstance(detail.get("details"), dict) else {}
+        else:
+            code = "http_error"
+            message = str(detail or code)
+            details = {}
+        details = {"http_status": exc.status_code, **details}
+        return JSONResponse(
+            status_code=exc.status_code,
+            headers=exc.headers,
+            content={"error": {"code": code, "message": message, "details": details}},
+        )
+
+    @app.exception_handler(RequestValidationError)
+    async def _validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422,
+            content={
+                "error": {
+                    "code": "validation_error",
+                    "message": "request validation failed",
+                    "details": {"errors": jsonable_encoder(exc.errors())},
+                }
+            },
+        )
+
+    app.include_router(health.router)
+    app.include_router(providers.router)
+    app.include_router(sessions.router)
+    app.include_router(events.router)
+    app.include_router(library_api.router)
+    return app
+
+
+def _attach_library(service: RuntimeService) -> None:
+    if service.library is not None:
+        return
+    settings = service.settings
+    store = SqliteResourceStore.open(str(settings.resolved_sqlite_path))
+    service.library = ResourceLibrary(
+        store,
+        library_root=settings.resolved_library_dir,
+        chunk_size=settings.library_chunk_size,
+        chunk_overlap=settings.library_chunk_overlap,
+        max_import_bytes=settings.library_max_import_bytes,
+        path_allowed=service.sandbox.is_path_allowed,
+        allowlist=settings.library_allowlist,
+        tos_confirmed_domains=settings.library_tos_confirmed_domains,
+        crawl_delay_seconds=settings.library_crawl_delay_seconds,
+    )
+
+
+def main() -> None:  # pragma: no cover - 手动启动入口
+    import uvicorn
+
+    resolved = Settings.from_env()
+    uvicorn.run(create_app(settings=resolved), host=resolved.api_host, port=resolved.api_port)
+
+
+# Keep the conventional ``uvicorn api.app:app`` entry point available.  This
+# only initializes empty local storage; it never seeds course content.
 app = create_app()

@@ -1,374 +1,326 @@
-"""Provider 契约测试（DESIGNv0.4 §12 最低测试范围）。
+"""Provider 契约测试：用 mock client 验证协议适配，不发任何网络请求。"""
 
-不联网、不需要密钥：通过注入 mock client 验证 OpenAI 兼容 Provider
-把各家 SDK 差异收敛成统一契约的行为。重点覆盖两处最容易出错的协议适配：
-
-1. 流式 tool_calls 按 index 分片下发时的拼装（真实调用很难碰到——
-   终端 REPL 未注册工具，模型不会返回 tool_calls）；
-2. 失败包装：SDK 异常必须变成结构化 ProviderError，而不是裸异常（§7.3）。
-"""
 from __future__ import annotations
 
-from types import SimpleNamespace
-from typing import Any
+import json
 
+import httpx
 import pytest
 
-from config import settings
-from runtime.core.errors import ProviderError
-from runtime.core.message import Message
-from runtime.providers.base import ModelRequest
-from runtime.providers.factory import get_provider
-from runtime.providers.fake import FakeProvider
-from runtime.providers.openai_compat import OpenAICompatProvider
+from runtime.core.errors import (
+    KIND_AUTH_FAILED,
+    KIND_MODEL_TRUNCATED,
+    KIND_RATE_LIMITED,
+    KIND_REGION_OR_PERMISSION_BLOCKED,
+    KIND_TIMEOUT,
+    KIND_UPSTREAM_ERROR,
+    ProviderError,
+    classify_external_failure,
+)
+from runtime.providers.base import (
+    PROBE_MAX_TOKENS,
+    STATUS_FAILED,
+    STATUS_INCONCLUSIVE,
+    STATUS_OK,
+    probe_provider,
+)
+from runtime.providers.openai_compatible import OpenAICompatibleProvider
+from runtime.providers.profiles import ProviderProfile
+from runtime.providers.secrets import InMemorySecretStore
 
-# ---------- mock SDK 对象 ----------
-class _AsyncChunks:
-    """模拟 openai SDK 的流式返回对象（可异步迭代）。
-
-    列表中的 Exception 元素会在迭代到该位置时抛出，用于验证"读流中断"；
-    close() 记录关闭状态，用于验证 Provider 显式收尾。
-    """
-
-    def __init__(self, items: list[Any]) -> None:
-        self._items = list(items)
-        self.closed = False
-
-    async def close(self) -> None:
-        self.closed = True
-
-    async def _iter(self):
-        for item in self._items:
-            if isinstance(item, Exception):
-                raise item
-            yield item
-
-    def __aiter__(self):
-        return self._iter()
+BASE_URL = "https://example.invalid/v1"
 
 
-class _StubCompletions:
-    """记录请求参数的 mock completions 接口。"""
-
-    def __init__(
-        self,
-        *,
-        response: Any = None,
-        chunks: list[Any] | None = None,
-        error: Exception | None = None,
-    ) -> None:
-        self._response = response
-        self._chunks = list(chunks or [])
-        self._error = error
-        self.calls: list[dict] = []
-        self.streams: list[_AsyncChunks] = []
-
-    async def create(self, **kwargs):
-        self.calls.append(kwargs)
-        if self._error is not None:  # 模拟建连失败（await create 阶段）
-            raise self._error
-        if kwargs.get("stream"):
-            stream = _AsyncChunks(self._chunks)
-            self.streams.append(stream)
-            return stream
-        return self._response
-
-
-def _client(completions: _StubCompletions) -> Any:
-    return SimpleNamespace(chat=SimpleNamespace(completions=completions))
-
-
-def _provider(completions: _StubCompletions, **overrides) -> OpenAICompatProvider:
-    return OpenAICompatProvider(
-        api_key="sk-test-not-a-real-key",
-        base_url="https://example.invalid/v1",
-        model="deepseek-flash",
-        name="stub",
-        async_client=_client(completions),
-        **overrides,
+def make_provider(handler, *, api_key: str | None = "sk-test", **profile_kwargs):
+    transport = httpx.MockTransport(handler)
+    profile = ProviderProfile(
+        profile_id="p1",
+        display_name="Test",
+        base_url=BASE_URL,
+        api_key_ref="provider:p1",
+        default_model="model-a",
+        capabilities={"stream": True, "tools": True},
+        **profile_kwargs,
     )
+    secrets = InMemorySecretStore({"provider:p1": api_key} if api_key else {})
+    return OpenAICompatibleProvider(profile, secrets, transport=transport)
 
 
-# ---------- mock 报文构造 ----------
-def _chunk(content=None, tool_calls=None, finish_reason=None):
-    delta = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(
-        choices=[SimpleNamespace(delta=delta, finish_reason=finish_reason)]
-    )
+def sse(*chunks: dict) -> bytes:
+    body = "".join(f"data: {json.dumps(chunk)}\n\n" for chunk in chunks)
+    return (body + "data: [DONE]\n\n").encode()
 
 
-def _call_fragment(index: int, *, id=None, name=None, arguments=None):
-    """流式 tool_calls 的单个分片（OpenAI 兼容协议按 index 增量下发）。"""
-    return SimpleNamespace(index=index, id=id, function=SimpleNamespace(name=name, arguments=arguments))
+def delta(text: str) -> dict:
+    return {"choices": [{"delta": {"content": text}, "finish_reason": None}]}
 
 
-def _call(id: str, name: str, arguments: str):
-    return SimpleNamespace(id=id, function=SimpleNamespace(name=name, arguments=arguments))
+# ---- 非流式 ----
 
-
-def _response(content="", tool_calls=None, finish_reason="stop", usage=None):
-    message = SimpleNamespace(content=content, tool_calls=tool_calls)
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=message, finish_reason=finish_reason)],
-        model="deepseek-flash",
-        usage=usage,
-    )
-
-
-# ---------- 能力声明 ----------
-def test_capabilities_declare_tools_and_streaming():
-    provider = _provider(_StubCompletions())
-
-    capabilities = provider.capabilities()
-
-    assert capabilities.name == "stub"
-    assert capabilities.supports_tools is True
-    assert capabilities.supports_streaming is True
-    assert capabilities.models == ["deepseek-flash"]
-
-
-# ---------- generate：非流式 ----------
-async def test_generate_parses_content_tool_calls_and_usage():
-    completions = _StubCompletions(
-        response=_response(
-            content="先看定义",
-            tool_calls=[_call("call_1", "retrieve", '{"query": "递归", "k": 3}')],
-            finish_reason="tool_calls",
-            usage=SimpleNamespace(prompt_tokens=11, completion_tokens=7),
+async def test_generate_maps_response():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/v1/chat/completions"
+        assert request.headers["Authorization"] == "Bearer sk-test"
+        return httpx.Response(
+            200,
+            json={
+                "model": "model-a",
+                "choices": [{"message": {"content": "你好"}, "finish_reason": "stop"}],
+                "usage": {"prompt_tokens": 3, "completion_tokens": 2},
+            },
         )
-    )
-    provider = _provider(completions)
 
-    result = await provider.generate(ModelRequest(messages=[Message.user("什么是递归")]))
-
-    assert result.content == "先看定义"
-    assert result.finish_reason == "tool_calls"
-    assert result.wants_tools is True
-    assert result.tool_calls[0].id == "call_1"
-    assert result.tool_calls[0].name == "retrieve"
-    # arguments 的 JSON 字符串要被解成 dict，上层 Tool 才能直接校验参数
-    assert result.tool_calls[0].arguments == {"query": "递归", "k": 3}
-    assert result.usage == {"prompt_tokens": 11, "completion_tokens": 7}
-    assert completions.calls[0]["stream"] is False
+    provider = make_provider(handler)
+    result = await provider.generate({"messages": [{"role": "user", "content": "hi"}]}, {})
+    assert result["content"] == "你好"
+    assert result["finish_reason"] == "stop"
+    assert result["usage"]["prompt_tokens"] == 3
 
 
-async def test_generate_wraps_sdk_failure_as_provider_error():
-    provider = _provider(_StubCompletions(error=RuntimeError("boom")))
-
-    with pytest.raises(ProviderError) as excinfo:
-        await provider.generate(ModelRequest(messages=[Message.user("在吗")]))
-
-    assert excinfo.value.code == "provider_failed"
-    assert "boom" in str(excinfo.value)
-
-
-async def test_missing_api_key_fails_with_clear_error():
-    provider = OpenAICompatProvider(
-        api_key="", base_url="https://example.invalid/v1", model="deepseek-flash", name="deepseek"
-    )
-
-    with pytest.raises(ProviderError) as excinfo:
-        await provider.generate(ModelRequest(messages=[Message.user("在吗")]))
-
-    assert excinfo.value.code == "provider_failed"
-    assert ".env" in str(excinfo.value)  # 报错要指向修复方式，不回显密钥
-
-
-# ---------- stream：增量与拼装 ----------
-async def test_stream_emits_deltas_and_finish_reason():
-    completions = _StubCompletions(
-        chunks=[
-            _chunk(content="递归"),
-            _chunk(content="是自调用"),
-            _chunk(finish_reason="stop"),
-        ]
-    )
-    provider = _provider(completions)
-
-    chunks = [chunk async for chunk in provider.stream(ModelRequest(messages=[Message.user("q")]))]
-
-    assert [chunk.delta for chunk in chunks if chunk.delta] == ["递归", "是自调用"]
-    # 只有收尾分片带 finish_reason 与 tool_calls，中间分片保持空
-    assert chunks[0].finish_reason == ""
-    assert chunks[-1].finish_reason == "stop"
-    assert chunks[-1].tool_calls == []
-    assert completions.calls[0]["stream"] is True
-
-
-async def test_stream_assembles_tool_call_fragments_by_index():
-    """按 index 分片下发的 tool_calls 必须拼回完整调用，且按 index 排序。"""
-    completions = _StubCompletions(
-        chunks=[
-            _chunk(tool_calls=[_call_fragment(0, id="call_a", name="retriev", arguments='{"query"')]),
-            _chunk(tool_calls=[_call_fragment(0, name="e", arguments=': "递归"}')]),
-            _chunk(
-                tool_calls=[
-                    _call_fragment(1, id="call_b", name="save_mistake", arguments='{"item_id": 7}')
+async def test_generate_parses_tool_calls():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "choices": [
+                    {
+                        "message": {
+                            "content": "",
+                            "tool_calls": [
+                                {
+                                    "id": "call_1",
+                                    "function": {"name": "retrieve_evidence", "arguments": '{"q":"x"}'},
+                                }
+                            ],
+                        },
+                        "finish_reason": "tool_calls",
+                    }
                 ]
-            ),
-            _chunk(finish_reason="tool_calls"),
-        ]
-    )
-    provider = _provider(completions)
-
-    chunks = [chunk async for chunk in provider.stream(ModelRequest(messages=[Message.user("q")]))]
-
-    calls = chunks[-1].tool_calls
-    assert [call.id for call in calls] == ["call_a", "call_b"]
-    # 名字与参数都被跨分片拼接：retriev + e，{"query" + : "递归"}
-    assert [call.name for call in calls] == ["retrieve", "save_mistake"]
-    assert calls[0].arguments == {"query": "递归"}
-    assert calls[1].arguments == {"item_id": 7}
-    assert chunks[-1].finish_reason == "tool_calls"
-
-
-async def test_malformed_tool_arguments_are_passed_through():
-    """非法 JSON 不在 Provider 层吞掉，原样交给 Tool 校验层报错。"""
-    completions = _StubCompletions(
-        chunks=[
-            _chunk(tool_calls=[_call_fragment(0, id="call_x", name="retrieve", arguments="{not json")]),
-            _chunk(finish_reason="tool_calls"),
-        ]
-    )
-    provider = _provider(completions)
-
-    chunks = [chunk async for chunk in provider.stream(ModelRequest(messages=[Message.user("q")]))]
-
-    assert chunks[-1].tool_calls[0].arguments == {"_raw": "{not json"}
-
-
-async def test_stream_wraps_read_failure_as_provider_error():
-    """读流中途失败要变成结构化错误；已产出的增量不回收，由调用方决定。"""
-    completions = _StubCompletions(
-        chunks=[_chunk(content="先说一半"), RuntimeError("connection reset")]
-    )
-    provider = _provider(completions)
-
-    received: list[str] = []
-    with pytest.raises(ProviderError) as excinfo:
-        async for chunk in provider.stream(ModelRequest(messages=[Message.user("q")])):
-            received.append(chunk.delta)
-
-    assert excinfo.value.code == "provider_failed"
-    assert "connection reset" in str(excinfo.value)
-    assert received == ["先说一半"]
-
-
-async def test_stream_requests_usage_and_collects_final_usage_frame():
-    """include_usage 开启后，usage 在 choices 为空的收尾分片下发，必须被采集。
-
-    背景：真实实验发现流式路径 usage 恒为 0（model.completed 无法核算成本）。
-    """
-    usage_frame = SimpleNamespace(
-        usage=SimpleNamespace(prompt_tokens=12, completion_tokens=34),
-        choices=[],
-    )
-    completions = _StubCompletions(
-        chunks=[_chunk(content="递归"), _chunk(finish_reason="stop"), usage_frame]
-    )
-    provider = _provider(completions)
-
-    chunks = [chunk async for chunk in provider.stream(ModelRequest(messages=[Message.user("q")]))]
-
-    assert completions.calls[0]["stream_options"] == {"include_usage": True}
-    assert chunks[-1].usage == {"prompt_tokens": 12, "completion_tokens": 34}
-    # 中间分片不带 usage，只有收尾分片带
-    assert chunks[0].usage == {}
-
-
-async def test_stream_closes_underlying_stream_on_early_exit():
-    """调用方提前退出（GeneratorExit）时必须显式关闭 SDK 流，避免清理噪音。"""
-    completions = _StubCompletions(chunks=[_chunk(content="a"), _chunk(content="b")])
-    provider = _provider(completions)
-
-    agen = provider.stream(ModelRequest(messages=[Message.user("q")]))
-    await agen.__anext__()  # 取到第一个增量后提前退出
-    await agen.aclose()
-
-    assert completions.streams[-1].closed is True
-
-
-# ---------- 请求参数下发 ----------
-async def test_request_kwargs_carry_model_budget_and_tools():
-    completions = _StubCompletions(response=_response(content="ok"))
-    provider = _provider(completions, temperature=0.2, max_tokens=256)
-    tools = [{"type": "function", "function": {"name": "retrieve"}}]
-
-    await provider.generate(
-        ModelRequest(
-            messages=[Message.user("q")],
-            tools=tools,
-            model="deepseek-chat",
-            temperature=0.9,
+            },
         )
-    )
 
-    kwargs = completions.calls[0]
-    assert kwargs["model"] == "deepseek-chat"  # request.model 覆盖构造参数
-    assert kwargs["temperature"] == 0.9  # request 优先于 provider 默认
-    assert kwargs["max_tokens"] == 256  # 未指定则用 provider 默认
-    assert kwargs["messages"][0]["role"] == "user"
-    assert kwargs["tools"] == tools
-    assert kwargs["tool_choice"] == "auto"
+    provider = make_provider(handler)
+    result = await provider.generate({"messages": []}, {})
+    assert result["tool_calls"] == [
+        {"id": "call_1", "name": "retrieve_evidence", "arguments": {"q": "x"}}
+    ]
 
 
-async def test_request_kwargs_fall_back_to_config_defaults():
-    completions = _StubCompletions(response=_response(content="ok"))
-    provider = _provider(completions)
+# ---- 流式 ----
 
-    await provider.generate(ModelRequest(messages=[Message.user("q")]))
+async def test_stream_emits_delta_usage_and_finish():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["stream"] is True
+        assert body["stream_options"] == {"include_usage": True}
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=sse(
+                delta("你"),
+                delta("好"),
+                # usage 帧的 choices 为空，必须单独捕获
+                {"choices": [], "usage": {"prompt_tokens": 5, "completion_tokens": 2}},
+                {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+            ),
+        )
 
-    kwargs = completions.calls[0]
-    assert kwargs["model"] == "deepseek-flash"
-    assert kwargs["max_tokens"] == settings.llm_max_tokens
-    # 没有工具时不下发 tools / tool_choice，避免模型被诱导发起工具调用
-    assert "tools" not in kwargs
-    assert "tool_choice" not in kwargs
-
-
-def test_client_built_with_configured_timeout(monkeypatch):
-    """构造真实 client 时必须下发可配置超时；SDK 默认 600s 曾导致 603 秒挂起。"""
-    captured: dict = {}
-
-    class _RecordingAsyncOpenAI:
-        def __init__(self, **kwargs):
-            captured.update(kwargs)
-
-    monkeypatch.setattr("openai.AsyncOpenAI", _RecordingAsyncOpenAI)
-    provider = OpenAICompatProvider(
-        api_key="sk-test-not-a-real-key",
-        base_url="https://example.invalid/v1",
-        model="deepseek-flash",
-        name="t",
-    )
-
-    provider._ensure_client()
-
-    assert captured["timeout"] == settings.llm_timeout_seconds
+    provider = make_provider(handler)
+    frames = [frame async for frame in provider.stream({"messages": []}, {})]
+    assert [f["text"] for f in frames if f["type"] == "delta"] == ["你", "好"]
+    assert [f["usage"] for f in frames if f["type"] == "usage"] == [
+        {"prompt_tokens": 5, "completion_tokens": 2}
+    ]
+    assert frames[-1] == {"type": "finish", "finish_reason": "stop"}
 
 
-# ---------- 工厂 ----------
-def test_factory_builds_every_supported_provider():
-    for name in ("deepseek", "openai", "qwen"):
-        provider = get_provider(name)
-        assert provider.name == name
-        assert provider.capabilities().supports_streaming is True
-    assert isinstance(get_provider("fake"), FakeProvider)
+async def test_stream_assembles_tool_calls_by_index():
+    """流式工具调用按 index 增量装配：id/name 先到，arguments 分片拼接。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            content=sse(
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {"index": 0, "id": "call_a", "function": {"name": "search", "arguments": '{"q":'}}
+                                ]
+                            },
+                            "finish_reason": None,
+                        }
+                    ]
+                },
+                {
+                    "choices": [
+                        {
+                            "delta": {
+                                "tool_calls": [
+                                    {"index": 0, "function": {"arguments": '"books"}'}},
+                                    {"index": 1, "id": "call_b", "function": {"name": "read", "arguments": "{}"}},
+                                ]
+                            },
+                            "finish_reason": None,
+                        }
+                    ]
+                },
+                {"choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
+            ),
+        )
+
+    provider = make_provider(handler)
+    frames = [frame async for frame in provider.stream({"messages": []}, {})]
+    calls = [f["tool_call"] for f in frames if f["type"] == "tool_call"]
+    assert calls == [
+        {"id": "call_a", "name": "search", "arguments": {"q": "books"}},
+        {"id": "call_b", "name": "read", "arguments": {}},
+    ]
 
 
-def test_factory_rejects_unknown_provider():
-    with pytest.raises(ValueError) as excinfo:
-        get_provider("bogus")
+async def test_stream_closes_sdk_stream_on_error():
+    """流中断必须包成结构化 error 帧，而不是把异常抛到循环清理处。"""
 
-    assert "bogus" in str(excinfo.value)
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused")
+
+    provider = make_provider(handler)
+    frames = [frame async for frame in provider.stream({"messages": []}, {})]
+    assert frames[-1]["type"] == "error"
+    assert frames[-1]["error"]["details"]["kind"] == "connection_failed"
 
 
-async def test_factory_injects_client_override_without_touching_network():
-    """overrides 必须透传到具体 Provider，测试才能注入 mock client。"""
-    completions = _StubCompletions(response=_response(content="来自 stub"))
-    provider = get_provider("deepseek", async_client=_client(completions))
+async def test_stream_reports_http_error_as_error_frame():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": {"message": "rate limit"}})
 
-    result = await provider.generate(ModelRequest(messages=[Message.user("q")]))
+    provider = make_provider(handler)
+    frames = [frame async for frame in provider.stream({"messages": []}, {})]
+    assert frames[0]["type"] == "error"
+    assert frames[0]["error"]["details"]["kind"] == KIND_RATE_LIMITED
+    assert frames[0]["error"]["details"]["retryable"] is True
 
-    assert result.content == "来自 stub"
-    assert provider.capabilities().models == [settings.deepseek_model]
+
+# ---- 凭据 ----
+
+async def test_missing_credential_is_structured_error():
+    def handler(request: httpx.Request) -> httpx.Response:  # pragma: no cover - 不应被调用
+        raise AssertionError("缺少凭据时不应发出请求")
+
+    provider = make_provider(handler, api_key=None)
+    with pytest.raises(ProviderError) as excinfo:
+        await provider.generate({"messages": []}, {})
+    assert excinfo.value.kind == "missing_credential"
+
+
+async def test_local_provider_does_not_require_key():
+    from runtime.providers.local import LocalProvider
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert "Authorization" not in request.headers
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}, "finish_reason": "stop"}]})
+
+    profile = ProviderProfile(profile_id="local", protocol="local", base_url="http://127.0.0.1:11434/v1")
+    provider = LocalProvider(profile, transport=httpx.MockTransport(handler))
+    assert (await provider.generate({"messages": []}, {}))["content"] == "ok"
+
+
+# ---- 能力探测 ----
+
+async def test_probe_ok():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "pong"}, "finish_reason": "stop"}]}
+        )
+
+    result = await probe_provider(make_provider(handler))
+    assert result["status"] == STATUS_OK
+    assert result["capabilities"]["stream"] is True
+
+
+async def test_probe_uses_reasoning_safe_budget():
+    """探测预算过小会让推理模型假阴性，因此必须使用 PROBE_MAX_TOKENS。"""
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "pong"}, "finish_reason": "stop"}]}
+        )
+
+    await probe_provider(make_provider(handler))
+    assert seen["max_tokens"] == PROBE_MAX_TOKENS >= 512
+
+
+async def test_probe_length_truncation_is_inconclusive_not_failure():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": ""}, "finish_reason": "length"}]}
+        )
+
+    result = await probe_provider(make_provider(handler))
+    assert result["status"] == STATUS_INCONCLUSIVE
+
+
+async def test_probe_http_error_is_failure_with_kind():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(403, json={"error": {"message": "region not supported"}})
+
+    result = await probe_provider(make_provider(handler))
+    assert result["status"] == STATUS_FAILED
+    assert result["kind"] == KIND_REGION_OR_PERMISSION_BLOCKED
+
+
+async def test_probe_never_sends_conversation_content():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "pong"}, "finish_reason": "stop"}]})
+
+    await probe_provider(make_provider(handler), model="m")
+    assert seen["messages"] == [{"role": "user", "content": "Reply with the single word: pong"}]
+
+
+# ---- 错误分类 ----
+
+@pytest.mark.parametrize(
+    "status,expected",
+    [
+        (401, KIND_AUTH_FAILED),
+        (403, KIND_REGION_OR_PERMISSION_BLOCKED),
+        (429, KIND_RATE_LIMITED),
+        (408, KIND_TIMEOUT),
+        (503, KIND_UPSTREAM_ERROR),
+    ],
+)
+def test_status_code_drives_classification(status: int, expected: str):
+    result = classify_external_failure(status_code=status, body="")
+    assert result.kind == expected
+
+
+def test_status_code_wins_over_body_substring():
+    """历史缺陷：403 地区限制因元数据含 '401' 被误判为鉴权失败。"""
+    body = '{"error": {"code": 401, "message": "region restricted", "metadata": "401"}}'
+    result = classify_external_failure(status_code=403, body=body)
+    assert result.kind == KIND_REGION_OR_PERMISSION_BLOCKED
+
+
+def test_connection_error_is_retryable():
+    result = classify_external_failure(error=httpx.ConnectError("boom"))
+    assert result.kind == "connection_failed"
+    assert result.retryable is True
+
+
+def test_provider_error_carries_kind_in_details():
+    error = ProviderError("x", kind=KIND_RATE_LIMITED, status_code=429)
+    payload = error.to_dict()
+    assert payload["details"]["kind"] == KIND_RATE_LIMITED
+    assert payload["details"]["http_status"] == 429
+    assert payload["details"]["retryable"] is True
+
+
+def test_truncation_kind_exists():
+    assert KIND_MODEL_TRUNCATED == "model_truncated"

@@ -1,20 +1,5 @@
-"""契约一致性守护测试（shared/contracts/events.json ↔ 代码事实标准）。
+"""契约一致性：packages/contracts 与代码必须同步。"""
 
-背景：``shared/contracts/events.json`` 是前后端事件契约，但它**不被任何代码
-运行时加载**（纯 JSON 文档），改坏不会炸任何测试 —— 契约与代码只能靠人肉对账。
-历史上已经漂移过两次：
-
-1. ``pedagogy.attempt``：代码 ``EventType.PEDAGOGY_ATTEMPT`` 早已存在（Test / Correct
-   节点产出的作答事实），契约却漏记 —— 照契约集成的人拿不到数据组的交接事件；
-2. ``agent.cancelled``：Mock 与真后端各发一个事件名，契约只记了 Mock 的
-   （该分歧已于 2026-09-21 解决，见 events.json changelog 1.2.0 -> 1.2.1）。
-
-本测试的策略与 ``test_config_consistency.py`` 相同：以代码为事实标准
-（``runtime/core/events.py`` 的 ``EventType`` 枚举 + ``api/routes/sessions.py``
-的合成帧），契约的事件名集合必须与之**完全相等**；已知且有意为之的差异显式
-登记在 ``KNOWN_DIVERGENCES``，其余任何差异都判失败；已修复却仍挂在例外表里的
-过期条目也判失败，避免例外表失真后失去守护作用。
-"""
 from __future__ import annotations
 
 import json
@@ -22,74 +7,114 @@ from pathlib import Path
 
 from runtime.core.events import EventType, RuntimeEvent
 
-CONTRACT = Path(__file__).resolve().parents[1] / "shared" / "contracts" / "events.json"
-
-# api 层合成的收尾帧：不在 EventType 枚举里，由 sessions.py 定义
-from api.routes.sessions import _RESULT_EVENT_TYPE  # noqa: E402
-
-#: 代码侧的事件全集：EventType 枚举 + api 合成帧
-CODE_EVENT_TYPES: set[str] = {e.value for e in EventType} | {_RESULT_EVENT_TYPE}
-
-# 已知且有意为之的差异：事件名 -> 原因。
-# 当前已无差异——契约 events 段应与代码事件全集完全一致。
-# 若确有无法通过"改成一致"解决的差异，在此登记并写明原因；
-# 一旦该差异被修复，必须同步删除条目，否则本测试会判失败。
-KNOWN_DIVERGENCES: dict[str, str] = {}
+CONTRACTS = Path(__file__).resolve().parents[1] / "packages" / "contracts"
 
 
-def _contract_event_names() -> set[str]:
-    """契约 events 段的事件名集合。
-
-    键名以 ``_`` 开头的是元数据段（如 ``_插件事件公共payload``，登记 6 条
-    plugin 事件共用的 payload 形状），不是事件，须排除 —— 与 proposed_events
-    段的 ``_说明`` 同一套约定。
-    """
-    contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-    return {name for name in contract["events"] if not name.startswith("_")}
+def _load(name: str) -> dict:
+    return json.loads((CONTRACTS / name).read_text(encoding="utf-8"))
 
 
-def test_contract_event_names_match_code():
-    """契约 events 段的事件名集合必须与代码事件全集完全相等（双向零缺口）。"""
-    contract_names = _contract_event_names()
-
-    missing_in_contract = sorted(CODE_EVENT_TYPES - contract_names - set(KNOWN_DIVERGENCES))
-    stale_in_contract = sorted(contract_names - CODE_EVENT_TYPES - set(KNOWN_DIVERGENCES))
-    assert not missing_in_contract, (
-        f"代码有、契约漏记（请补进 events.json，或登记进 KNOWN_DIVERGENCES 并写明原因）: "
-        f"{missing_in_contract}"
-    )
-    assert not stale_in_contract, (
-        f"契约有、代码没有（契约里的事件没有任何生产方，请核实后删除或实现）: "
-        f"{stale_in_contract}"
-    )
-    stale_exception = sorted(set(KNOWN_DIVERGENCES) - (CODE_EVENT_TYPES ^ contract_names))
-    assert not stale_exception, f"例外表已过期（差异已修复，请从 KNOWN_DIVERGENCES 移除）: {stale_exception}"
+def test_contract_files_exist():
+    for name in (
+        "events.json",
+        "client_command.json",
+        "pedagogical_decision.json",
+        "capability_result.json",
+        "provider_profile.json",
+    ):
+        assert (CONTRACTS / name).exists(), f"缺少契约文件 {name}"
 
 
-def test_contract_envelope_matches_runtime_event_shape():
-    """契约 envelope 的字段集合必须与 RuntimeEvent.to_dict() 的键一致（§5.4 / §18.2）。
-
-    envelope 是每条事件的公共外壳：前端靠它去重（event_id + sequence），
-    数据组靠它幂等写入与断线对账。文档两处（§5.4 与 §18.2）曾各说一半，
-    代码取 8 字段并集 —— 本测试锁死「契约 envelope == 代码实际形状」。
-    """
-    contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-    envelope_fields = set(contract["envelope"]["fields"])
-    code_fields = set(RuntimeEvent(type="").to_dict())
-
-    assert envelope_fields == code_fields, (
-        f"envelope 漂移：契约多出 {sorted(envelope_fields - code_fields)}，"
-        f"代码多出 {sorted(code_fields - envelope_fields)}"
+def test_events_section_matches_event_type_enum():
+    contract = _load("events.json")
+    declared = {key for key in contract["events"] if not key.startswith("_")}
+    actual = {member.value for member in EventType}
+    assert declared == actual, (
+        f"events.json 与 EventType 不一致；仅在契约: {sorted(declared - actual)}；"
+        f"仅在代码: {sorted(actual - declared)}"
     )
 
 
-def test_contract_sse_event_names_all_mapped():
-    """SSE 事件名映射表里的每个键都必须是真实事件类型（防止改错枚举名后静默失效）。
+def test_envelope_matches_runtime_event_dict():
+    contract = _load("events.json")
+    envelope = set(contract["envelope"])
+    actual = set(RuntimeEvent(type="session.started").to_dict())
+    assert envelope == actual, (
+        f"envelope 与 RuntimeEvent.to_dict 不一致；仅在契约: {sorted(envelope - actual)}；"
+        f"仅在代码: {sorted(actual - envelope)}"
+    )
 
-    ``_SSE_EVENT_NAMES`` 是「Runtime 事件类型 → SSE event 名」的映射，键写错
-    （如枚举改名后忘了同步）不会报错，只会让该事件落到默认名 ``event``。
-    """
-    from api.routes.sessions import _SSE_EVENT_NAMES
 
-    unknown = sorted(set(_SSE_EVENT_NAMES) - CODE_EVENT_TYPES)
-    assert not unknown, f"_SSE_EVENT_NAMES 里有不是事件类型的键: {unknown}"
+def test_sse_frames_reference_real_event_types():
+    contract = _load("events.json")
+    frames = contract["_sse_frames"]
+    real = {member.value for member in EventType}
+    for name in frames["passthrough"]:
+        assert name in real, f"SSE 透传帧 {name} 不是真实事件类型"
+    # 合成帧不是 EventType，必须显式声明在 synthetic 里
+    for name in frames["synthetic"]:
+        assert name not in real, f"合成帧 {name} 与 EventType 冲突"
+
+
+def test_capability_result_statuses_match_dispatcher():
+    from runtime import capabilities
+
+    contract = _load("capability_result.json")
+    declared = set(contract["statuses"])
+    actual = {
+        capabilities.STATUS_SUCCESS,
+        capabilities.STATUS_INSUFFICIENT_EVIDENCE,
+        capabilities.STATUS_NO_BINDING,
+        capabilities.STATUS_CAPABILITY_NOT_FOUND,
+        capabilities.STATUS_INVALID_REQUEST,
+        capabilities.STATUS_ERROR,
+    }
+    assert declared == actual
+
+
+def test_capability_result_fields_match_dispatcher_output():
+    contract = _load("capability_result.json")
+    declared = {key for key in contract["CapabilityResult"] if not key.startswith("_")}
+    produced = set(
+        _dispatcher_result_keys()
+    )
+    assert declared == produced
+
+
+def _dispatcher_result_keys() -> list[str]:
+    from runtime.capabilities import ActionDispatcher
+
+    return list(ActionDispatcher._result("a", "c", "success").keys())
+
+
+def test_pedagogical_decision_fields_match_contract():
+    from runtime.capabilities import PRIMITIVE_NAMES
+
+    contract = _load("pedagogical_decision.json")
+    declared = set(contract["PedagogicalDecision"])
+    assert {"action", "params", "reason", "require_evidence"} <= declared
+    # 绑定表可用的原语集合必须与契约术语一致
+    assert set(PRIMITIVE_NAMES) == {
+        "render_template",
+        "invoke_skill",
+        "retrieve_evidence",
+        "generate_grounded",
+        "read_memory",
+        "write_memory",
+    }
+
+
+def test_command_types_match_api_schema():
+    from api.schemas import COMMAND_TYPES
+
+    contract = _load("client_command.json")
+    assert set(contract["command_types"]) == set(COMMAND_TYPES)
+
+
+def test_provider_profile_fields_match_dataclass():
+    from runtime.providers.profiles import ProviderProfile
+
+    contract = _load("provider_profile.json")
+    declared = {key for key in contract["ProviderProfile"] if not key.startswith("_")}
+    actual = set(ProviderProfile(profile_id="x").to_dict())
+    assert declared == actual

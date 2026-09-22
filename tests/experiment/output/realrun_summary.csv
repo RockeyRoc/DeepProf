@@ -1,9 +1,0 @@
-﻿scenario,runs,route_accuracy_pct,checks_pass_pct,avg_latency_ms,avg_tokens,llm_failures
-S1_prior_gap_teach,3,100.0,66.7,213828.1,0.0,0
-S2_explain_teach,3,100.0,100.0,13605.1,0.0,0
-S3_blocked_hint,1,100.0,100.0,7.0,0.0,0
-S4_stable_error_correct,3,100.0,100.0,14154.0,0.0,0
-S5_reasoning_ask,3,100.0,100.0,4295.7,0.0,0
-S6_quiz_test,3,100.0,100.0,4123.5,0.0,0
-S7_no_evidence_teach,3,100.0,100.0,7.6,0.0,0
-S8_stopped_end,1,100.0,100.0,4.0,0.0,0

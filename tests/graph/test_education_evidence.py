@@ -1,4 +1,4 @@
-"""证据纪律与学情写入测试（DESIGNv0.4 §7.3 / §12 / §5.5 / §13.2）。
+"""证据纪律与学情写入测试（DESIGNv0.6 §7.3 / §12 / §5.5 / §13.2）。
 
 覆盖两条硬性验收：
 - 证据不足时 Teach / Correct **不编造引用**：不调用模型、citations 为空、
@@ -12,7 +12,7 @@ import asyncio
 
 from graph.education.bindings import ACTION_BINDINGS
 from graph.education.builder import run_teaching_turn
-from graph.education.policies import HINT_MAX_LEVEL, RULE_MODEL_VERSION
+from graph.education.policies import HINT_MAX_LEVEL, RULE_MODEL_VERSION, TAG_MISCONCEPTION
 from runtime.testing import FakeRuntime
 
 #: 与 test_education_routing.py 保持同一套样例；此处独立定义，
@@ -156,19 +156,19 @@ def test_update_profile_writes_audited_memory_records():
 
     for record in port.written_memories:
         assert record["learner_id"] == "learner_1"
-        assert record["memory_type"] in ("long_term", "episodic")
+        assert record["scope"] in ("long_term", "episodic")
         assert str(record["content"]).strip()
         assert str(record["source"]).startswith("graph:update_profile")
         assert "sess_1" in record["source"] and "trace_1" in record["source"]
         assert isinstance(record["confidence"], float)
         assert 0.0 <= record["confidence"] <= 1.0
         assert record["revocable"] is True, "长期记忆必须可撤回（§13.2）"
-        assert record["expires_at"] == "", "无过期策略时显式留空，由用户撤回"
-        assert record["model_version"] == RULE_MODEL_VERSION
+        assert record["expires_at"] is None, "无过期策略时显式留空，由用户撤回"
+        assert record["metadata"]["model_version"] == RULE_MODEL_VERSION
         assert record["metadata"]["graph_source"] == "deepprof.graph.education"
 
-    types = {record["memory_type"] for record in port.written_memories}
-    assert types == {"long_term", "episodic"}
+    scopes = {record["scope"] for record in port.written_memories}
+    assert scopes == {"long_term", "episodic"}
     assert len(port.calls_of("write_memory")) == 1, "本轮只写一次，避免碎片化写入"
 
 
@@ -183,9 +183,7 @@ def test_update_profile_records_misconceptions_separately():
         misconceptions=["把下降方向当成正梯度方向"],
     )
     misconception_records = [
-        record
-        for record in port.written_memories
-        if str(record["key"]).startswith("misconception:")
+        record for record in port.written_memories if TAG_MISCONCEPTION in (record.get("tags") or [])
     ]
     assert len(misconception_records) == 1
     record = misconception_records[0]
@@ -219,8 +217,9 @@ def test_update_profile_reads_misconceptions_from_memory():
             {
                 "record_id": "mem_1",
                 "learner_id": "learner_1",
-                "memory_type": "long_term",
-                "key": "misconception:梯度下降:忽略学习率",
+                "scope": "long_term",
+                "tags": [TAG_MISCONCEPTION],
+                "concept_ids": ["梯度下降"],
                 "content": "疑似错误概念：忽略学习率",
                 "source": "graph:update_profile",
                 "confidence": 0.4,
@@ -230,8 +229,9 @@ def test_update_profile_reads_misconceptions_from_memory():
             {
                 "record_id": "mem_2",
                 "learner_id": "learner_1",
-                "memory_type": "long_term",
-                "key": "misconception:梯度下降:把偏导当全微分",
+                "scope": "long_term",
+                "tags": [TAG_MISCONCEPTION],
+                "concept_ids": ["梯度下降"],
                 "content": "疑似错误概念：把偏导当全微分",
                 "source": "graph:update_profile",
                 "confidence": 0.4,

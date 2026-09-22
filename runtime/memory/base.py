@@ -1,219 +1,98 @@
-"""记忆接口与策略（DESIGNv0.4 §5.5）。
+"""记忆记录的边界定义。
 
-Memory 是 Runtime 服务，不等同于 Session 日志：
-- Session Log        事实轨迹，用于恢复、审计与回放（在 Session/SessionStore）
-- Short-term Memory  当前任务内的临时信息
-- Working Memory     当前任务与本周学习目标
-- Long-term Memory   知识点掌握度、错误模式、学习偏好
-- Episodic Memory    关键学习事件与干预结果
-- Affective Memory   经用户授权保存的表达偏好与互动状态
-
-写入纪律：任何长期记忆都必须带来源、置信度、过期策略与可撤回标记。
+任何长期记忆写入都必须包含来源、置信度、过期策略与可撤回标记（§5.5）。
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Protocol
 
-from ..core.message import new_id, utc_now
+from runtime.core.errors import RuntimeFailure
+from runtime.core.events import new_id, utc_now
 
+SCOPE_WORKING = "working"
+SCOPE_LONG_TERM = "long_term"
+SCOPE_EPISODIC = "episodic"
+SCOPE_AFFECTIVE = "affective"
 
-class MemoryType(str, Enum):
-    """五类记忆。"""
-
-    SHORT_TERM = "short_term"
-    WORKING = "working"
-    LONG_TERM = "long_term"
-    EPISODIC = "episodic"
-    AFFECTIVE = "affective"
+SCOPES = (SCOPE_WORKING, SCOPE_LONG_TERM, SCOPE_EPISODIC, SCOPE_AFFECTIVE)
 
 
-def _parse_time(value: str) -> datetime | None:
-    if not value:
-        return None
-    try:
-        parsed = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
-
-
-@dataclass
+@dataclass(slots=True)
 class MemoryRecord:
-    """一条记忆记录。"""
+    """一条可审计、可撤回的学习记忆。"""
 
     learner_id: str
-    memory_type: MemoryType | str
+    scope: str
     content: str
-    key: str = ""
-    source: str = ""  # 来源：哪次会话、哪个工具、哪份证据
-    confidence: float = 0.5  # [0,1]
-    record_id: str = ""
-    created_at: str = ""
-    updated_at: str = ""
-    expires_at: str = ""  # 空串表示不自动过期
-    revocable: bool = True  # 用户可撤回/删除
-    deleted: bool = False
-    model_version: str = ""  # 由学情模型产生时记录版本
+    source: str
+    confidence: float
+    revocable: bool = True
+    expires_at: str | None = None
+    concept_ids: list[str] = field(default_factory=list)
+    tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
+    record_id: str = field(default_factory=lambda: new_id("mem"))
+    created_at: str = field(default_factory=utc_now)
 
-    def __post_init__(self) -> None:
-        if not isinstance(self.memory_type, MemoryType):
-            self.memory_type = MemoryType(str(self.memory_type))
-        if not self.record_id:
-            self.record_id = new_id("mem")
-        now = utc_now()
-        if not self.created_at:
-            self.created_at = now
-        if not self.updated_at:
-            self.updated_at = self.created_at
-
-    def is_expired(self, now: str = "") -> bool:
-        """是否已过期（无 expires_at 视为不过期）。"""
-        expiry = _parse_time(self.expires_at)
-        if expiry is None:
-            return False
-        current = _parse_time(now) or datetime.now(timezone.utc)
-        return current >= expiry
-
-    def validate(self) -> None:
-        """写入前校验；不通过抛 MemoryValidationError。"""
-        from ..core.errors import MemoryValidationError
-
-        if not self.learner_id:
-            raise MemoryValidationError("记忆缺少 learner_id")
-        if not self.content.strip():
-            raise MemoryValidationError("记忆内容为空", record_id=self.record_id)
-        if not self.source:
-            raise MemoryValidationError(
-                "记忆缺少来源，无法审计", record_id=self.record_id
-            )
-        if not 0.0 <= self.confidence <= 1.0:
-            raise MemoryValidationError(
-                "置信度必须在 [0,1]", record_id=self.record_id, confidence=self.confidence
-            )
-        if not isinstance(self.revocable, bool):
-            raise MemoryValidationError("revocable 必须是布尔值", record_id=self.record_id)
-
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "record_id": self.record_id,
             "learner_id": self.learner_id,
-            "memory_type": self.memory_type.value,
-            "key": self.key,
+            "scope": self.scope,
             "content": self.content,
             "source": self.source,
             "confidence": self.confidence,
-            "created_at": self.created_at,
-            "updated_at": self.updated_at,
-            "expires_at": self.expires_at,
             "revocable": self.revocable,
-            "deleted": self.deleted,
-            "model_version": self.model_version,
-            "metadata": self.metadata,
+            "expires_at": self.expires_at,
+            "concept_ids": list(self.concept_ids),
+            "tags": list(self.tags),
+            "metadata": dict(self.metadata),
+            "created_at": self.created_at,
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "MemoryRecord":
+    def from_dict(cls, data: dict[str, Any]) -> "MemoryRecord":
         return cls(
-            learner_id=data.get("learner_id", ""),
-            memory_type=data.get("memory_type", MemoryType.WORKING.value),
-            content=data.get("content", ""),
-            key=data.get("key", ""),
-            source=data.get("source", ""),
-            confidence=float(data.get("confidence", 0.5)),
-            record_id=data.get("record_id", ""),
-            created_at=data.get("created_at", ""),
-            updated_at=data.get("updated_at", ""),
-            expires_at=data.get("expires_at", ""),
+            learner_id=str(data.get("learner_id", "")),
+            scope=str(data.get("scope", SCOPE_WORKING)),
+            content=str(data.get("content", "")),
+            source=str(data.get("source", "")),
+            confidence=float(data.get("confidence", 0.0)),
             revocable=bool(data.get("revocable", True)),
-            deleted=bool(data.get("deleted", False)),
-            model_version=data.get("model_version", ""),
+            expires_at=data.get("expires_at"),
+            concept_ids=list(data.get("concept_ids") or []),
+            tags=list(data.get("tags") or []),
             metadata=dict(data.get("metadata") or {}),
+            record_id=str(data.get("record_id") or new_id("mem")),
+            created_at=str(data.get("created_at") or utc_now()),
         )
 
 
-@dataclass
-class MemoryQuery:
-    """记忆检索条件。"""
+def validate_record(record: MemoryRecord) -> None:
+    """写入前校验：来源、置信度、过期策略、可撤回标记缺一不可。"""
+    problems: list[str] = []
+    if not record.learner_id:
+        problems.append("learner_id")
+    if record.scope not in SCOPES:
+        problems.append("scope")
+    if not record.source:
+        problems.append("source")
+    if not 0.0 <= record.confidence <= 1.0:
+        problems.append("confidence")
+    if not record.revocable and not record.expires_at:
+        problems.append("expires_at")
+    if problems:
+        raise RuntimeFailure(
+            f"invalid memory record: 缺少/非法字段 {problems}",
+            details={"kind": "invalid_memory_record", "fields": problems},
+        )
 
-    learner_id: str
-    memory_type: MemoryType | str | None = None
-    key: str = ""
-    text: str = ""
-    limit: int = 20
-    include_expired: bool = False
-    include_deleted: bool = False
 
-    def __post_init__(self) -> None:
-        # 绑定表里 memory_type 是字符串（"long_term"），直接调用方可能传枚举；
-        # 这里统一收敛成枚举，各 store 只取 .value，避免 str(枚举) 得到
-        # "MemoryType.LONG_TERM" 而查不到数据。
-        if self.memory_type is not None and not isinstance(self.memory_type, MemoryType):
-            self.memory_type = MemoryType(str(self.memory_type))
-
-
-@runtime_checkable
 class MemoryStore(Protocol):
-    """记忆持久化接口。"""
+    def write(self, records: list[MemoryRecord]) -> int: ...
 
-    def write(self, records: list[MemoryRecord]) -> list[str]:
-        """写入（按 record_id 幂等），返回 record_id 列表。"""
+    def read(self, query: dict[str, Any]) -> list[MemoryRecord]: ...
 
-    def read(self, query: MemoryQuery) -> list[MemoryRecord]: ...
-
-    def delete(self, record_ids: list[str]) -> int:
-        """软删除，返回受影响条数。"""
-
-    def purge_expired(self, now: str = "") -> int:
-        """清理过期记录，返回条数。"""
-
-
-class InMemoryMemoryStore:
-    """内存记忆存储：用于单元测试与 FakeRuntime。"""
-
-    def __init__(self) -> None:
-        self._records: dict[str, MemoryRecord] = {}
-
-    def write(self, records: list[MemoryRecord]) -> list[str]:
-        for record in records:
-            self._records[record.record_id] = record
-        return [record.record_id for record in records]
-
-    def read(self, query: MemoryQuery) -> list[MemoryRecord]:
-        wanted_type = query.memory_type.value if query.memory_type else ""
-        results: list[MemoryRecord] = []
-        for record in self._records.values():
-            if record.learner_id != query.learner_id:
-                continue
-            if wanted_type and record.memory_type.value != wanted_type:
-                continue
-            if query.key and query.key not in record.key:
-                continue
-            if query.text and query.text not in record.content:
-                continue
-            if record.deleted and not query.include_deleted:
-                continue
-            if record.is_expired() and not query.include_expired:
-                continue
-            results.append(record)
-        return results[: query.limit]
-
-    def delete(self, record_ids: list[str]) -> int:
-        count = 0
-        for record_id in record_ids:
-            record = self._records.get(record_id)
-            if record is not None and not record.deleted:
-                record.deleted = True
-                count += 1
-        return count
-
-    def purge_expired(self, now: str = "") -> int:
-        count = 0
-        for record in self._records.values():
-            if not record.deleted and record.is_expired(now):
-                record.deleted = True
-                count += 1
-        return count
+    def delete(self, learner_id: str, record_id: str) -> bool: ...

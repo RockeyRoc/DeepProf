@@ -1,295 +1,165 @@
-<div align="center">
-  <img src="media/DeepProf.jpg" alt="DeepProf" width="160" />
-</div>
+# DeepProf
 
-# DeepProf：面向高等教育的分层式 Agent Runtime 与教学策略图协同架构
+<p align="center">
+  <img src="media/DeepProf.jpg" alt="DeepProf logo" width="220">
+</p>
 
-*把"Agent 能做什么"与"教师此刻应该怎么教"彻底拆开——上层策略图只产出声明式决策，下层运行时按注入的绑定表执行。*
+<p align="center"><strong>A personal learning companion for higher education</strong></p>
 
-[![Milestone](https://img.shields.io/badge/Milestone-MVP--0%20passed-4c6ef5)](docs/MVP-0_验收报告.md) [![Tests](https://img.shields.io/badge/tests-246%20passed-2ea44f)](tests/) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](https://www.python.org/) [![Runtime](https://img.shields.io/badge/Runtime-self--built%2C%20no%20LangChain%20in%20core-8b5cf6)](runtime/) [![Design](https://img.shields.io/badge/Design-DESIGNv0.4.1-0ea5e9)](docs/DESIGNv0.4.1.md) [![Compliance](https://img.shields.io/badge/License%20audit-11%20projects-f59e0b)](docs/license_audit.md)
+<p align="center">
+  <a href="README.zh-CN.md">简体中文</a>
+  · MVP-1—MVP-5 engineering preview
+</p>
 
-> 📖 **架构决策、接口契约、依赖规则与验收口径都在版本化设计文档里，请从 [DESIGNv0.4.1](docs/DESIGNv0.4.1.md) 开始。** MVP-0 的验收判据、实测证据与复现命令见 [MVP-0 验收报告](docs/MVP-0_验收报告.md)；参考开源项目的协议核查结果见 [License 核查台账](docs/license_audit.md)。
+DeepProf combines an education-focused agent runtime, a pedagogical strategy graph, a local resource library, a keyboard-first CLI, and a desktop companion. It is designed to help students learn through questions, evidence, reflection, and durable study context—not to present unverified model output as an authoritative answer.
 
----
+> **Release status:** `v0.6.1` is a pre-release. MVP-1 through MVP-5 have engineering implementations and acceptance records. Real-provider availability, installer packaging, and several research-oriented capabilities remain environment- or roadmap-dependent.
 
-## News 🔥🔥🔥
+## What is included
 
-- **[2026-09-20]** 🧠 **跨轮学情记忆接进生成上下文。** 此前 `memory.read` / `memory.write` 每轮都在发生，但召回记录的 `content` 从未进入生成提示词——跨轮个性化是空转。现由 `policies.memory_note` 压缩（有界、声明非教材依据）、Assess 写入状态、Teach/Ask/Correct 经 `params` 透传、绑定表拼进提示词；学生自述背景以可撤回的有界摘录落盘（§13.2）。新增 `tests/graph/test_memory_note.py` 锁住全链路。
-- **[2026-09-20]** ⏱️ **Provider 超时与 usage 采集修复。** SDK 默认 600s 读超时曾让流式调用挂起 603 秒；现显式配置 `LLM_TIMEOUT_SECONDS`（默认 120s）并在 `finally` 中关闭底层流。流式 `usage` 恒为 0 的问题经 `stream_options={"include_usage": True}` 与收尾帧采集解决，成本核算恢复可用。
-- **[2026-09-20]** 🔬 **真实实验设施落地。** `tests/experiment/` 新增三项可复现实验：错误分类冒烟（连通 / 无效密钥 / 超时容错，5/5 通过）、跨轮记忆锚点探针（**3/3 命中**，每轮召回 4 条记录）、实验报告图表生成（延迟箱线图 + 判据通过率）；配套实验版教材检索装置（真实语料 + 关键词检索，证据不足如实返回）。
-- **[2026-09-19]** 🎉 **仓库建立，MVP-0 全部源码入库。** Runtime、Pedagogical Graph、API 与 221 项测试一并推送。
-- **[2026-09-19]** 🔌 **D-7 接口修订落地（v0.4.1）。** `RuntimePort` 收窄为 `execute + emit` 两个方法，能力面拆为 `RuntimeHost`；图节点不再持有任何正文与执行细节，六类教学动作全部改为"只产出 `PedagogicalDecision`"。新增三条架构守卫测试（依赖方向 / 教学词汇 / 端口分面），违反即失败。
-- **[2026-09-17]** ✅ **MVP-0 验收通过。** 6 项判据（终端对话闭环、事件可回放、重启可恢复、Provider 可替换、模型→工具→事件闭环、失败与取消可观测）全部达成，验收以本机实际运行输出为准。
-- **[2026-09-14]** 📋 **技术选型与合规基线确立。** 六项架构决策 D-1—D-6 确认，11 个参考项目完成 License 核查。
-
----
-
-## Overview
-
-**DeepProf 是面向高等教育的个性化伴学智能体**，把教育智能体能力与桌宠式情感交互结合，在长期会话中逐步理解学生的知识状态、学习习惯与情感偏好。项目面向三大核心侧：
-
-| 教育侧 | Agent 侧 | 宠物侧 |
+| Surface | Purpose | Current state |
 | --- | --- | --- |
-| 苏格拉底式提问 | 自研 Runtime | Live2D / PNG 桌宠 |
-| 教材 RAG | Session / Event / Tool | 语音与情感反馈 |
-| 错题与测验 | Provider / Memory / Plugin | 好感度与主动陪伴 |
-| 学情诊断 | Storage / Sandbox | 个性化表达 |
+| DeepProf Runtime | Sessions, events, providers, memory, tools, plugins, storage, and sandbox boundaries | Delivered and tested |
+| Pedagogical Graph | Assess → Teach/Ask/Hint/Correct → Test → Update Profile | Delivered and tested |
+| Education capabilities | Socratic dialogue, resource retrieval, quiz, diagnosis, and paper reading contracts | Registered; retrieval and evidence paths are available, while BKT/IRT remain planned |
+| Desktop | Electron + React workbench with provider settings, sessions, trace/event projection, and pet window | MVP-3 delivered; loopback-only runtime |
+| CLI | Pi-style keyboard workflow: `login`, `new`, `ask`, `resume`, `tree`, `fork`, `compact`, `models`, `doctor` | MVP-5 delivered; shares sessions with Desktop |
+| Resource library | Import, preview, activate, search, crawl policy, provenance, and citation locations | MVP-4 delivered |
+| Pet package | Codex-compatible event projection and 8×9 sprite-sheet package | Delivered as a companion surface |
 
-核心思想不是"直接选一个 Agent 框架"，而是把系统拆成**两个可以独立演进、独立评测的层次**：
+## Architecture
 
-- **底层 DeepProf Runtime 负责 Agent 能力**：Session、Tool、Model、Memory、Event、Plugin、Storage、Sandbox，Core 参考 Pi 的极简内核，Plugin 思想参考 DeepSeek Harness。
-- **上层 Pedagogical Graph 负责教育策略**：什么时候讲、什么时候问、什么时候提示、什么时候纠错、什么时候测试、什么时候更新学情。
+DeepProf keeps educational strategy separate from generic agent execution. Graph nodes produce a declaration (`PedagogicalDecision`); a binding table maps it to capabilities; the Runtime performs the work and emits auditable events.
 
-系统的研究价值由此从"组合 RAG + LangGraph + Live2D"提升为**可被实验验证的 Runtime—Pedagogy 协同机制**。
-
-### 解耦怎么落地：图只出决策，Runtime 才执行
-
-WHAT（策略）与 HOW（执行）之间只有两张契约，且**教学词汇只存在于图侧的数据里**：
-
-```text
-        WHAT（策略层：graph/education）              HOW（执行层：runtime）
- ┌──────────────────────────────┐
- │ 节点：算策略                   │
- │  ① 触发条件、级别、冲突点     │
- │  ② 产出 PedagogicalDecision   │
- └──────────────┬───────────────┘
-                │  RuntimePort.execute(decision, ctx)   ← 窄面，只有这一个出口
-                ▼
- ┌──────────────────────────────┐
- │ ActionDispatcher（通用分发）   │  不认识 hint/teach/ask 任何词
- │  查绑定表 → 解析 capability    │
- │  按需先取证据 → 执行 → 归一化   │
- └──────────────┬───────────────┘
-                │  RuntimeHost.invoke_skill / generate / call_tool / read_memory / write_memory
-                ▼
- ┌──────────────────────────────┐
- │ 通用原语 + Skill / Tool / 模型 │
- │ / 记忆存储                     │
- └──────────────┬───────────────┘
-                │  CapabilityResult{content, evidence, records, status}
-                ▲
-                └───────────────→ 图更新状态、交前端
-
- action → capability 的映射 = graph/education/bindings.py（纯数据）
- 由组合根 api/app.py 注入 RuntimeService（runtime/ 不得反向依赖教学词汇）
+```mermaid
+flowchart TD
+    UI[Desktop · CLI · Pet] --> SDK[Client SDK]
+    SDK --> API[Gateway / FastAPI]
+    API --> GRAPH[Pedagogical Graph\nAssess · Teach · Ask · Hint · Correct · Test]
+    GRAPH -->|PedagogicalDecision| PORT[RuntimePort.execute]
+    PORT --> RT[DeepProf Runtime]
+    RT --> CORE[Session · Event · Provider · Memory · Tool · Plugin]
+    RT --> EDU[Skills and Resource Library]
+    RT --> STORE[SQLite · Storage · Sandbox]
 ```
 
-这与常见做法的实质差别：
+The important boundary is `WHAT → HOW`: `graph/education` owns teaching policy, while `runtime/` remains generic and does not depend on teaching vocabulary. Architecture guard tests enforce this boundary.
 
-| 常见做法 | DeepProf 的做法 | 得到的性质 |
+## Quick start
+
+### Requirements
+
+- Python 3.12 or newer (the acceptance environment uses Python 3.14).
+- Node.js and npm for the Desktop, CLI, and Pet surfaces.
+- An OpenAI-compatible provider, a local provider, or the deterministic fake provider for offline tests.
+
+### Python runtime and API
+
+```powershell
+python -m pip install -r requirements.txt
+Copy-Item .env.example .env
+
+# Start the local Gateway directly
+python -m uvicorn api.app:app --host 127.0.0.1 --port 8000
+```
+
+The default data root is `~/.deepprof`. The Gateway only binds to loopback by default. Put provider configuration in the supported Provider/Secret path; do not commit API keys or place them in the React renderer.
+
+### Desktop workbench
+
+```powershell
+Push-Location apps/desktop
+npm.cmd install
+npm.cmd run dev
+Pop-Location
+```
+
+The Electron Main process starts the local Runtime and a loopback workbench. Renderer code has no Node privileges and does not access Provider, Memory, Tool, or Secret internals.
+
+### CLI
+
+```powershell
+Push-Location apps/cli
+npm.cmd install
+npm.cmd run build
+node dist/apps/cli/src/index.js --json new --title "Linear algebra"
+node dist/apps/cli/src/index.js --json ask <session_id> "What is gradient descent?"
+Pop-Location
+```
+
+Without a command, the CLI opens its interactive REPL. Use `/login` to configure a provider, or use `--api-key-stdin` / `DEEPPROF_SECRET_*`; plaintext `--api-key` arguments are intentionally rejected.
+
+### API highlights
+
+| Method | Path | Purpose |
 | --- | --- | --- |
-| 策略写在节点 / Skill 内部，正文与调用一起产出 | 节点只产出决策数据，正文与调用由绑定表落地 | 策略层退化为**纯数据**，可反事实回放与离线比较 |
-| 两者靠"约定不要互相调"来隔离 | 端口分面 + 架构守卫测试，违反即失败 | 边界可机械检查，不依赖自觉 |
-| 换模型 / 换实现要改策略代码 | 改绑定表数据即可 | 换执行方式不动策略 |
+| `GET` | `/health` | Runtime, provider, capability, binding, and sandbox health |
+| `GET` / `POST` | `/sessions`, `/sessions/{id}/messages` | Inspect sessions and send messages |
+| `GET` | `/sessions/{id}/events?from_sequence=0` | Replay events for reconnecting clients |
+| `GET` / `PUT` | `/providers`, `/providers/{id}` | Manage OpenAI-compatible profiles |
+| `GET` / `POST` | `/resources`, `/search`, `/resources/{id}/activate` | Manage and search the resource library |
 
-因此"Agent 是策略的自动化执行"在本项目里是**可证的**：策略的产物里没有一行正文、没有任何能力名，唯一的下行通道是 `execute`。
+Errors are structured (`code`, `message`, `details`) so clients do not need to parse prose. See `api/` and `packages/contracts/` for the current wire contracts.
 
-### 可研究的核心问题
+## MVP verification
 
-1. 教学策略图是否比单轮提示词更能稳定执行苏格拉底式教学？
-2. Runtime 与 Pedagogical Graph 解耦后，是否能降低新增教学策略的工程成本？
-3. 学情记忆反馈是否能提高后续提示、测验和纠错的个性化质量？
-4. 事件轨迹是否能支持教学过程复盘、策略比较和可解释性分析？
+The release gate covers Python contracts, Runtime behavior, provider switching, education routing, resource provenance, Desktop/CLI cross-surface recovery, and Pet package validation.
 
-D-7 让问题 1 与 4 有了更直接的实验手段：决策是纯数据，可以**反事实回放**——固定同一段学情轨迹，只替换决策里的级别或证据条件，重跑执行层即可比较输出差异，不必重跑整个模型链路。
-
----
-
-## 快速开始
-
-```bash
-# 1. 依赖（Python >= 3.11）
-pip install -r requirements.txt
-
-# 2. 配置：复制模板并填入自己的 API key
-cp .env.example .env          # Windows: copy .env.example .env
-#   也可以完全不配密钥：把 LLM_PROVIDER 设为 fake，用确定性 FakeProvider 离线跑通链路
-
-# 3. 跑测试（无需网络与密钥）
-py -m pytest -q                       # 246 passed
-
-# 4. 离线冒烟：验证"模型 → 工具 → 事件"闭环
-py scripts/smoke_test_mvp0.py --fake  # 7/7，17 条事件
-
-# 5. 终端对话（Runtime 级 REPL）
-py scripts/chat_repl.py --fake        # 或去掉 --fake 走 .env 里的真实 Provider
-
-# 6. 起服务
-uvicorn api.app:app --host 0.0.0.0 --port 8000
+```powershell
+python -m pytest -q
+npm.cmd run typecheck --prefix apps/cli
+npm.cmd run build --prefix apps/cli
+npm.cmd run test --prefix apps/cli
+npm.cmd run typecheck --prefix apps/desktop
+npm.cmd run build --prefix apps/desktop
+npm.cmd run validate --prefix apps/pet
 ```
 
-### 切换模型
+The detailed records are in [`docs/MVP-1_验收记录.md`](docs/MVP-1_验收记录.md), [`docs/MVP-2_验收记录.md`](docs/MVP-2_验收记录.md), [`docs/MVP-3_验收记录.md`](docs/MVP-3_验收记录.md), [`docs/MVP-4_验收记录.md`](docs/MVP-4_验收记录.md), and [`docs/MVP-5-final-verification.md`](docs/MVP-5-final-verification.md).
 
-只改配置，不改代码。`LLM_PROVIDER` 支持 `deepseek` / `openai` / `qwen` / `fake`，四者共用 OpenAI 兼容协议适配层；未知 Provider 名会显式抛 `ValueError` 而不是静默回退。
-
-> ⚠️ `LLM_MAX_TOKENS` 默认 4096 而非 1024。推理模型（如 `deepseek-flash`）会先消耗 reasoning token，预算过小会得到 `finish_reason=length` 的空正文。该情形下 Runtime 返回结构化的 `model_truncated` 错误，不会用空内容污染会话上下文。
-
-### 复现失败可观测
-
-```bash
-$env:LLM_MAX_TOKENS='64'; py scripts/chat_repl.py   # 应返回 model_truncated 而非空回复
-```
-
-### API
-
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| `GET` | `/health` | 运行时健康检查；返回 provider / tools / skills / capabilities / action_bindings / sandbox（白名单组装，不含密钥与本机路径） |
-| `POST` | `/sessions` | 创建或恢复会话 |
-| `POST` | `/sessions/{id}/messages` | 发送一轮消息，SSE 流式输出（Runtime 链路） |
-| `POST` | `/sessions/{id}/teaching-turn` | 按教学策略图执行一轮，SSE 流式输出（Assess → Teach/Ask/Hint/Correct → Test → UpdateProfile） |
-| `GET` | `/sessions/{id}/events` | 按 `from_sequence` 回放事件，供前端断线重连且不重复渲染 |
-
-```bash
-SID=$(curl -s -X POST localhost:8000/sessions \
-  -H "Content-Type: application/json" -d '{"learner_id":"stu_001"}' | jq -r .session_id)
-
-curl -N -X POST "localhost:8000/sessions/$SID/messages" \
-  -H "Content-Type: application/json" -d '{"content":"什么是梯度下降？"}'
-
-curl "localhost:8000/sessions/$SID/events?from_sequence=0"
-```
-
-失败一律返回结构化错误体（`code` / `message` / `details`），前端与教学图按 `code` 分支，不解析字符串。
-
----
-
-## 真实实验（可复现）
-
-`tests/experiment/` 是教育层与 Runtime 层的实测装置：**全部走生产链路**（真实 `RuntimeService` + 教学图 + SQLite 记忆），不使用裸调模型或伪造的替身。教材检索为实验装置（本地微型真实语料 + 关键词匹配），因为它才是生产占位工具所缺、而"带可定位引用"这条验收路径所必需的一环。
-
-```bash
-# 1. 错误分类冒烟：连通 + usage 采集 + 无效密钥 + 超时容错（5 项检查）
-py tests/experiment/smoke_test.py
-
-# 2. 教学场景真实实验：8 个场景 × N 次重复，逐轮核对路由与行为判据
-py tests/experiment/education_scenario.py --reps 20
-
-# 3. 跨轮记忆探针：T0 植入锚点 → T1 正常教学 → T2 要求复述
-py tests/experiment/memory_probe.py --reps 3
-
-# 4. 由实验结果生成报告图表（延迟箱线图 + 判据通过率）
-py tests/experiment/make_report.py
-```
-
-产物写入 `tests/experiment/output/`：逐轮明细 CSV、汇总 CSV、报告 Markdown 与 `charts/` 图表。实验中发现的问题按"Provider / 配置层"与"教学图层"分别归口，不把执行层缺陷记成教学策略缺陷。
-
-跨轮记忆探针的实测记录（`deepseek-flash`，3 次重复）：T0 植入锚点后，T1/T2 每轮召回 2 / 4 条记忆，T2 要求复述锚点 **3/3 命中**——证明召回内容确实进入了生成上下文，而非只发生读写却空转。
-
-> 💡 探针设计本身经历过两轮修正，记录在此以免重犯：① 问"它叫什么"会路由到 Ask，而 Socratic 的 `avoid_answer` 约束禁止模型说出"答案"，锚点名恰好就是被问的答案；② 只改用求讲解措辞会路由到 Teach，但探针问句没有教材关键词 → RAG 无命中 → `require_evidence` 门直接给确定性"证据不足"文本、**不调用模型**（延迟 ~6ms 即为证据）。两处都是**实验设计与教学约束/证据纪律的冲突**，不是记忆链路缺陷——把教材可覆盖的知识点与复述请求合并后即稳定命中。
-
-> ⚠️ 实验需要 `.env` 中的真实 Provider 密钥；密钥只在进程内使用，报告与 CSV 均不含密钥（控制台只打印掩码）。
-
----
-
-## 项目结构
+## Project layout
 
 ```text
 DeepProf/
-├── runtime/                      # 自研 DeepProf Runtime（不反向依赖上层）
-│   ├── core/                     # Agent loop · Session · Event · Message · Ports（窄面/宽面）
-│   ├── capabilities.py           # 通用能力原语 + ActionDispatcher（不认识教学词）
-│   ├── tools/                    # Tool 注册、校验、审批与执行
-│   ├── providers/                # Provider 抽象与 OpenAI 兼容适配（deepseek/openai/qwen/fake）
-│   ├── memory/                   # 记忆接口、策略与 SQLite 实现
-│   ├── storage/                  # Session / Resource / Trace 存储与迁移
-│   ├── sandbox/                  # 目录白名单、网络与进程策略
-│   ├── plugins/                  # Plugin Runtime（manifest / registry / lifecycle / trust）
-│   └── testing.py                # FakeRuntime（同时满足端口窄面与宽面）
-├── graph/education/              # LangGraph 教学策略图（只产出声明式决策）
-│   ├── contracts.py              # PedagogicalDecision / CapabilityResult
-│   ├── bindings.py               # 动作 → 能力绑定表（纯数据，组合根注入）
-│   ├── nodes/                    # assess · teach · ask · hint · correct · test · reflect · update_profile
-│   └── policies/                 # 阈值与可评审文案（教师评审入口）
-├── skills/                       # 教育能力：socratic · rag · quiz · diagnosis · paper_reader
-├── tools/                        # 项目级原子工具（检索等）
-├── pet/                          # 桌宠：情感与好感度
-├── models/learner/               # 学情模型（attempt / estimate）
-├── api/                          # FastAPI 组合根与路由（SSE）
-├── config/                       # settings 与路径
-├── tests/experiment/             # 真实链路实验装置（冒烟 / 教学场景 / 记忆探针 / 报告图表）
-├── migrations/ · scripts/ · tests/ · docs/ · media/
-└── plugins/example_echo/         # 示例插件
+├── runtime/              # Generic agent runtime and execution boundaries
+├── graph/education/      # Teaching strategy graph and decision contracts
+├── skills/               # Socratic, RAG, quiz, diagnosis, paper-reader skills
+├── library/              # Resource import, parsing, crawling, indexing, provenance
+├── api/                  # FastAPI composition root and Gateway routes
+├── packages/             # Client SDK, contracts, and design system
+├── apps/                 # Desktop, CLI, and Pet surfaces
+├── models/learner/       # Learner model contracts and attempt facts
+├── evaluation/           # MVP-5 metrics and cost/latency checks
+├── tests/                # Unit, contract, integration, and architecture tests
+└── docs/                 # Design document and acceptance records
 ```
 
-**依赖方向**（`tests/test_architecture_boundaries.py` 机械检查，违反即测试失败）：
+## Known limitations of this pre-release
 
-```text
-UI / API → Pedagogical Graph → RuntimePort（窄面：execute / emit）→ ActionDispatcher
-                                                                        ↓
-                                                            RuntimeHost（宽面）
-                                                    Skill / Tool / Provider / Memory
-```
+- BKT/IRT knowledge tracing is represented by contracts and DTOs; the full estimators are not yet shipped.
+- Provider fallback is explicit by design, but the streaming main path still needs the remaining fallback wiring.
+- The plugin registry and trust model exist; plugin composition-root installation is still being completed.
+- A real model account, quota, and model capability determine whether live generation succeeds. Fake/local providers support deterministic offline work.
+- `npm run build` produces development/production build output, not a signed Windows installer.
 
-`runtime/` 不得导入 `graph/education`、`skills`、`pet`，不得出现教学动作名，也不得直接依赖具体数据库 SDK。
+These are tracked in the design document and acceptance records; the release is intentionally marked pre-release.
 
----
+## Security and privacy
 
-## 当前进度
+- Runtime, Gateway, and Desktop services bind to loopback by default.
+- API keys stay outside Renderer code, session events, graph state, and logs.
+- Resource crawling uses allowlists, robots/Terms-of-Service confirmation, size limits, rate limits, and provenance fields.
+- Student memory is local-first and should be reviewable, revocable, and removable.
+- Third-party content is treated as untrusted data, not as system instructions.
 
-| 阶段 | 目标 | 状态 |
-| --- | --- | --- |
-| **MVP-0** | 最小 Runtime：Agent + Session + Event + Provider 跑通对话；事件可回放 | ✅ 已验收（2026-09-17） |
-| **MVP-1** | Tool / Storage / Memory：Session 重启恢复、学情记忆可读写 | 🔶 记忆读写闭环已实测（含召回进生成上下文）；Session 恢复已验收 |
-| MVP-2 | Pedagogical Graph：Assess → Ask/Teach → Test → UpdateProfile 主链路可测试 | 🔌 接口部分已完成（D-7）；主链路已可整轮跑通 |
-| MVP-3 | 教育能力：Socratic、RAG、Quiz、Diagnosis，引用可追踪 | 📋 计划（教学场景实验已用实验装置预验通路） |
-| MVP-4 | Plugin Runtime / Sandbox：插件安装、危险 Tool 审批与边界测试 | 📋 计划 |
-| MVP-5 | 桌宠与语音：流式文本、情感标签、语音动作联动 | 📋 计划 |
-| v1.0 | 申报演示与研究评测：对照实验、演示脚本、可复现实验记录 | 📋 计划 |
+## Documentation
 
-> **诚实原则。** 题库、向量库、学情模型等尚未接入的能力不假装实现：对应 Skill 返回 `{"status": "not_implemented", ...}` 并说明缺什么、由谁补。当前五个教育 Skill 已注册但主体待 MVP-3 落地；`tools/retrieval/search_textbook.py` 在证据不足时如实返回，不编造引用。
+- [`docs/DESIGNv0.6.1.md`](docs/DESIGNv0.6.1.md) — architecture, interfaces, dependency rules, security, and delivery roadmap.
+- [`docs/MVP-5-final-verification.md`](docs/MVP-5-final-verification.md) — final cross-surface verification snapshot.
+- [`apps/desktop/README.md`](apps/desktop/README.md) — Desktop-specific development notes.
+- [`apps/cli/README.md`](apps/cli/README.md) — CLI commands and secret handling.
+- [`apps/pet/package/README.md`](apps/pet/package/README.md) — Pet package format and event boundary.
 
----
+## License and contribution
 
-## 已确认决策
-
-| 编号 | 决策项 | 结论 |
-| --- | --- | --- |
-| D-1 | 桌宠前端 | Electron + React，Live2D / PNG 与语音走受控接口 |
-| D-2 | 试点课程 | 高质量教材与题库优先，由教育组与指导教师落实 |
-| D-3 | 事件与数据 | `EventStore` / `MemoryStore` / `ProfileStore` 抽象 + 本地 SQLite |
-| D-4 | 插件范围 | 仅加载受信、审核后的 Python 插件，manifest 管理能力与生命周期 |
-| D-5 | 隔离方案 | 目录白名单 + 审批；启用任意代码执行前升级进程 / 容器隔离 |
-| D-6 | 学情建模 | BKT 跟踪掌握度，IRT 标定题目与能力，统一接口支持后续模型比较 |
-| D-7 | 策略与执行的接缝 | 图只产出 `PedagogicalDecision`，Runtime 按注入绑定表执行；边界由三条守卫测试兜住 |
-
----
-
-## 团队
-
-| 成员 | 角色 | 模块 |
-| --- | --- | --- |
-| 刘俊鹏 | 项目负责人 | 总体架构、`runtime/core/`、`runtime/plugins/`、`api/` |
-| 许阳毅 | 教育层开发 | 教材 RAG、论文阅读 |
-| 孙一新 | 教育层开发 | 苏格拉底提问、出题与评价 |
-| 张钧翔 | 桌宠前端开发 | Electron + React、Live2D 形象与交互 |
-| 谢浪 | 记忆与数据 | 记忆存储与学情数据 |
-| 欧阳文凯 | 记忆与数据 | 学情诊断与数据链路 |
-| 刘雨烟 | 商业与框架设计 | 计划书商业章节、人工智能框架设计评审 |
-| 唐欢容 | 指导教师 | 教学法评审与试点课程 |
-
----
-
-## 文档
-
-| 文档 | 内容 |
-| --- | --- |
-| [DESIGNv0.4.1.md](docs/DESIGNv0.4.1.md) | 架构总纲：分层、接口契约、依赖规则、目录树、MVP 路线、团队任务 |
-| [MVP-0_验收报告.md](docs/MVP-0_验收报告.md) | MVP-0 验收判据、实测证据、测试覆盖与复现方式 |
-| [教育层_首轮验收记录.md](docs/教育层_首轮验收记录.md) | 教育层首轮交付的验收口径、逐项核对与遗留项 |
-| [realrun_report.md](tests/experiment/output/realrun_report.md) | 真实实验报告：逐场景路由与行为判据、延迟统计与图表 |
-| [license_audit.md](docs/license_audit.md) | 11 个参考项目的 License 核查台账与风险处置 |
-
-## 参考项目与合规
-
-架构与接口设计参考了 openai/codex、deepseek-ai/deepseek-harness、1Vewton/dsh-edu、THU-MAIC/OpenMAIC、HowieWang1121/Socratic-Education-System、Zenglian990/AI_Tutor_Release、ZZhouWJ/EduAgent-Studio，以及桌宠方向 suan-11/mea-pet-public、Project-N-E-K-O/N.E.K.O、cqzaaa/AgentPet、JulesLiu390/PetGPT。
-
-**借鉴边界**：仅参考架构与接口设计思路，不复制任何代码。其中 [cqzaaa/AgentPet](https://github.com/cqzaaa/AgentPet) 无 License（按版权法默认视为保留所有权利），仅作概念级参考。核查明细与处置措施见 [license_audit.md](docs/license_audit.md)。
-
-## 许可
-
-本仓库目前**未附 LICENSE 文件**，按版权法默认原则视为保留所有权利（All Rights Reserved）。许可证选型待团队确认后补充；在此之前请勿直接复制、分发或用于商业用途。
-
-## 联系方式
-
-大学生创新创业训练计划项目。问题与协作意向请通过本仓库的 Issue 提出。
+This repository currently has no `LICENSE` file. Until the team selects and adds a license, all rights are reserved; please do not redistribute or use the code commercially without permission. Issues and design discussions are welcome through GitHub Issues.

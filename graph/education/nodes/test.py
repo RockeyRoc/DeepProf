@@ -1,5 +1,5 @@
 """Test 节点：给出"出题/评价"的决策，不生成题目与评价正文
-（DESIGNv0.4 §4.4 / §6.2 / §6.3 / §12）。
+（DESIGNv0.6 §4.4 / §6.2 / §6.3 / §12）。
 
 进入条件：需要验证理解或间隔复习（Assess 决策为 test）。
 
@@ -100,7 +100,7 @@ async def test(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     # ---- 学情计数：判分三态必须分开处理（§13.1 不贴永久标签）----
     judgement = "not_applicable"
     if mode == MODE_GENERATE:
-        reason = "按 Quiz Skill 生成自检题；题库未接入，题目仅用于即时自检"
+        reason = "按绑定声明的出题能力生成自检题；题库未接入，题目仅用于即时自检"
     elif correct is True:
         judgement = "correct"
         wrong_streak = 0

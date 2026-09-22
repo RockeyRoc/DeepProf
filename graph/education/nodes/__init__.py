@@ -1,4 +1,4 @@
-"""图节点公共设施（DESIGNv0.4 §5.4 / §6.4 / §7.1 / §7.3）。
+"""图节点公共设施（DESIGNv0.6 §5.4 / §6.4 / §7.1 / §7.3）。
 
 只放三类东西，避免各节点各写一遍：
 
@@ -11,15 +11,16 @@
 
 边界（§4.4）：本包只依赖 `runtime.core.ports` 的 RuntimePort 契约，
 不 import 任何 Provider / Storage / ToolRegistry / 数据库 / 模型 SDK。
-"怎么把决策做出来"（模板、提示词、证据校验、模型调用）全在 Runtime 侧的能力层，
-节点只声明"应该做什么"——证据的获取与可定位校验因此也不在这里
+“怎么把决策做出来”（模板、提示词、证据校验、模型调用）全在 Runtime 侧的能力层，
+节点只声明“应该做什么”——证据的获取与可定位校验因此也不在这里
 （唯一主人是 runtime/capabilities.py 的检索能力，§7.3）。
 """
+
 from __future__ import annotations
 
 from typing import Any
 
-from runtime.core.message import new_id, utc_now
+from runtime.core.events import new_id, utc_now
 from runtime.core.ports import RuntimePort
 
 from models.learner import Attempt
@@ -35,12 +36,13 @@ from ..policies import (
 )
 from ..state import PedagogyState
 
-
 # ======================================================================
 # 一、RuntimePort 调用上下文与决策分发
 # ======================================================================
+
+
 def runtime_ctx(state: PedagogyState) -> dict[str, Any]:
-    """构造端口调用上下文（dict 形态，RuntimeContext.from_dict 可解析）。
+    """构造端口调用上下文（dict 形态）。
 
     只带关联标识与来源，不携带任何正文——Runtime 侧凭 session_id/trace_id
     把模型、工具、记忆事件串到同一条轨迹上（§18.2）。
@@ -71,9 +73,7 @@ async def dispatch(
     节点也不应再自带一份兜底文案（那等于把 HOW 又搬回图里）。
     失败可在决策事件的 capability_status 与 /health 的 action_bindings 里看到。
     """
-    return CapabilityResult.from_dict(
-        await port.execute(decision.to_dict(), runtime_ctx(state))
-    )
+    return CapabilityResult.from_dict(await port.execute(decision.to_dict(), runtime_ctx(state)))
 
 
 # ======================================================================
@@ -96,9 +96,7 @@ async def _publish(
     )
 
 
-async def emit_entered(
-    port: RuntimePort, state: PedagogyState, node: str, **extra: Any
-) -> None:
+async def emit_entered(port: RuntimePort, state: PedagogyState, node: str, **extra: Any) -> None:
     """节点进入事件。payload 里放进入条件所需的判断依据，不放正文。"""
     await _publish(
         port,
@@ -122,7 +120,10 @@ async def emit_decision(
     reason: str,
     **extra: Any,
 ) -> None:
-    """教学决策事件：action + 原因 + 证据/尝试等依据（可解释性分析的核心数据）。"""
+    """教学决策事件：action + 原因 + 证据/尝试等依据（可解释性分析的核心数据）。
+
+    载荷里**不得包含学生正文**：`user_input` 只以长度等形式出现（§6.4 / §13.2）。
+    """
     await _publish(
         port,
         state,
@@ -138,6 +139,8 @@ async def emit_decision(
             "wrong_streak": int(state.get("wrong_streak") or 0),
             "turn_count": int(state.get("turn_count") or 0),
             "max_turns": int(state.get("max_turns") or 0),
+            # 学生正文只以长度出现：决策事件不得包含学生原文（§6.4 / §13.2）
+            "content_length": len(str(state.get("user_input") or "")),
             **extra,
         },
     )
@@ -155,7 +158,7 @@ async def emit_exited(
     """节点退出事件。只记录长度等元信息，不把回复正文写进轨迹（§13.2）。
 
     显式传入本轮刚生成的文本与引用，而不是读入参 state——
-    入参 state 还是"进入节点时"的快照，读它会记录到上一轮的残值。
+    入参 state 还是“进入节点时”的快照，读它会记录到上一轮的残值。
     """
     await _publish(
         port,
@@ -188,11 +191,10 @@ async def emit_attempt(
        字段漂移会在这里就报错，而不是写进数据组仓库才发现；
     3. **怎么送达**是发一条 ``pedagogy.attempt`` 事件（§5.4 事件落盘后可回放），
        Attempt 本身不带 session_id / trace_id，两条事实靠事件外层字段对齐（§18.2）。
-       §16.6 说的"来源"由事件外层的 ``source`` 表达，不写进 Attempt（契约 extra=forbid）。
 
     返回 ``(attempt_dict, skip_reason)``：产出时 skip_reason 为空串；
     未产出时 attempt 为 None 并给出显式原因，供决策事件记录
-    "这一轮为什么没有答题记录"——静默跳过会让人以为链路坏了。
+    “这一轮为什么没有答题记录”——静默跳过会让人以为链路坏了。
     """
     item_id = str(state.get("item_id") or "")
     learner_id = str(state.get("learner_id") or "")

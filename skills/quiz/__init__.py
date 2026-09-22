@@ -1,32 +1,29 @@
-"""Quiz Skill：按知识点/难度/题型出题与评价（DESIGNv0.4 §6.3 / §18.1）。
+"""Quiz Skill：按知识点/难度/题型出题与评价（DESIGNv0.6 §6.3 / §18.1）。
 
 **诚实边界（重要）**：课程题库与题目难度标定**尚未接入**
-（题库、知识点标注与来源映射由许阳毅按 §16.2 交接；
+（题库、知识点标注与来源映射由许阳毅按 §20 交接；
 自动判分链路由欧阳文凯按 §16.6 负责）。
 因此本 Skill：
-- 出题走 port.generate 的模型即时生成，返回 item_bank_connected=False，
+
+- 出题走模型即时生成，返回 ``item_bank_connected=False``，
   并在 note 里写明题目不可用于正式测评/成绩；
-- 评价只给"学习性反馈"，**不返回确定性对错**（correct=None），
+- 评价只给“学习性反馈”，**不返回确定性对错**（``correct=None``），
   避免把无标定的模型判断当成学情结论（§13.1 不给学生贴永久标签）。
 
 Attempt（§18.2）的责任分工：**契约**由数据组定义（models/learner/attempt.py），
 **产出与发送**由教育组在 Test / Correct 节点完成（§16.3）——
-本 Skill 只在题库接入后负责给出可追踪的 item_id 与结构化判分（见下）。
-
-待题库接入后，这里应改为检索真实题目 + 结构化判分，
-并给出 §18.2 Attempt 所需的 item_id / concept_ids / correct 取值
-（attempt_id / hint_count 由图的产出侧填充）。
+本 Skill 只在题库接入后负责给出可追踪的 item_id 与结构化判分。
 
 责任人：孙一新（§16.3 教学策略与测验闭环）。
 """
+
 from __future__ import annotations
 
 from typing import Any
 
-from runtime.core.ports import RuntimeContext, RuntimePort
-from runtime.skills import Skill, SkillDescriptor
+from runtime.skills import collect_stream
 
-from .. import collect_stream, to_ctx_dict
+__all__ = ["QuizSkill"]
 
 _GENERATE_SYSTEM_PROMPT = (
     "你是高校课程的出题助手。只输出一道中文简答题与必要的说明，"
@@ -44,50 +41,40 @@ _NOT_CONNECTED_NOTE = (
 )
 
 
-class QuizSkill(Skill):
+class QuizSkill:
     """出题与评价 Skill（题库未接入，仅提供即时生成与学习性反馈）。"""
 
-    descriptor = SkillDescriptor(
-        name="quiz",
-        description="按知识点/难度/题型生成自检题并给出作答反馈（题库与自动判分未接入）",
-        when_to_use="需要验证理解或间隔复习时（图节点 Test）",
-        version="0.1.0",
-        owner="孙一新",
-        tags=["assessment", "quiz", "formative"],
-    )
+    name = "quiz"
+    description = "按知识点/难度/题型生成自检题并给出作答反馈（题库与自动判分未接入）"
+    uses_host = True
 
-    async def handle(
-        self, payload: dict, ctx: RuntimeContext, port: RuntimePort
-    ) -> dict[str, Any]:
-        """入参 mode=generate|evaluate；出参包含 item_bank_connected=False 与 note。"""
-        mode = str(payload.get("mode") or "generate")
-        if mode == "evaluate":
-            return await self._evaluate(payload, ctx, port)
-        return await self._generate(payload, ctx, port)
+    async def invoke(self, input: dict[str, Any], ctx: dict[str, Any], host: Any) -> dict[str, Any]:
+        """入参 mode=generate|evaluate；出参含 ``item_bank_connected`` 与 note。"""
+        if str(input.get("mode") or "generate") == "evaluate":
+            return await self._evaluate(input, ctx, host)
+        return await self._generate(input, ctx, host)
 
     # ---------- 出题 ----------
-    async def _generate(
-        self, payload: dict, ctx: RuntimeContext, port: RuntimePort
-    ) -> dict[str, Any]:
-        concept = str(payload.get("concept") or "当前知识点")
-        difficulty = str(payload.get("difficulty") or "basic")
-        item_type = str(payload.get("item_type") or "short_answer")
-        prompt = (
-            f"知识点：{concept}\n难度：{difficulty}\n题型：{item_type}\n"
-            "请输出一道用于自我检验的题目。"
-        )
+    async def _generate(self, input: dict[str, Any], ctx: dict[str, Any], host: Any) -> dict[str, Any]:
+        concept = str(input.get("concept") or "当前知识点")
+        difficulty = str(input.get("difficulty") or "basic")
+        item_type = str(input.get("item_type") or "short_answer")
         stem = await collect_stream(
-            port,
+            host,
             {
                 "messages": [
                     {"role": "system", "content": _GENERATE_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"知识点：{concept}\n难度：{difficulty}\n题型：{item_type}\n"
+                            "请输出一道用于自我检验的题目。"
+                        ),
+                    },
                 ],
                 "temperature": 0.4,
-                "stream": True,
-                "metadata": {"skill": self.name, "mode": "generate", "concept": concept},
             },
-            to_ctx_dict(ctx),
+            ctx,
         )
         if not stem:
             return {
@@ -114,11 +101,9 @@ class QuizSkill(Skill):
         }
 
     # ---------- 评价 ----------
-    async def _evaluate(
-        self, payload: dict, ctx: RuntimeContext, port: RuntimePort
-    ) -> dict[str, Any]:
-        concept = str(payload.get("concept") or "当前知识点")
-        student_answer = str(payload.get("student_answer") or "").strip()
+    async def _evaluate(self, input: dict[str, Any], ctx: dict[str, Any], host: Any) -> dict[str, Any]:
+        concept = str(input.get("concept") or "当前知识点")
+        student_answer = str(input.get("student_answer") or "").strip()
         if not student_answer:
             return {
                 "status": "error",
@@ -127,22 +112,22 @@ class QuizSkill(Skill):
                 "note": "缺少学生作答，无法评价",
                 "error": {"code": "missing_answer", "message": "student_answer 为空"},
             }
-        prompt = (
-            f"知识点：{concept}\n学生的作答：{student_answer}\n"
-            "请指出思路上的关键一步是否缺失，并提示下一步该检查什么。"
-        )
         feedback = await collect_stream(
-            port,
+            host,
             {
                 "messages": [
                     {"role": "system", "content": _EVALUATE_SYSTEM_PROMPT},
-                    {"role": "user", "content": prompt},
+                    {
+                        "role": "user",
+                        "content": (
+                            f"知识点：{concept}\n学生的作答：{student_answer}\n"
+                            "请指出思路上的关键一步是否缺失，并提示下一步该检查什么。"
+                        ),
+                    },
                 ],
                 "temperature": 0.3,
-                "stream": True,
-                "metadata": {"skill": self.name, "mode": "evaluate", "concept": concept},
             },
-            to_ctx_dict(ctx),
+            ctx,
         )
         if not feedback:
             return {
@@ -164,6 +149,3 @@ class QuizSkill(Skill):
             "note": _NOT_CONNECTED_NOTE,
             "source": "model_generated",
         }
-
-
-__all__ = ["QuizSkill"]

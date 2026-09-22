@@ -1,0 +1,34 @@
+{
+  "contract_version": "1.4.0",
+  "ClientCommand": {
+    "command_id": "string",
+    "client_id": "string",
+    "surface": "desktop | cli | pet",
+    "session_id": "string | null",
+    "learner_id": "string",
+    "type": "string, 见 command_types",
+    "payload": "object",
+    "timestamp": "string, ISO-8601 UTC"
+  },
+  "command_types": [
+    "message.send",
+    "turn.cancel",
+    "session.new",
+    "session.resume",
+    "session.fork",
+    "session.compact",
+    "tool.approve",
+    "tool.reject",
+    "quiz.answer",
+    "voice.transcript",
+    "pet.interact",
+    "library.import",
+    "library.crawl"
+  ],
+  "_surfaces": {
+    "desktop": "完整会话入口",
+    "cli": "完整会话入口（键盘优先）",
+    "pet": "挂件：只消费事件投影，只发 pet.interact / voice.transcript"
+  },
+  "_boundary": "前端不直连 Provider/Memory/Tool；不持有 API Key；统一经 Gateway 进入 Runtime。"
+}

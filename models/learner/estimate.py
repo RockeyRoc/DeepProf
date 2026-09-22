@@ -1,4 +1,4 @@
-"""LearnerEstimate（学情估计）—— 数据组 → 教学图的交接契约（DESIGNv0.4 §18.2 / §18.1）。
+"""LearnerEstimate（学情估计）—— 数据组 → 教学图的交接契约（DESIGNv0.6 §18.2 / §18.1）。
 
 字段严格取自 §18.2 的 LearnerEstimate 行：
     learner_id, concept_id, model_type, model_version, estimate, evidence_count, uncertainty

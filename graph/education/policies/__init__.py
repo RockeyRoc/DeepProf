@@ -1,20 +1,21 @@
-"""教学策略常量与可评审模板（DESIGNv0.4 §6.2 / §6.3 / §7.3 / §18.1）。
+"""教学策略常量与可评审模板（DESIGNv0.6 §6.2 / §6.3 / §7.3 / §18.1 / §20）。
 
-把这些"教师在什么条件下怎么做"的数字与话术集中在一处，好处是：
-- 唐欢容（指导教师）可以只审这一个文件就完成教学策略评审（§16.7）；
+把这些“教师在什么条件下怎么做”的数字与话术集中在一处，好处是：
+- 指导教师可以只审这一个文件就完成教学策略评审（§16.8）；
 - 阈值改动不需要动节点代码，分支测试也不会因为文案漂移而失效；
 - 每个常量都写明设计依据章节，便于申报材料追溯。
 
 本模块只放纯数据与纯函数，不 import LangGraph、不 import Runtime 实现，
 因此可以被任何节点、路由与测试直接使用。
 """
+
 from __future__ import annotations
 
 # ======================================================================
 # 一、循环与退出（§7.3：图循环超限触发 Reflect 或结束，避免无限提问）
 # ======================================================================
 
-#: 单次教学策略会话允许的最大轮次（§16.3"加入最大轮次、退出与 Reflect 回退"）
+#: 单次教学策略会话允许的最大轮次（§16.3“加入最大轮次、退出与 Reflect 回退”）
 MAX_TURNS_DEFAULT = 6
 
 #: 编译图时的 LangGraph recursion_limit 兜底：正常路径远小于该值
@@ -42,18 +43,18 @@ ACTION_TEST = "test"  # 需要验证理解或间隔复习
 ACTION_REFLECT = "reflect"  # 多轮无进展、异常或策略失效
 ACTION_END = "end"  # 本轮结束（学生停止或已完成）
 
-#: Assess 节点向 Runtime 索取"本轮教材证据"时用的动作名。
-#: 它**不是**六类教学动作之一，只是"取证据"这个信息请求的名字——因此刻意
+#: Assess 节点向 Runtime 索取“本轮教材证据”时用的动作名。
+#: 它**不是**六类教学动作之一，只是“取证据”这个信息请求的名字——因此刻意
 #: 不加入 ACTION_NODES：route_from_assess 会把 ACTION_NODES 里的动作映射成节点，
 #: 若把 assess 放进去，next_action=assess 就会映射回 assess 自身，形成自环。
 ACTION_ASSESS = "assess"
 
 #: 读学情记忆（Assess 判断依据之二）与把本轮结果落成学情增量（UpdateProfile）。
-#: 与 ACTION_ASSESS 同样属于"信息请求/落盘请求"，不是教学动作，同样不进 ACTION_NODES。
+#: 与 ACTION_ASSESS 同样属于“信息请求/落盘请求”，不是教学动作，同样不进 ACTION_NODES。
 ACTION_RECALL = "recall"
 ACTION_UPDATE_PROFILE = "update_profile"
 
-#: 问学情模型要结构化估计（当前返回 not_implemented，图侧据此退化为规则化观察，§18.1）。
+#: 问学情模型要结构化估计（未接入时返回 not_implemented，图侧据此退化为规则化观察，§18.1）。
 ACTION_DIAGNOSE = "diagnose"
 
 #: 动作 → 图节点名（reflect 有自己的节点，end 落到 END）
@@ -66,7 +67,7 @@ ACTION_NODES = {
     ACTION_REFLECT: "reflect",
 }
 
-#: 动作 → 情感标签（§16.3 交前端；桌宠侧据此驱动表情，张钧翔消费）
+#: 动作 → 情感标签（§16.3 交前端；桌宠挂件据此驱动表情，§19.8）
 EMOTION_BY_ACTION = {
     ACTION_TEACH: "explaining",
     ACTION_ASK: "curious",
@@ -89,7 +90,7 @@ HINT_MAX_LEVEL = 3
 HINT_ESCALATE_WRONG_STREAK = 1
 
 #: 各级提示模板：级别越高越具体，但都保留学生自己的推理空间。
-#: 递增顺序即"脚手架递增"：1 只问定义 → 2 换表征对照 → 3 给第一步。
+#: 递增顺序即“脚手架递增”：1 只问定义 → 2 换表征对照 → 3 给第一步。
 #: 不变量：任何一级都不给出最终答案；第 3 级起开始给脚手架，因此显式声明这一点。
 HINT_LEVEL_TEMPLATES: dict[int, str] = {
     1: ("先回到定义：就「{concept}」，你能说清定义里每个条件分别起什么作用吗？"),
@@ -105,7 +106,7 @@ HINT_LEVEL_TEMPLATES: dict[int, str] = {
 
 
 def next_hint_level(current_level: int, wrong_streak: int) -> int:
-    """按"连续答错则升级提示"计算本轮提示级别（§6.2 Hint）。
+    """按“连续答错则升级提示”计算本轮提示级别（§6.2 Hint）。
 
     - 尚未给过提示（0）→ 从最轻一级开始；
     - 连续答错 ≥ HINT_ESCALATE_WRONG_STREAK → 升一级，最多到 HINT_MAX_LEVEL；
@@ -123,10 +124,10 @@ def next_hint_level(current_level: int, wrong_streak: int) -> int:
 # 四、Correct / Test 触发阈值（§6.2）
 # ======================================================================
 
-#: 连续答错达到该次数 → 判定为"稳定错误"，转入 Correct 直接纠错
+#: 连续答错达到该次数 → 判定为“稳定错误”，转入 Correct 直接纠错
 CORRECT_WRONG_STREAK = 3
 
-#: 累积误解条目达到该数量 → 判定为"概念混淆"，转入 Correct
+#: 累积误解条目达到该数量 → 判定为“概念混淆”，转入 Correct
 MISCONCEPTION_LIMIT = 2
 
 #: 状态中保留的误解条数上限（避免状态无界增长）
@@ -135,10 +136,7 @@ MISCONCEPTION_KEEP = 5
 #: 尝试次数达到该值且本轮无未处理错误 → 进入 Test 验证理解
 QUIZ_AFTER_ATTEMPTS = 3
 
-#: 同一轮内"答错后回退重讲"的最大次数（配合 hint_level / turn_count 限界）
-TEST_RETRY_MAX_ROUNDS = 1
-
-#: 主动求讲解的意图关键词（§16.3 教学样例"主动求讲解"）
+#: 主动求讲解的意图关键词（§16.3 教学样例“主动求讲解”）
 EXPLAIN_INTENT_KEYWORDS = (
     "讲讲",
     "讲一下",
@@ -163,9 +161,9 @@ def requests_explanation(text: str) -> bool:
     return any(keyword in content for keyword in EXPLAIN_INTENT_KEYWORDS)
 
 
-#: 学生自述"缺少先验"的意图关键词（§16.3 教学样例"先验不足"）。
-#: 与 EXPLAIN_INTENT_KEYWORDS 的区别：求讲解是"想听这个知识点"，
-#: 先验不足是"前置概念还没学"——两者都该讲解，但起讲点不同（见 teach_prior_note）。
+#: 学生自述“缺少先验”的意图关键词（§16.3 教学样例“先验不足”）。
+#: 与 EXPLAIN_INTENT_KEYWORDS 的区别：求讲解是“想听这个知识点”，
+#: 先验不足是“前置概念还没学”——两者都该讲解，但起讲点不同（见 teach_prior_note）。
 PRIOR_GAP_KEYWORDS = (
     "没学过",
     "没有学过",
@@ -192,9 +190,9 @@ PRIOR_OK_TEACH_NOTE = (
 
 
 def reports_prior_gap(text: str) -> bool:
-    """学生是否自述缺少先验（用于"先验不足"教学样例的触发条件）。
+    """学生是否自述缺少先验（用于“先验不足”教学样例的触发条件）。
 
-    只做**学生自述**的规则化识别，不从"学情记忆为空"反推先验不足——
+    只做**学生自述**的规则化识别，不从“学情记忆为空”反推先验不足——
     没有数据不等于没掌握，那会变成给学生贴永久标签（§13.1）。
     学情侧真正的先验判断要等 BKT/IRT 接入（§18.1）。
     """
@@ -203,12 +201,12 @@ def reports_prior_gap(text: str) -> bool:
 
 
 def teach_prior_note(prior_gap: bool) -> str:
-    """按先验判定选讲解提示（分层讲解的"起点"由这条策略决定）。"""
+    """按先验判定选讲解提示（分层讲解的“起点”由这条策略决定）。"""
     return PRIOR_GAP_TEACH_NOTE if prior_gap else PRIOR_OK_TEACH_NOTE
 
 
 # ======================================================================
-# 四之二、作答事实（Attempt）的产出纪律（§16.3 / §18.2）
+# 五、作答事实（Attempt）的产出纪律（§16.3 / §18.2）
 # ======================================================================
 
 
@@ -220,13 +218,13 @@ def attempt_gate(correct: bool | None, item_id: str, learner_id: str) -> tuple[b
     1. **归属明确**：``learner_id`` 非空。无法归属到具体学习者的作答事实
        会污染别人的画像，宁可这一轮不产出（与 UpdateProfile 的写入纪律一致）。
     2. **判分可靠**：``correct`` 必须是显式 bool。判分缺失（None）既不能当成
-       答错，也不能写进学情——否则 BKT / IRT 会把"判不了"学成"答错了"（§13.1）。
+       答错，也不能写进学情——否则 BKT / IRT 会把“判不了”学成“答错了”（§13.1）。
     3. **题目可追踪**：``item_id`` 非空。Attempt 的幂等键与来源映射都依赖
        item_id（§18.2 必需字段），课程题库未接入时 Quiz 给不出 item_id，
        因此**宁可不产出**，也不编造一个无法与题库对齐的 id。
 
     返回 ``(True, "")`` 或 ``(False, 原因)``。原因会写进决策事件，
-    让人一眼看出"这一轮为什么没有答题记录"，而不是误以为链路坏了。
+    让人一眼看出“这一轮为什么没有答题记录”，而不是误以为链路坏了。
     """
     if not str(learner_id or "").strip():
         return False, "缺少 learner_id，无法归属：不产出 Attempt，避免跨学习者污染（§13.2）"
@@ -238,14 +236,18 @@ def attempt_gate(correct: bool | None, item_id: str, learner_id: str) -> tuple[b
 
 
 # ======================================================================
-# 五、证据与引用（§7.3：RAG 证据不足禁止伪造引用；§12 不编造引用）
+# 六、证据与引用（§7.3：RAG 证据不足禁止伪造引用；§12 不编造引用）
 # ======================================================================
 
 #: RAG 检索条数
-EVIDENCE_TOP_K = 4
+EVIDENCE_TOP_K = 5
 
 #: 送入模型前每条证据原文的截断长度（避免超长与不必要的隐私复制）
 EVIDENCE_MAX_TEXT_CHARS = 600
+
+#: 教材检索 Skill 与工具名（图不直接调用，由绑定声明）
+RAG_SKILL = "rag"
+TEXTBOOK_TOOL = "search_textbook"
 
 #: 证据不足时 Teach 的固定表述：不给任何来源，并显式说明证据不足
 TEACH_INSUFFICIENT_EVIDENCE_TEXT = (
@@ -286,7 +288,7 @@ REFLECT_TEXT = (
     "你选一条，我们下一轮从这里继续。"
 )
 
-#: 上面三条建议的机器可读版本（决策事件用，供实验统计"选了哪种换策略方向"）。
+#: 上面三条建议的机器可读版本（决策事件用，供实验统计“选了哪种换策略方向”）。
 #: 与 REFLECT_TEXT 的 ①②③ 是同一份策略，改一处必须改另一处。
 REFLECT_STRATEGY_OPTIONS = ("回退前置概念", "换表征方式", "请教师介入")
 
@@ -307,7 +309,7 @@ QUIZ_FALLBACK_ITEM = (
     "请你用自己的话复述「{concept}」的定义，并说明它的适用条件与一个反例。"
 )
 
-#: Test 回复的"框架"键：节点按 mode 与判分三态算出键，bindings 声明每个键
+#: Test 回复的“框架”键：节点按 mode 与判分三态算出键，bindings 声明每个键
 #: 对应哪段文案。键放在 policies 是因为两边都要引用它——写歪一个字符不会报错，
 #: 只会让回复少一段框架，所以必须共用同一份常量。
 REPLY_FRAME_QUIZ = "quiz"  # 出题（本轮没有作答可评价）
@@ -318,8 +320,8 @@ REPLY_FRAME_UNKNOWN = "unknown"  # 判分缺失（自动判分未接入）
 #: 出题回复的开头
 QUIZ_ITEM_PREFIX = "【自检】"
 
-#: 评价回复的开头：三态判分必须分开措辞——§13.1 不把"判不了"当成"答错"，
-#: 所以 REPLY_FRAME_UNKNOWN 用"先对齐"而不是"还有问题"。
+#: 评价回复的开头：三态判分必须分开措辞——§13.1 不把“判不了”当成“答错”，
+#: 所以 REPLY_FRAME_UNKNOWN 用“先对齐”而不是“还有问题”。
 QUIZ_FRAME_CORRECT = "这一步是对的。"
 QUIZ_FRAME_INCORRECT = "这一步还有问题："
 QUIZ_FRAME_UNKNOWN = "我们先对齐一下："
@@ -327,7 +329,7 @@ QUIZ_FRAME_UNKNOWN = "我们先对齐一下："
 #: Quiz Skill 没给出评价内容时的兜底正文
 QUIZ_EVALUATION_FALLBACK = "请把你的推理过程再写一步，我们逐句检查。"
 
-#: 判分信息缺失时的说明（不得把"判分不了"当成"答错"，§13.1 不贴永久标签）
+#: 判分信息缺失时的说明（不得把“判分不了”当成“答错”，§13.1 不贴永久标签）
 QUIZ_NO_JUDGEMENT_NOTE = (
     "（判分未接入）我无法确认这一步的对错，因此本轮不更新你的错误计数，"
     "也不会把结论写成学情标签。请补充你的推理过程，我们继续讨论。"
@@ -335,10 +337,26 @@ QUIZ_NO_JUDGEMENT_NOTE = (
 
 
 # ======================================================================
-# 六、记忆写入（§5.5 任何长期记忆都必须带来源、置信度、过期策略与可撤回标记）
+# 七、记忆读写（§5.5：任何长期记忆都必须带来源、置信度、过期策略与可撤回标记）
 # ======================================================================
 
+#: 召回条数上限（写入侧与读取侧共用）
 MEMORY_READ_LIMIT = 10
+
+#: 记忆作用域（与 runtime/memory/base.py 的 SCOPE_* 取值一致）
+MEMORY_SCOPE_LONG_TERM = "long_term"
+MEMORY_SCOPE_EPISODIC = "episodic"
+
+#: 记忆标签：分类口径放在策略层，读写两侧共用同一份常量。
+#: 原先两处各写一遍字符串，等于一个契约两个主人——改一处忘另一处不会报错，
+#: 只会让“历史误解”静默读不到。
+TAG_OBSERVATION = "observation"
+TAG_MISCONCEPTION = "misconception"
+TAG_STUDENT_CONTEXT = "student_context"
+TAG_INTERVENTION = "intervention"
+
+#: 误解条目的标签字段名（读取方按它取标签，避免解析正文）
+MISCONCEPTION_LABEL_FIELD = "misconception"
 
 #: 规则化观察的置信度基线（BKT 未接入前的最低可解释基线，§18.1）
 MEMORY_CONFIDENCE_BASE = 0.30
@@ -349,21 +367,14 @@ MEMORY_CONFIDENCE_CAP = 0.60
 #: 记录学情估计来源的模型版本；接入 BKT/IRT 后由数据组替换（§18.1）
 RULE_MODEL_VERSION = "rule_based_v0_no_bkt"
 
-#: 误解条目的记忆键前缀与标签字段（写入方 UpdateProfile 与读取方 Assess 共用）。
-#: 这两处原本各写一遍字符串，等于一个契约两个主人：改一处忘另一处不会有任何报错，
-#: 只会让"历史误解"静默读不到。集中到这里后，约定本身成为可评审的策略常量。
-MISCONCEPTION_KEY_PREFIX = "misconception:"
-MISCONCEPTION_LABEL_FIELD = "misconception"
-
-
-def misconception_key(concept: str, label: str) -> str:
-    """误解条目的记忆键（形如 ``misconception:<concept>:<label>``）。"""
-    return f"{MISCONCEPTION_KEY_PREFIX}{concept or 'general'}:{label}"
-
 
 def is_misconception_record(record: dict) -> bool:
-    """该记忆记录是否为误解条目（按键前缀判定，不猜内容）。"""
-    return str(record.get("key") or "").startswith(MISCONCEPTION_KEY_PREFIX)
+    """该记忆记录是否为误解条目（按标签判定，不猜正文）。"""
+    tags = record.get("tags") or []
+    if isinstance(tags, (list, tuple)) and TAG_MISCONCEPTION in tags:
+        return True
+    metadata = record.get("metadata") or {}
+    return bool(str(metadata.get(MISCONCEPTION_LABEL_FIELD) or "").strip())
 
 
 def misconception_label(record: dict) -> str:
@@ -387,31 +398,22 @@ def memory_confidence(evidence_sufficient: bool, attempt_count: int) -> float:
 
 
 # ---- 学情记忆 → 生成上下文（跨轮记忆探针实验发现的缺口） ----
-# 实验（tests/experiment/memory_probe.py）证实：记忆读写都在发生，但召回内容
-# 从未进入生成提示词，跨轮记忆对讲解/追问输出零影响。此处的常量与函数把
-# "召回记录如何压缩成提示词片段"定义为策略，供 Assess 压缩、节点透传、绑定拼装。
+# 记忆读写如果只落在存储里，跨轮个性化就是空转：召回内容必须经 Assess 压缩、
+# 由节点透传、最终拼进绑定声明的提示词。此处的常量与函数定义“怎么压缩”。
 
 #: 进入提示词的最大记录条数与单条截断长度（§6.4 状态不放大文本的提示词版）
 MEMORY_NOTE_MAX_RECORDS = 3
 MEMORY_NOTE_MAX_CHARS = 120
 
-#: UpdateProfile 写入"学生自述背景"时的原文摘录上限（可撤回，§13.2 最小必要）
+#: UpdateProfile 写入“学生自述背景”时的原文摘录上限（可撤回，§13.2 最小必要）
 STUDENT_CONTEXT_MAX_CHARS = 120
-
-#: 学生自述背景记录的记忆键前缀（召回按 key LIKE 命中 concept 即可带回）
-STUDENT_CONTEXT_KEY_PREFIX = "context:"
-
-
-def student_context_key(concept: str) -> str:
-    """学生自述背景记录的记忆键（形如 ``context:<concept>``）。"""
-    return f"{STUDENT_CONTEXT_KEY_PREFIX}{concept or 'general'}"
 
 
 def memory_note(records: list[dict]) -> str:
     """把召回的学情记录压缩成生成提示词片段；无可用记录返回空串。
 
     有界压缩：最多 ``MEMORY_NOTE_MAX_RECORDS`` 条、每条截断到
-    ``MEMORY_NOTE_MAX_CHARS`` 字。标题行显式声明"不是教材依据"，
+    ``MEMORY_NOTE_MAX_CHARS`` 字。标题行显式声明“不是教材依据”，
     与 §7.3 的引用纪律衔接——记忆只能个性化表达，不能充当结论来源。
     """
     entries: list[str] = []
@@ -425,13 +427,13 @@ def memory_note(records: list[dict]) -> str:
 
 
 # ======================================================================
-# 七、RuntimePort 调用与事件约定
+# 八、RuntimePort 调用与事件约定
 # ======================================================================
 
 #: 图内所有调用与事件的来源标识（便于事件回放时按 source 过滤，§5.4）
 GRAPH_SOURCE = "deepprof.graph.education"
 
-#: 事件类型使用 EventType 的字符串值（runtime/core/events.py 冻结契约）
+#: 事件类型使用 runtime/core/events.py 的 EventType 字符串值（冻结契约）
 EVENT_NODE_ENTERED = "pedagogy.node.entered"
 EVENT_DECISION = "pedagogy.decision"
 EVENT_NODE_EXITED = "pedagogy.node.exited"
@@ -442,9 +444,12 @@ EVENT_ATTEMPT = "pedagogy.attempt"
 #: 模型调用的默认温度：讲解/纠错要稳，追问要有点变化
 GENERATE_TEMPERATURE = 0.3
 
-#: 教学 prompt 的系统提示（与 runtime/service.py 的 SYSTEM_PROMPT 同源口径）
+#: 教学 prompt 的系统提示（与 runtime 的能力层同源口径）
 TEACH_SYSTEM_PROMPT = (
     "你是 DeepProf，一名面向高校学生的伴学老师。用中文回答，语气亲切但严谨。"
     "只能依据给定的教材片段作答，不得引入片段之外的文献或来源；"
     "没有片段时明确说明证据不足，不编造引用。"
 )
+
+#: 请求模型时用的逻辑角色（§19.5：教学代码不写厂商名，只写逻辑角色）
+ROLE_TUTOR = "tutor.default"

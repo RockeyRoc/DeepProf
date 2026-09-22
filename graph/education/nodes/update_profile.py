@@ -1,4 +1,4 @@
-"""UpdateProfile 节点：把本轮教学结果写成学情增量（DESIGNv0.4 §6.2 / §5.5 / §18.1）。
+"""UpdateProfile 节点：把本轮教学结果写成学情增量（DESIGNv0.6 §6.2 / §5.5 / §18.1）。
 
 进入条件：教学节点完成或会话结束。
 
@@ -25,12 +25,16 @@ from ..policies import (
     ACTION_END,
     ACTION_UPDATE_PROFILE,
     MEMORY_DISCLAIMER,
+    MEMORY_SCOPE_EPISODIC,
+    MEMORY_SCOPE_LONG_TERM,
     MISCONCEPTION_LABEL_FIELD,
     RULE_MODEL_VERSION,
     STUDENT_CONTEXT_MAX_CHARS,
+    TAG_INTERVENTION,
+    TAG_MISCONCEPTION,
+    TAG_OBSERVATION,
+    TAG_STUDENT_CONTEXT,
     memory_confidence,
-    misconception_key,
-    student_context_key,
 )
 from ..state import PedagogyState
 from . import dispatch, emit_decision, emit_entered, emit_exited
@@ -127,7 +131,7 @@ async def update_profile(state: PedagogyState, port: RuntimePort) -> dict[str, A
         ACTION_END,
         reason,
         memory_written=len(records),
-        memory_types=[str(item.get("memory_type") or "") for item in records],
+        memory_scopes=[str(item.get("scope") or "") for item in records],
         diagnosis_status=diagnosis_status,
         confidence=(records[0].get("confidence") if records else None),
     )
@@ -146,10 +150,11 @@ async def update_profile(state: PedagogyState, port: RuntimePort) -> dict[str, A
 def _build_records(
     state: PedagogyState, *, action: str, diagnosis_status: str
 ) -> list[dict[str, Any]]:
-    """构造三类学情增量：掌握观察、错误模式、本轮干预事件。
+    """构造四类学情增量：掌握观察、本轮干预、错误模式、学生自述背景。
 
     所有记录都带 source（可追溯到会话/轨迹/节点）、confidence、revocable=True，
     并为学情模型产生的结论预留 model_version（§5.5、§18.2）。
+    记录形状遵循 runtime 的 MemoryRecord 契约（scope / concept_ids / tags / metadata）。
     """
     learner_id = str(state.get("learner_id") or "")
     concept = str(state.get("current_concept") or "")
@@ -166,6 +171,7 @@ def _build_records(
 
     source = f"graph:{NODE}/session:{session_id}/trace:{trace_id}/turn:{turn_count}"
     confidence = memory_confidence(evidence_sufficient, attempt_count)
+    concept_ids = [concept] if concept else []
     metadata = {
         "action": action,
         "turn_count": turn_count,
@@ -175,14 +181,16 @@ def _build_records(
         "evidence_count": len(evidence_refs),
         "evidence_sufficient": evidence_sufficient,
         "diagnosis_status": diagnosis_status,
+        "model_version": RULE_MODEL_VERSION,
         "graph_source": "deepprof.graph.education",
     }
 
     records: list[dict[str, Any]] = [
         {
             "learner_id": learner_id,
-            "memory_type": "long_term",
-            "key": f"concept:{concept or 'general'}",
+            "scope": MEMORY_SCOPE_LONG_TERM,
+            "concept_ids": concept_ids,
+            "tags": [TAG_OBSERVATION],
             "content": (
                 f"知识点「{concept or '未指定'}」规则化观察：本轮动作={action}，"
                 f"累计尝试={attempt_count}，连续答错={wrong_streak}，提示级别={hint_level}，"
@@ -190,24 +198,23 @@ def _build_records(
             ),
             "source": source,
             "confidence": confidence,
-            "expires_at": "",  # 不自动过期，由用户查看/纠正/删除（§13.2）
+            "expires_at": None,  # 不自动过期，由用户查看/纠正/删除（§13.2）
             "revocable": True,
-            "model_version": RULE_MODEL_VERSION,
             "metadata": metadata,
         },
         {
             "learner_id": learner_id,
-            "memory_type": "episodic",
-            "key": f"intervention:{session_id}:{turn_count}",
+            "scope": MEMORY_SCOPE_EPISODIC,
+            "concept_ids": concept_ids,
+            "tags": [TAG_INTERVENTION],
             "content": (
                 f"第 {turn_count} 轮教学干预：动作={action}，情感标签={state.get('emotion') or ''}，"
                 f"上一轮判分={_judgement_text(correct)}，证据数={len(evidence_refs)}。"
             ),
             "source": source,
             "confidence": 0.9,  # 直接观测到的教学事件，事实置信度高
-            "expires_at": "",
+            "expires_at": None,
             "revocable": True,
-            "model_version": RULE_MODEL_VERSION,
             "metadata": metadata,
         },
     ]
@@ -216,41 +223,45 @@ def _build_records(
         records.append(
             {
                 "learner_id": learner_id,
-                "memory_type": "long_term",
-                "key": misconception_key(concept, label),
+                "scope": MEMORY_SCOPE_LONG_TERM,
+                "concept_ids": concept_ids,
+                "tags": [TAG_MISCONCEPTION],
                 "content": (
                     f"疑似错误概念：{label}（来源：第 {turn_count} 轮作答与追问，"
                     f"未经学情模型确认）。{MEMORY_DISCLAIMER}"
                 ),
                 "source": source,
                 "confidence": min(confidence, 0.4),  # 误解判定证据更弱，置信度上限更低
-                "expires_at": "",
+                "expires_at": None,
                 "revocable": True,
-                "model_version": RULE_MODEL_VERSION,
                 # 标签字段名与 Assess 读取时共用同一常量（改一处即可，见 policies）
-                "metadata": {MISCONCEPTION_LABEL_FIELD: label, "concept": concept, **metadata},
+                "metadata": {**metadata, MISCONCEPTION_LABEL_FIELD: label, "concept": concept},
             }
         )
 
-    # 学生自述背景：有界摘录本轮输入（如"之前学过/没学过什么、用什么方法做过题"）。
-    # 跨轮记忆探针实验证实：不写这类记录，下一轮的生成上下文就无从个性化（§6.2）。
+    # 学生自述背景：有界摘录本轮输入（如“之前学过/没学过什么、用什么方法做过题”）。
+    # 不写这类记录，下一轮的生成上下文就无从个性化（§6.2）。
     # 摘录有界（STUDENT_CONTEXT_MAX_CHARS）、revocable=True，学生可随时查看/更正/删除。
     user_input = str(state.get("user_input") or "").strip()
     if user_input:
         records.append(
             {
                 "learner_id": learner_id,
-                "memory_type": "long_term",
-                "key": student_context_key(concept),
+                "scope": MEMORY_SCOPE_LONG_TERM,
+                "concept_ids": concept_ids,
+                "tags": [TAG_STUDENT_CONTEXT],
                 "content": (
                     f"学生自述背景（原文摘录，可撤回）：{user_input[:STUDENT_CONTEXT_MAX_CHARS]}"
                 ),
                 "source": source,
                 "confidence": 0.9,  # 学生直接自述，事实置信度高
-                "expires_at": "",
+                "expires_at": None,
                 "revocable": True,
-                "model_version": RULE_MODEL_VERSION,
-                "metadata": {"graph_source": "deepprof.graph.education", "turn_count": turn_count},
+                "metadata": {
+                    "model_version": RULE_MODEL_VERSION,
+                    "graph_source": "deepprof.graph.education",
+                    "turn_count": turn_count,
+                },
             }
         )
     return records

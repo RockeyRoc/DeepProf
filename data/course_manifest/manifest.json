@@ -1,0 +1,9 @@
+{
+  "course_id": "deepprof.math101",
+  "title": "DeepProf 数学基础微课程",
+  "license": "CC0-1.0 project-original",
+  "resource": "mini_math.md",
+  "type": "textbook",
+  "tags": ["limits", "derivatives", "integrals", "linear-algebra", "probability", "optimization"],
+  "queries": "queries.json"
+}

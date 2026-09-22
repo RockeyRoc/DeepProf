@@ -1,91 +1,24 @@
-# ========== 密钥与配置 ==========
-.env
-.env.local
-*.key
-secrets/
-
-# ========== Python ==========
+# 运行产生的可再生状态（可安全删除）
+.pytest_cache/
 __pycache__/
 *.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-MANIFEST
-
-# 虚拟环境
 .venv/
 venv/
-env/
-ENV/
-env.bak/
-venv.bak/
-
-# 包管理
-pip-wheel-metadata/
-htmlcov/
-.tox/
-.nox/
-.coverage
-.coverage.*
-.cache
-nosetests.xml
-coverage.xml
-*.cover
-.hypothesis/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-
-# ========== Jupyter ==========
-.ipynb_checkpoints
-
-# ========== 数据与运行时产物 ==========
-data/
+node_modules/
+dist/
+build/
+out/
+apps/desktop/renderer/assets/
+.pytest-mvp3/
+*.log
+evaluation/output/
+tmp/
 *.db
 *.sqlite
 *.sqlite3
-vector_store/
-chroma_db/
-faiss_index/
-logs/
-*.log
+*.sqlite-wal
+*.sqlite-shm
 
-# ========== 桌宠模型与素材（体积大，不入库） ==========
-*.model
-*.onnx
-*.tflite
-*.live2d
-assets/live2d_models/
-*.moc3
-*.physics3.json
-
-# ========== IDE ==========
-.idea/
-.vscode/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-
-# ========== OS ==========
-Desktop.ini
-$RECYCLE.BIN/
-
-# ========== 构建与发布 ==========
-*.spec
+# 本地配置与密钥（绝不入库）
+.env
+.env.local

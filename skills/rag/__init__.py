@@ -1,27 +1,25 @@
-"""RAG Skill：教材检索与可追踪来源（DESIGNv0.4 §6.3 / §7.3 / §18.2）。
+"""RAG Skill：教材检索与可追踪来源（DESIGNv0.6 §6.3 / §7.3 / §20.5）。
 
-职责：调用 runtime 的原子工具 `search_textbook` 取教材片段，
-把结果规范化成 Evidence 契约（document_id / chunk_id / page / text / source），
-供教学图引用与前端定位。
+职责：调用检索工具取教材片段，把结果规范化成 Evidence 契约
+（document_id / chunk_id / page / text / source），供教学图引用与前端定位。
 
-硬性要求（§7.3、§12"不编造引用"）：
+硬性要求（§7.3、§12“不编造引用”）：
 - 工具不可用、无命中、或返回结果缺少可定位标识时，
-  **必须**返回 status="insufficient_evidence"，且 evidence 为空列表；
+  **必须**返回 ``status="insufficient_evidence"`` 且 ``evidence`` 为空列表；
 - 任何情况下都不生成、不猜测来源。
 
-责任人：许阳毅（§16.2 教材 RAG 与课程语料；工具与语料由其交接）。
+责任人：许阳毅（§20 资源库与教材语料；工具与语料由其交接）。
 """
+
 from __future__ import annotations
 
 from typing import Any
 
-from runtime.core.ports import RuntimeContext, RuntimePort
-from runtime.skills import Skill, SkillDescriptor
+from tools.retrieval import SEARCH_TEXTBOOK_TOOL
 
-from .. import to_ctx_dict
+SEARCH_TOOL = SEARCH_TEXTBOOK_TOOL
 
-#: 教材检索工具名（runtime/tools 注册；由许阳毅实现，保留 document_id/page/chunk_id）
-SEARCH_TOOL = "search_textbook"
+__all__ = ["INSUFFICIENT_NOTE", "RAGSkill", "SEARCH_TOOL"]
 
 #: 结构化命中可能出现的字段名（工具实现方稍有差异时仍可解析）
 _HIT_KEYS = ("hits", "evidence", "results", "chunks")
@@ -32,62 +30,48 @@ INSUFFICIENT_NOTE = (
 )
 
 
-class RAGSkill(Skill):
+class RAGSkill:
     """教材检索 Skill：只回传可定位证据，不带证据就不给答案。"""
 
-    descriptor = SkillDescriptor(
-        name="rag",
-        description="检索教材片段并返回可追踪来源；无命中明确返回 insufficient_evidence",
-        when_to_use="教学图 Assess / Teach / Correct 需要教材依据时",
-        version="0.1.0",
-        owner="许阳毅",
-        tags=["rag", "retrieval", "evidence", "citation"],
-    )
+    name = "rag"
+    description = "检索教材片段并返回可追踪来源；无命中明确返回 insufficient_evidence"
+    uses_host = True
 
-    async def handle(
-        self, payload: dict, ctx: RuntimeContext, port: RuntimePort
-    ) -> dict[str, Any]:
+    async def invoke(self, input: dict[str, Any], ctx: dict[str, Any], host: Any) -> dict[str, Any]:
         """入参：query / concept / top_k / course_id；出参：status + evidence 列表。"""
-        query = str(payload.get("query") or payload.get("concept") or "").strip()
-        concept = str(payload.get("concept") or "")
-        top_k = int(payload.get("top_k") or 4)
+        query = str(input.get("query") or input.get("concept") or "").strip()
+        concept = str(input.get("concept") or "")
         if not query:
             return self._insufficient("检索问题为空，无法检索")
 
-        result = await port.call_tool(
-            SEARCH_TOOL,
+        result = await host.call_tool(
+            SEARCH_TEXTBOOK_TOOL,
             {
                 "query": query,
-                "top_k": top_k,
-                "course_id": str(payload.get("course_id") or ""),
-                "concept": concept,
+                "top_k": int(input.get("top_k") or 5),
+                "course_id": str(input.get("course_id") or ""),
+                "resource_type": str(input.get("resource_type") or ""),
+                "tags": list(input.get("tags") or []),
+                "concept_ids": [concept] if concept else [],
             },
-            to_ctx_dict(ctx),
+            ctx,
         )
-        if not result.get("ok"):
-            error = result.get("error") or {}
-            return self._insufficient(
-                "教材检索工具返回失败或不存在",
-                error=error if isinstance(error, dict) else {},
-            )
-
-        data = result.get("data") if isinstance(result.get("data"), dict) else {}
+        data = result if isinstance(result, dict) else {}
         evidence = _normalize_hits(data)
         if not evidence:
             return self._insufficient(
-                "检索结果缺少可定位标识（document_id/chunk_id/page），无法作为引用",
-                error={},
-                payload_keys=sorted(data),
+                str(data.get("status") or "检索结果缺少可定位标识（document_id/chunk_id/page）"),
+                missing=list(data.get("missing") or []),
             )
         return {
             "status": "ok",
             "skill": self.name,
-            "tool": SEARCH_TOOL,
+            "tool": SEARCH_TEXTBOOK_TOOL,
             "query": query,
             "concept": concept,
             "count": len(evidence),
             "evidence": evidence,
-            "source": "tool:" + SEARCH_TOOL,
+            "source": "tool:" + SEARCH_TEXTBOOK_TOOL,
         }
 
     # ---------- 内部 ----------
@@ -96,7 +80,7 @@ class RAGSkill(Skill):
         return {
             "status": "insufficient_evidence",
             "skill": self.name,
-            "tool": SEARCH_TOOL,
+            "tool": SEARCH_TEXTBOOK_TOOL,
             "count": 0,
             "evidence": [],
             "note": f"{INSUFFICIENT_NOTE}（原因：{note}）",
@@ -108,7 +92,7 @@ def _normalize_hits(data: dict[str, Any]) -> list[dict[str, Any]]:
     """把工具返回的命中规范化为 Evidence 契约（§18.2）。
 
     只认带定位标识的命中：缺 document_id/chunk_id/page 的条目会被丢弃，
-    因为无法定位的"来源"等于不可验证的来源。
+    因为无法定位的“来源”等于不可验证的来源。
     """
     raw_hits: list[Any] = []
     for key in _HIT_KEYS:
@@ -128,9 +112,7 @@ def _normalize_hits(data: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         evidence.append(
             {
-                "evidence_id": str(
-                    item.get("evidence_id") or f"{document_id}#{chunk_id}@{page}"
-                ),
+                "evidence_id": str(item.get("evidence_id") or f"{document_id}#{chunk_id}@{page}"),
                 "document_id": document_id,
                 "chunk_id": chunk_id,
                 "page": page,
@@ -140,6 +122,3 @@ def _normalize_hits(data: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return evidence
-
-
-__all__ = ["INSUFFICIENT_NOTE", "RAGSkill", "SEARCH_TOOL"]

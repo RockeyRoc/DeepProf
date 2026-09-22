@@ -1,228 +1,204 @@
-"""Agent loop（DESIGNv0.4 §5.1）。
+"""Agent：驱动一次模型—工具循环。
 
-职责：驱动一次或多次"模型 → 工具"循环，维护运行状态，并把每一步写成事件。
-
-最小接口：run(context) -> AsyncEventStream
-这里的异步事件流由 AgentChunk 组成：文本增量、工具结果、完成或失败，
-便于 API 转发、REPL 打印与测试断言时序。
+保持极简：Agent 只负责“把消息交给模型、把工具交给模型、把结果交回”，
+不含任何教学逻辑（教学策略在 graph 侧，经绑定表落到 capability）。
 """
+
 from __future__ import annotations
 
-import asyncio
-from dataclasses import dataclass, field
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
-from config import settings
-
-from ..providers.base import ModelRequest, ModelResponse, Provider
-from ..sandbox.policy import SandboxPolicy
-from ..tools.base import ToolContext
-from ..tools.registry import ToolRegistry
-from .errors import AgentLoopLimit, ModelTruncated, ProviderError
-from .events import EventBus, EventType, RuntimeEvent
-from .message import Message
-from .ports import RuntimeContext
-from .session import Session
-
-
-@dataclass
-class AgentChunk:
-    """Agent 流的一块输出。"""
-
-    kind: str  # delta | tool | done | error
-    text: str = ""
-    message: Message | None = None
-    tool_name: str = ""
-    tool_ok: bool = True
-    error: dict | None = None
-    event: RuntimeEvent | None = None
-    metadata: dict = field(default_factory=dict)
+from runtime.core.errors import KIND_MODEL_TRUNCATED
+from runtime.core.events import EventType, RuntimeEvent, new_id
+from runtime.core.message import Message, ToolCall
+from runtime.core.ports import RuntimeHost
+from runtime.providers.registry import ModelRouter
+from config.settings import Settings
 
 
 class Agent:
-    """模型—工具循环驱动器。"""
+    """一次或多次模型—工具循环。"""
 
     def __init__(
         self,
-        provider: Provider,
-        tools: ToolRegistry,
-        bus: EventBus,
+        host: RuntimeHost,
+        router: ModelRouter,
+        settings: Settings,
         *,
-        sandbox: SandboxPolicy | None = None,
-        max_turns: int | None = None,
-        source: str = "deepprof.runtime.agent",
+        max_tool_rounds: int = 4,
     ) -> None:
-        self._provider = provider
-        self._tools = tools
-        self._bus = bus
-        self._sandbox = sandbox or SandboxPolicy()
-        self._max_turns = max_turns or settings.agent_max_turns
-        self._source = source
+        self._host = host
+        self._router = router
+        self._settings = settings
+        self._max_tool_rounds = max_tool_rounds
 
-    # ---------- 主循环 ----------
-    async def run(
-        self,
-        session: Session,
-        ctx: RuntimeContext,
-        *,
-        user_input: str | None = None,
-        system_prompt: str = "",
-        use_tools: bool = True,
-        model: str = "",
-    ) -> AsyncIterator[AgentChunk]:
-        """驱动一轮（可能含多次模型—工具往返）对话。"""
-        if system_prompt and not any(m.role == "system" for m in session.messages):
-            session.append(Message.system(system_prompt))
-        if user_input is not None:
-            session.append(Message.user(user_input))
+    async def run(self, request: dict[str, Any], ctx: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
+        """执行一轮或多轮模型调用，逐步产出流式帧并写入事件轨迹。"""
+        session_id = str(ctx.get("session_id") or request.get("session_id") or "")
+        trace_id = str(ctx.get("trace_id") or request.get("trace_id") or new_id("trc"))
+        messages = [Message.from_dict(m) if isinstance(m, dict) else m for m in request.get("messages", [])]
+        role = str(request.get("role") or "tutor.default")
 
-        self._emit(
-            EventType.AGENT_STARTED,
-            {"learner_id": ctx.learner_id, "messages": len(session.messages)},
-            ctx,
-        )
+        await self._emit(EventType.AGENT_STARTED, {"request_id": request.get("request_id", "")}, session_id, trace_id, ctx)
 
-        schemas = self._tools.schemas() if use_tools else []
-        try:
-            async for chunk in self._loop(session, ctx, schemas, model):
-                yield chunk
-        except asyncio.CancelledError:
-            # 取消也必须可观测（§16.1）：用户中断/超时后轨迹里要留下记录
-            self._emit(EventType.AGENT_CANCELLED, {"reason": "cancelled"}, ctx)
-            raise
+        usage: dict[str, Any] = {}
+        final: Message | None = None
 
-    async def _loop(
-        self, session: Session, ctx: RuntimeContext, schemas: list[dict], model: str
-    ) -> AsyncIterator[AgentChunk]:
-        """模型—工具循环主体（与取消处理分离，便于阅读）。"""
-        for turn in range(1, self._max_turns + 1):
-            self._emit(EventType.AGENT_TURN_STARTED, {"turn": turn}, ctx)
-            self._emit(
+        for turn in range(self._max_tool_rounds):
+            await self._emit(EventType.AGENT_TURN_STARTED, {"turn": turn}, session_id, trace_id, ctx)
+            call = {
+                "messages": [m.to_dict() if isinstance(m, Message) else m for m in messages],
+                "role": role,
+                "model": request.get("model"),
+                "max_tokens": int(request.get("max_tokens") or self._settings.llm_max_tokens),
+                "tools": request.get("tools") or [],
+            }
+            provider, profile_id, model = self._router.resolve(role, requested_model=request.get("model"))
+            await self._emit(
                 EventType.MODEL_REQUESTED,
-                {
-                    "provider": self._provider.name,
-                    "model": model or "",
-                    "tools": [schema["function"]["name"] for schema in schemas],
-                },
+                {"role": role, "provider_profile": profile_id, "model": model},
+                session_id,
+                trace_id,
                 ctx,
             )
 
             content_parts: list[str] = []
-            try:
-                response = None
-                async for chunk in self._provider.stream(
-                    ModelRequest(messages=list(session.messages), tools=schemas, model=model)
-                ):
-                    if chunk.delta:
-                        content_parts.append(chunk.delta)
-                        self._emit(EventType.MODEL_STREAM_DELTA, {"text": chunk.delta}, ctx)
-                        yield AgentChunk(kind="delta", text=chunk.delta)
-                    response = _merge(response, chunk, self._provider.name)
-            except ProviderError as exc:
-                self._emit(EventType.MODEL_FAILED, {"error": exc.to_dict()}, ctx)
-                event = self._emit(EventType.AGENT_FAILED, {"error": exc.to_dict()}, ctx)
-                yield AgentChunk(kind="error", error=exc.to_dict(), event=event)
+            tool_calls: list[ToolCall] = []
+            finish_reason = ""
+            failure: dict[str, Any] | None = None
+
+            async for frame in provider.stream(call, ctx):
+                kind = frame.get("type")
+                if kind == "delta":
+                    text = str(frame.get("text", ""))
+                    if text:
+                        content_parts.append(text)
+                        await self._emit(EventType.MODEL_STREAM_DELTA, {"text": text}, session_id, trace_id, ctx)
+                        yield {"type": "delta", "text": text}
+                elif kind == "tool_call":
+                    tool_calls.append(ToolCall.from_dict(frame["tool_call"]))
+                elif kind == "usage":
+                    usage = dict(frame.get("usage") or {})
+                elif kind == "finish":
+                    finish_reason = str(frame.get("finish_reason") or "")
+                elif kind == "error":
+                    failure = dict(frame.get("error") or {})
+                    break
+
+            if failure is not None:
+                await self._emit(EventType.MODEL_FAILED, {"error": failure}, session_id, trace_id, ctx)
+                await self._emit(
+                    EventType.AGENT_FAILED,
+                    {"error": failure},
+                    session_id,
+                    trace_id,
+                    ctx,
+                )
+                yield {"type": "error", "error": failure}
                 return
 
-            final = _finalize(response, content_parts, self._provider.name)
-            self._emit(
+            content = "".join(content_parts)
+
+            # 截断：空正文 + 无工具调用 + finish=length => 结构化 model_truncated，
+            # 不写入会话上下文，避免污染后续轮次。
+            if not content and not tool_calls and finish_reason == "length":
+                error = {
+                    "code": KIND_MODEL_TRUNCATED,
+                    "message": "模型输出被 max_tokens 截断且正文为空",
+                    "details": {"kind": KIND_MODEL_TRUNCATED, "model": model, "finish_reason": finish_reason},
+                }
+                await self._emit(EventType.MODEL_FAILED, {"error": error}, session_id, trace_id, ctx)
+                await self._emit(EventType.AGENT_FAILED, {"error": error}, session_id, trace_id, ctx)
+                yield {"type": "error", "error": error}
+                return
+
+            await self._emit(
                 EventType.MODEL_COMPLETED,
-                {
-                    "model": final.model,
-                    "finish_reason": final.finish_reason,
-                    "usage": final.usage,
-                    "content_length": len(final.content),
-                },
+                {"usage": usage, "model": model, "finish_reason": finish_reason},
+                session_id,
+                trace_id,
                 ctx,
             )
 
-            # 截断必须可观测（§16.1）：推理模型可能把 token 预算耗在 reasoning 上，
-            # 于是 finish_reason=length 且正文为空；若按成功收尾，学生只看到空回复，
-            # 轨迹里也看不出失败。此处明确失败，且不把空答案写进会话上下文。
-            if final.finish_reason == "length" and not final.content.strip() and not final.tool_calls:
-                truncated = ModelTruncated(
-                    "模型输出被截断且没有正文（finish_reason=length）；"
-                    "请提高 LLM_MAX_TOKENS 或改用非推理模型。",
-                    finish_reason=final.finish_reason,
-                    provider=self._provider.name,
+            assistant = Message(role="assistant", content=content, tool_calls=tool_calls)
+            messages.append(assistant)
+            final = assistant
+
+            if not tool_calls:
+                await self._emit(
+                    EventType.AGENT_TURN_COMPLETED, {"turn": turn, "status": "ok"}, session_id, trace_id, ctx
                 )
-                event = self._emit(
-                    EventType.AGENT_FAILED, {"error": truncated.to_dict()}, ctx
-                )
-                yield AgentChunk(
-                    kind="error", error=truncated.to_dict(), event=event
-                )
+                yield {
+                    "type": "result",
+                    "message": assistant.to_dict(),
+                    "usage": usage,
+                    "status": "success",
+                    "model": model,
+                }
                 return
 
-            session.append(Message.assistant(final.content, final.tool_calls))
-
-            if not final.tool_calls:
-                event = self._emit(
-                    EventType.AGENT_TURN_COMPLETED,
-                    {"turn": turn, "finish_reason": final.finish_reason},
+            for call_ in tool_calls:
+                await self._emit(
+                    EventType.TOOL_REQUESTED,
+                    {"tool": call_.name, "arguments": dict(call_.arguments)},
+                    session_id,
+                    trace_id,
                     ctx,
                 )
-                yield AgentChunk(kind="done", message=session.messages[-1], event=event)
-                return
-
-            # 依次执行模型请求的工具，并把结果作为 tool 消息回填
-            for call in final.tool_calls:
-                result = await self._tools.execute(
-                    call.name, call.arguments, self._tool_context(ctx)
+                await self._emit(EventType.TOOL_STARTED, {"tool": call_.name}, session_id, trace_id, ctx)
+                try:
+                    result = await self._host.call_tool(call_.name, call_.arguments, ctx)
+                except Exception as exc:  # 工具失败结构化，不抛出到外层
+                    error = {"code": "tool_failed", "message": str(exc), "details": {"tool": call_.name}}
+                    await self._emit(EventType.TOOL_FAILED, {"tool": call_.name, "error": error}, session_id, trace_id, ctx)
+                    messages.append(
+                        Message(
+                            role="tool",
+                            content=f"工具失败：{exc}",
+                            tool_call_id=call_.id,
+                            name=call_.name,
+                        )
+                    )
+                    continue
+                await self._emit(
+                    EventType.TOOL_COMPLETED,
+                    {"tool": call_.name, "result": result if isinstance(result, dict) else {"value": result}},
+                    session_id,
+                    trace_id,
+                    ctx,
                 )
-                session.append(Message.tool(result.content, call.id, call.name))
-                yield AgentChunk(
-                    kind="tool",
-                    text=result.content,
-                    message=session.messages[-1],
-                    tool_name=call.name,
-                    tool_ok=result.ok,
-                    error=result.error,
-                    metadata={"tool_call_id": call.id},
+                messages.append(
+                    Message(
+                        role="tool",
+                        content=str(result.get("content", "")) if isinstance(result, dict) else str(result),
+                        tool_call_id=call_.id,
+                        name=call_.name,
+                    )
                 )
+            await self._emit(EventType.AGENT_TURN_COMPLETED, {"turn": turn, "status": "tool"}, session_id, trace_id, ctx)
 
-        # 循环超限：明确失败，避免无限调用（§7.3）
-        limit = AgentLoopLimit(
-            f"模型—工具循环超过 {self._max_turns} 轮", max_turns=self._max_turns
+        yield {
+            "type": "result",
+            "message": (final or Message(role="assistant")).to_dict(),
+            "usage": usage,
+            "status": "success",
+        }
+
+    async def _emit(
+        self,
+        event_type: EventType,
+        payload: dict[str, Any],
+        session_id: str,
+        trace_id: str,
+        ctx: dict[str, Any],
+    ) -> None:
+        await self._host.emit(
+            RuntimeEvent(
+                type=event_type.value,
+                payload=payload,
+                session_id=session_id,
+                trace_id=trace_id,
+                client_id=ctx.get("client_id"),
+                surface=ctx.get("surface"),
+            ).to_dict()
         )
-        event = self._emit(EventType.AGENT_FAILED, {"error": limit.to_dict()}, ctx)
-        yield AgentChunk(kind="error", error=limit.to_dict(), event=event)
-
-    # ---------- 内部 ----------
-    def _tool_context(self, ctx: RuntimeContext) -> ToolContext:
-        return ToolContext(
-            session_id=ctx.session_id,
-            learner_id=ctx.learner_id,
-            trace_id=ctx.trace_id,
-            sandbox=self._sandbox,
-            metadata=ctx.metadata,
-        )
-
-    def _emit(self, event_type: EventType, payload: dict, ctx: RuntimeContext) -> RuntimeEvent:
-        return self._bus.emit(
-            event_type,
-            payload,
-            session_id=ctx.session_id,
-            trace_id=ctx.trace_id,
-            source=self._source,
-        )
-
-
-def _merge(current: ModelResponse | None, chunk, provider_name: str) -> ModelResponse:
-    """把流式分片合并成 ModelResponse（工具调用以最后一块为准）。"""
-    base = current or ModelResponse(model=provider_name)
-    if chunk.tool_calls:
-        base.tool_calls = list(chunk.tool_calls)
-    if chunk.finish_reason:
-        base.finish_reason = chunk.finish_reason
-    if chunk.usage:
-        base.usage = dict(chunk.usage)
-    return base
-
-
-def _finalize(
-    response: ModelResponse | None, content_parts: list[str], provider_name: str
-) -> ModelResponse:
-    final = response or ModelResponse(model=provider_name)
-    final.content = "".join(content_parts)
-    return final

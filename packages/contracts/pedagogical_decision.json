@@ -1,0 +1,15 @@
+{
+  "contract_version": "1.4.0",
+  "_owner": "graph 侧契约（graph/education/contracts.py）。MVP-1 只冻结 schema，运行时仅按 dict 交换，Runtime 不认识教学词汇。",
+  "PedagogicalDecision": {
+    "action": "string, 教学动作或信息请求名；决定绑定到哪个 capability",
+    "concept": "string | null",
+    "level": "integer | null, 策略算出的产物（如 next_hint_level）",
+    "reveal_answer": "boolean, 是否允许给出最终结论（提示与追问恒为 false）",
+    "require_evidence": "boolean, 分发器前置条件：取不到可定位证据则不执行主能力、不调模型",
+    "require_student_reply": "boolean, 循环控制；Runtime 不参与",
+    "evidence_sufficient": "boolean, 本轮评估结论",
+    "params": "object, 学生正文只在这里，且不得整体写进事件",
+    "reason": "string, 决策依据，写入决策事件供复盘"
+  }
+}
