@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="media/DeepProf.jpg" alt="DeepProf logo" width="160">
+
 # DeepProf
 
 ### An evidence-grounded, adaptive teaching system you can run locally

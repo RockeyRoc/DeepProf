@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="media/DeepProf.jpg" alt="DeepProf 标志" width="160">
+
 # DeepProf
 
 ### 在本机运行的、以课程证据为基础的自适应教学系统

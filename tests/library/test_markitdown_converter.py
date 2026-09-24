@@ -32,8 +32,21 @@ def _text_pdf(path: Path, pages: int = 1) -> None:
         writer.write(output)
 
 
+def _cjk_font(size: int) -> ImageFont.FreeTypeFont:
+    candidates = (
+        Path(r"C:\Windows\Fonts\msyh.ttc"),
+        Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
+        Path("/System/Library/Fonts/PingFang.ttc"),
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return ImageFont.truetype(str(candidate), size)
+    pytest.fail("A CJK font is required for OCR fixture generation")
+
+
 def _scanned_pdf(path: Path, pages: int = 2) -> None:
-    font = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 72)
+    font = _cjk_font(72)
     frames = []
     for index in range(pages):
         image = Image.new("RGB", (1600, 320), "white")
@@ -78,7 +91,7 @@ def test_scanned_pdf_uses_local_chinese_ocr_and_marks_review_required(tmp_path: 
 
 def test_local_images_and_markitdown_office_formats_have_accurate_locations(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
-    font = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 64)
+    font = _cjk_font(64)
     image = Image.new("RGB", (1400, 260), "white")
     ImageDraw.Draw(image).text((40, 70), "线性表属于数据结构", font=font, fill="black")
     image_path = tmp_path / "scan.png"
