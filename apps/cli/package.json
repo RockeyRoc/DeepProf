@@ -13,5 +13,5 @@
     "start": "node dist/apps/cli/src/index.js"
   },
   "dependencies": { "@deepprof/client-sdk": "file:../../packages/client_sdk" },
-  "devDependencies": { "@types/node": "^22.10.2", "typescript": "^5.7.2" }
+  "devDependencies": { "@types/node": "^22.10.2", "typescript": "^7.0.2" }
 }
