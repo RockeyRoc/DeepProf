@@ -32,8 +32,22 @@ def _text_pdf(path: Path, pages: int = 1) -> None:
         writer.write(output)
 
 
+def _cjk_font(size: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    for candidate in (
+        r"C:\Windows\Fonts\msyh.ttc",
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttf",
+        "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    ):
+        try:
+            return ImageFont.truetype(candidate, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
 def _scanned_pdf(path: Path, pages: int = 2) -> None:
-    font = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 72)
+    font = _cjk_font(72)
     frames = []
     for index in range(pages):
         image = Image.new("RGB", (1600, 320), "white")
@@ -61,6 +75,12 @@ def test_text_pdf_keeps_page_order_and_does_not_require_optional_ocr(tmp_path: P
 
 def test_scanned_pdf_uses_local_chinese_ocr_and_marks_review_required(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
+    import rapidocr_onnxruntime
+    monkeypatch.setattr(
+        rapidocr_onnxruntime,
+        "RapidOCR",
+        lambda: lambda _image: ([[None, "线性表是具有相同特性数据元素的有限序列 第2页", 0.9]], None),
+    )
     source = tmp_path / "scan.pdf"
     _scanned_pdf(source)
     result = convert_local(str(source), first_page=2, last_page=2)
@@ -78,7 +98,7 @@ def test_scanned_pdf_uses_local_chinese_ocr_and_marks_review_required(tmp_path: 
 
 def test_local_images_and_markitdown_office_formats_have_accurate_locations(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
-    font = ImageFont.truetype(r"C:\Windows\Fonts\msyh.ttc", 64)
+    font = _cjk_font(64)
     image = Image.new("RGB", (1400, 260), "white")
     ImageDraw.Draw(image).text((40, 70), "线性表属于数据结构", font=font, fill="black")
     image_path = tmp_path / "scan.png"
