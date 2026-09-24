@@ -4,20 +4,42 @@
 硬性要求：**避免过早泄露答案**——提示词里明确禁止给出答案、结论与推导结果；
 严禁把最终解法写进问题。
 
-诚实边界：当前的“不泄露答案”只由提示词约束（prompt_only），
-没有输出侧校验器；需要在教师评审（§16.8）中抽检复核，
-后续可加规则/模型二次校验。
+模型输出会在内部缓冲后经过格式与明显答案泄露规则检查；未通过时丢弃，
+由绑定表提供确定性追问兜底。校验不做语义证明，教学组仍需抽查。
 
 责任人：孙一新（§16.3 教学策略与测验闭环）。
 """
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from runtime.skills import collect_stream
 
 __all__ = ["SocraticSkill"]
+
+_ANSWER_LEAK_PATTERNS = (
+    re.compile(r"(?:答案|结论|最终解法|正确结果|计算结果)\s*(?:是|为|：|:)?"),
+    re.compile(r"(?:因此|由此可得|所以可得)\s*[^？?]{0,48}"),
+    re.compile(r"(?:公式|结果)\s*(?:是|为|=|：|:)"),
+)
+
+
+def validate_socratic_question(text: str, *, max_chars: int = 180) -> str:
+    """Accept one short question only; reject answers, prose, and malformed output."""
+    question = " ".join(str(text or "").strip().split())
+    if not question or len(question) > max_chars:
+        return ""
+    if question.count("？") + question.count("?") != 1:
+        return ""
+    if question[-1] not in "？?":
+        return ""
+    if any(pattern.search(question) for pattern in _ANSWER_LEAK_PATTERNS):
+        return ""
+    if any(mark in question[:-1] for mark in "。！!；;"):
+        return ""
+    return question
 
 #: 只输出一个问题的系统提示（约束模型不要“顺手把答案说了”）
 _SYSTEM_PROMPT = (
@@ -45,9 +67,6 @@ class SocraticSkill:
         hint_level = int(input.get("hint_level") or 0)
         prior_attempts = int(input.get("prior_attempts") or 0)
         avoid_answer = bool(input.get("avoid_answer", True))
-        # 学情记忆摘要（图侧 Assess 压缩产出，非空才拼接）：只作个性化参考，
-        # 不是教材依据——追问本身不需要引用，因此这里不做证据校验。
-        memory_note = str(input.get("memory_note") or "").strip()
 
         prompt = (
             f"知识点：{concept}\n"
@@ -56,8 +75,6 @@ class SocraticSkill:
             f"已给出的提示级别：{hint_level}（级别越高越具体）\n"
             f"学生已尝试次数：{prior_attempts}\n"
         )
-        if memory_note:
-            prompt += f"{memory_note}\n"
         prompt += (
             f"约束：必须避免过早泄露答案（avoid_answer={avoid_answer}）。\n"
             "请提出下一个问题，让学生自己前进一步。"
@@ -69,10 +86,11 @@ class SocraticSkill:
                     {"role": "system", "content": _SYSTEM_PROMPT},
                     {"role": "user", "content": prompt},
                 ],
-                "temperature": 0.5,
+                "temperature": 0.2,
             },
-            ctx,
+            {**ctx, "suppress_user_stream": True},
         )
+        question = validate_socratic_question(question)
         if not question:
             return {
                 "status": "error",
@@ -87,6 +105,6 @@ class SocraticSkill:
             "question": question,
             "cognitive_goal": f"让学生澄清「{concept}」的条件与适用范围",
             "avoid_answer": avoid_answer,
-            "answer_guard": "prompt_only（仅提示词约束，未做输出侧校验，需教师抽检）",
+            "answer_guard": "rule_checked_buffered_output",
             "source": "model_generated",
         }

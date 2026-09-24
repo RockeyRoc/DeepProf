@@ -1,0 +1,3 @@
+# Optional offline transcription aid for the locally supplied scanned course.
+rapidocr_onnxruntime>=1.4.4
+pypdfium2>=5.13.0

@@ -52,7 +52,6 @@ async def ask(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
                 "learning_goal": str(state.get("learning_goal") or ""),
                 "user_input": str(state.get("user_input") or ""),
                 "attempt_count": int(state.get("attempt_count") or 0),
-                "memory_note": str(state.get("memory_note") or ""),
             },
             reason="学生具备推理基础，转入递进追问（不泄露结论）",
         ),

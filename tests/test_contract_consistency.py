@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from api.event_types import GATEWAY_EVENT_TYPES
 from runtime.core.events import EventType, RuntimeEvent
 
 CONTRACTS = Path(__file__).resolve().parents[1] / "packages" / "contracts"
@@ -28,7 +29,7 @@ def test_contract_files_exist():
 def test_events_section_matches_event_type_enum():
     contract = _load("events.json")
     declared = {key for key in contract["events"] if not key.startswith("_")}
-    actual = {member.value for member in EventType}
+    actual = {member.value for member in EventType} | set(GATEWAY_EVENT_TYPES)
     assert declared == actual, (
         f"events.json 与 EventType 不一致；仅在契约: {sorted(declared - actual)}；"
         f"仅在代码: {sorted(actual - declared)}"
@@ -48,7 +49,7 @@ def test_envelope_matches_runtime_event_dict():
 def test_sse_frames_reference_real_event_types():
     contract = _load("events.json")
     frames = contract["_sse_frames"]
-    real = {member.value for member in EventType}
+    real = {member.value for member in EventType} | set(GATEWAY_EVENT_TYPES)
     for name in frames["passthrough"]:
         assert name in real, f"SSE 透传帧 {name} 不是真实事件类型"
     # 合成帧不是 EventType，必须显式声明在 synthetic 里
@@ -99,8 +100,6 @@ def test_pedagogical_decision_fields_match_contract():
         "invoke_skill",
         "retrieve_evidence",
         "generate_grounded",
-        "read_memory",
-        "write_memory",
     }
 
 
@@ -118,3 +117,8 @@ def test_provider_profile_fields_match_dataclass():
     declared = {key for key in contract["ProviderProfile"] if not key.startswith("_")}
     actual = set(ProviderProfile(profile_id="x").to_dict())
     assert declared == actual
+
+
+def test_runtime_gateway_contract_matches_cli_scope():
+    contract = _load("runtime_discovery.json")
+    assert contract["RuntimeGatewayRecord"]["owner"] == "cli"

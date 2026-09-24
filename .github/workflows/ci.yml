@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python regression
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -o addopts= -q
+      - name: M2 offline acceptance
+        run: python -m evaluation.m2_acceptance
+      - name: M3 Fake Provider offline acceptance
+        run: python -m evaluation.m3_acceptance --run-id "m3-ci-${{ github.run_id }}-${{ github.run_attempt }}" --output-dir "${{ runner.temp }}/deepprof-m3-ci"
+
+  package:
+    name: CLI package on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/cli/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: npm ci --prefix apps/cli
+      - run: npm run typecheck --prefix apps/cli
+      - run: npm run pack:release --prefix apps/cli
+      - name: Run packaged CLI from the local npm cache
+        run: npm exec --yes --package=.release/deepprof-cli-0.6.2.tgz -- deepprof --version
+      - name: Prepare Python and check the loopback Gateway
+        run: |
+          npm exec --yes --package=.release/deepprof-cli-0.6.2.tgz -- deepprof doctor
+        env:
+          DEEPPROF_HOME: ${{ runner.temp }}/deepprof-package-smoke

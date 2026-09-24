@@ -49,6 +49,7 @@ STATUS_CAPABILITY_NOT_FOUND = "capability_not_found"
 STATUS_INVALID_REQUEST = "invalid_request"
 #: 能力执行失败（模型失败、Skill 不可用且无兜底…）
 STATUS_ERROR = "error"
+POLICY_VERSION = "ds-v0.6.2-m2.1"
 
 
 @dataclass
@@ -68,6 +69,9 @@ class PedagogicalDecision:
     evidence_sufficient: bool = False
     params: dict[str, Any] = field(default_factory=dict)
     reason: str = ""
+    policy_version: str = POLICY_VERSION
+    reason_codes: list[str] = field(default_factory=list)
+    evidence_refs: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -80,6 +84,9 @@ class PedagogicalDecision:
             "evidence_sufficient": bool(self.evidence_sufficient),
             "params": dict(self.params),
             "reason": self.reason,
+            "policy_version": self.policy_version,
+            "reason_codes": list(self.reason_codes),
+            "evidence_refs": [dict(item) for item in self.evidence_refs],
         }
 
     @classmethod
@@ -96,6 +103,9 @@ class PedagogicalDecision:
             evidence_sufficient=bool(data.get("evidence_sufficient", False)),
             params=dict(data.get("params") or {}),
             reason=str(data.get("reason") or ""),
+            policy_version=str(data.get("policy_version") or POLICY_VERSION),
+            reason_codes=[str(item) for item in data.get("reason_codes", []) if str(item)],
+            evidence_refs=[dict(item) for item in data.get("evidence_refs", []) if isinstance(item, dict)],
         )
 
 
@@ -159,6 +169,7 @@ __all__ = [
     "STATUS_INVALID_REQUEST",
     "STATUS_NO_BINDING",
     "STATUS_SUCCESS",
+    "POLICY_VERSION",
     "CapabilityResult",
     "PedagogicalDecision",
 ]

@@ -12,7 +12,7 @@ _CONTRACTS_DIR = Path(__file__).resolve().parents[1] / "packages" / "contracts"
 _COMMANDS = json.loads((_CONTRACTS_DIR / "client_command.json").read_text(encoding="utf-8"))
 COMMAND_TYPES: frozenset[str] = frozenset(_COMMANDS["command_types"])
 
-Surface = Literal["desktop", "cli", "pet"]
+Surface = Literal["cli"]
 
 
 class ClientCommand(BaseModel):
@@ -20,7 +20,7 @@ class ClientCommand(BaseModel):
 
     command_id: str
     client_id: str = "unknown"
-    surface: Surface = "desktop"
+    surface: Surface = "cli"
     session_id: str | None = None
     learner_id: str = "local"
     type: str
@@ -39,6 +39,7 @@ class CommandAccepted(BaseModel):
     command_id: str
     session_id: str | None
     status: str = "accepted"
+    trace_id: str | None = None
     result: dict[str, Any] | None = None
 
 
@@ -92,6 +93,11 @@ class SessionSummary(BaseModel):
     updated_at: str
     last_sequence: int
     message_count: int
+    session_mode: Literal["chat", "study"] = "study"
+    experiment_group: str = ""
+    course_id: str = ""
+    provider_profile: str = ""
+    model: str = ""
 
 
 class SessionMessageView(BaseModel):
@@ -99,6 +105,7 @@ class SessionMessageView(BaseModel):
     role: str
     content: str
     name: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ProviderSelection(BaseModel):

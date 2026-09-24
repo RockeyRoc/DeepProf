@@ -154,3 +154,16 @@ async def test_session_message_round_trip_after_turn():
     restored = store.load(session.session_id)
     assert restored is not None
     assert [m.content for m in restored.messages] == ["问题", "答复"]
+
+async def test_guarded_generation_keeps_frames_internal_but_drops_delta_events():
+    service = make_service(script=[{"content": "答案是线性表。你明白了吗？"}])
+    frames = [
+        frame async for frame in service.generate(
+            {"role": "tutor.default", "messages": []},
+            {"session_id": "guarded", "trace_id": "guarded-trace", "suppress_user_stream": True},
+        )
+    ]
+    assert "".join(str(frame.get("text") or "") for frame in frames if frame.get("type") == "delta")
+    events = service.events.replay("guarded")
+    assert EventType.MODEL_COMPLETED.value in [event.type for event in events]
+    assert EventType.MODEL_STREAM_DELTA.value not in [event.type for event in events]

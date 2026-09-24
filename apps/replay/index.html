@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DeepProf 本机回放</title>
+  <style>
+    :root { color-scheme: light; font: 15px/1.5 system-ui, sans-serif; color: #202735; background: #f4f6f8; }
+    body { max-width: 980px; margin: 36px auto; padding: 0 18px; }
+    header, .card { background: white; border: 1px solid #dce2e8; border-radius: 12px; padding: 20px; margin-bottom: 14px; }
+    h1 { margin: 0 0 6px; font-size: 24px; } p { color: #566273; }
+    form { display: flex; gap: 8px; } input { flex: 1; min-width: 120px; padding: 10px; border: 1px solid #bbc5d0; border-radius: 7px; }
+    button { padding: 10px 16px; border: 0; border-radius: 7px; background: #2458a6; color: white; cursor: pointer; }
+    .event { border-left: 3px solid #6c8fca; padding: 8px 12px; margin: 10px 0; background: #fafbfd; }
+    .event strong { color: #294c82; } .muted { color: #667386; font-size: 13px; }
+    .refs { margin: 8px 0 0; padding-left: 20px; } .error { color: #a52323; }
+    code { overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>DeepProf 本机只读回放</h1>
+    <p>按会话查看教学轨迹、策略版本、模型配置和可定位教材引用。学生正文、教材片段正文与密钥已从回放数据中剔除。</p>
+    <form id="load"><input id="session" aria-label="会话 ID" placeholder="输入 session_id" required><button>读取轨迹</button></form>
+    <p id="status" class="muted"></p>
+  </header>
+  <main id="content"></main>
+  <script>
+    const form = document.querySelector('#load');
+    const status = document.querySelector('#status');
+    const content = document.querySelector('#content');
+    const el = (tag, text, cls) => { const n = document.createElement(tag); if (text !== undefined) n.textContent = text; if (cls) n.className = cls; return n; };
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault(); content.replaceChildren(); status.textContent = '正在读取…'; status.className = 'muted';
+      const id = document.querySelector('#session').value.trim();
+      try {
+        const response = await fetch(`/replay/sessions/${encodeURIComponent(id)}`);
+        const data = await response.json(); if (!response.ok) throw new Error(data?.detail?.message || '读取失败');
+        const s = data.session;
+        const card = el('section', undefined, 'card'); card.append(el('strong', `会话 ${s.session_id}`));
+        card.append(el('p', `${s.session_mode === 'chat' ? '常规对话' : `教学会话 · 组别 ${s.experiment_group || '旧会话'}`} · 课程 ${s.course_id || '无'} · 模型 ${s.provider_profile || '未配置'} / ${s.model || '未配置'}`));
+        card.append(el('p', `策略版本 ${s.policy_version} · ${s.message_count} 条消息 · 更新于 ${s.updated_at}`)); content.append(card);
+        for (const item of data.events) {
+          const row = el('article', undefined, 'event');
+          row.append(el('strong', `${item.sequence} · ${item.type}`));
+          row.append(el('div', `trace ${item.trace_id} · ${item.timestamp}`, 'muted'));
+          const p = item.payload || {};
+          const summary = Object.entries(p).filter(([k]) => k !== 'evidence_refs').map(([k,v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ');
+          if (summary) row.append(el('div', summary));
+          if (Array.isArray(p.evidence_refs) && p.evidence_refs.length) {
+            const list = el('ul', undefined, 'refs');
+            for (const ref of p.evidence_refs) list.append(el('li', `${ref.chapter || ref.section || '教材'} · PDF第${ref.page}页 · 书内第${ref.printed_page ?? '未识别'}页 · ${ref.chunk_id || ''}`));
+            row.append(list);
+          }
+          content.append(row);
+        }
+        status.textContent = `已读取 ${data.events.length} 条脱敏事件；此页面只提供读取能力。`;
+      } catch (error) { status.textContent = error instanceof Error ? error.message : '读取失败'; status.className = 'error'; }
+    });
+  </script>
+</body>
+</html>

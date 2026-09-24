@@ -1,0 +1,28 @@
+{
+  "schema_version": "deepprof-m3-live-pilot-preflight-v1",
+  "run_id": "m3-live-20260924-071515-indexed-8e41c6d2",
+  "supersedes_preflight_run_id": "m3-live-20260924-070550-9fd760a2",
+  "recorded_at": "2026-09-24",
+  "provider_profile": "deepseek",
+  "model": "deepseek-flash",
+  "case_version": "ds-m3-live-pilot-v1",
+  "source_case_version": "ds-dev-cases-v1",
+  "sample_type": "constructed_developer_fixture",
+  "human_subjects": false,
+  "groups": {
+    "A": {"planned_cases": 12, "cases_with_retrieval_evidence": 10, "cases_insufficient_evidence": 2, "locatable_references": 50},
+    "B": {"planned_cases": 12, "cases_with_retrieval_evidence": 10, "cases_insufficient_evidence": 2, "locatable_references": 50},
+    "C": {"planned_cases": 12, "cases_with_retrieval_evidence": 10, "cases_insufficient_evidence": 2, "locatable_references": 50}
+  },
+  "planned_cells": 36,
+  "provider_cells_executed": 0,
+  "provider_calls": 0,
+  "token_usage": {"status": "not_applicable_no_provider_inference", "prompt_tokens": 0, "completion_tokens": 0},
+  "cost": {"status": "not_incurred_no_provider_inference", "estimate_usd": 0},
+  "status": "preflight_complete_inference_not_started",
+  "reason": "A review gate blocked sending local textbook retrieval passages and experiment prompts to the external DeepSeek API before explicit destination authorization.",
+  "evidence_handling": "Repository source data contains aggregate counts only; prompts, retrieved text, answers, credentials, and session data are excluded.",
+  "teacher_review": "pending",
+  "student_learning_effect": "not_measured",
+  "code_sha256": "1e5e82ee2ffd283a82e544c949dd1843bbb356e6c296aa049f75862528298dde"
+}

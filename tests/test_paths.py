@@ -25,7 +25,7 @@ def test_home_expands_tilde(monkeypatch):
 def test_ensure_layout_creates_user_data_dirs(isolated_home):
     home = paths.ensure_layout()
     assert home == isolated_home
-    for directory in (paths.logs_dir(), paths.temp_dir(), paths.plugins_dir(), paths.pets_dir()):
+    for directory in (paths.logs_dir(), paths.temp_dir(), paths.library_dir()):
         assert directory.is_dir()
 
 
@@ -33,7 +33,7 @@ def test_empty_settings_paths_resolve_under_home(isolated_home):
     settings = Settings()
     assert settings.resolved_sqlite_path == isolated_home / "sessions.sqlite"
     assert settings.resolved_vector_db_path == isolated_home / "vectors"
-    assert settings.resolved_plugin_dir == isolated_home / "plugins"
+    assert settings.resolved_library_dir == isolated_home / "library"
 
 
 def test_explicit_settings_paths_win(tmp_path):

@@ -1,13 +1,15 @@
 {
   "name": "@deepprof/cli",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
+  "description": "Local-first adaptive teaching CLI and Python Gateway Runtime",
   "type": "module",
   "bin": { "deepprof": "./dist/apps/cli/src/index.js" },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test dist/apps/cli/test/*.test.js",
+    "pack:release": "npm run test && node scripts/package-runtime.mjs",
     "start": "node dist/apps/cli/src/index.js"
   },
   "dependencies": { "@deepprof/client-sdk": "file:../../packages/client_sdk" },

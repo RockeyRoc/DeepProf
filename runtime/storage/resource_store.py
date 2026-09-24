@@ -81,7 +81,7 @@ class SqliteResourceStore:
 
     def preview(self, resource_id: str, *, limit: int = 100) -> list[dict[str, Any]]:
         rows = self._conn.execute(
-            "SELECT chunk_id, document_id, resource_id, page, ordinal, section, text "
+            "SELECT chunk_id, document_id, resource_id, page, printed_page, chapter, reliable, ordinal, section, text "
             "FROM library_chunks WHERE resource_id = ? ORDER BY page, ordinal LIMIT ?",
             (resource_id, max(1, min(limit, 1000))),
         ).fetchall()
@@ -108,6 +108,7 @@ class SqliteResourceStore:
         clauses = [
             "r.status = ?",
             "(r.visibility = 'public' OR r.owner_id = ?)",
+            "c.reliable = 1",
         ]
         params: list[Any] = [status, owner_id]
         if course_id:
@@ -139,6 +140,8 @@ class SqliteResourceStore:
                     "resource_id": row["resource_id"],
                     "course_id": row["course_id"],
                     "page": int(row["page"]),
+                    "printed_page": row["printed_page"],
+                    "chapter": row["chapter"] or row["section"] or "",
                     "ordinal": int(row["ordinal"]),
                     "section": row["section"],
                     "text": row["text"],
@@ -183,11 +186,12 @@ class SqliteResourceStore:
                 )
                 self._conn.executemany(
                     "INSERT INTO library_chunks "
-                    "(chunk_id, document_id, resource_id, page, ordinal, section, text, vector, indexed_at) "
-                    "VALUES (?,?,?,?,?,?,?,?,?)",
+                    "(chunk_id, document_id, resource_id, page, printed_page, chapter, reliable, ordinal, section, text, vector, indexed_at) "
+                    "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
                     [
                         (
                             chunk["chunk_id"], chunk["document_id"], chunk["resource_id"], chunk["page"],
+                            chunk.get("printed_page"), chunk.get("chapter", ""), int(bool(chunk.get("reliable", True))),
                             chunk["ordinal"], chunk.get("section", ""), chunk["text"],
                             json.dumps(chunk.get("vector", [])), utc_now(),
                         )

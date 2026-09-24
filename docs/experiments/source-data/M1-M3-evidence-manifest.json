@@ -1,0 +1,464 @@
+{
+  "schema_version": "deepprof-m1-m3-evidence-v1",
+  "generated_at_utc": "2026-09-24T15:06:32.598886+00:00",
+  "purpose": "Engineering validation and failure analysis; no student learning effect claim.",
+  "runs": [
+    {
+      "module": "M1 live A/B",
+      "run_id": "run_20260923T235151Z_ed03930c",
+      "run_time_utc_from_run_id": "2026-09-23T23:51:51Z",
+      "audit_generated_at": "2026-09-24T00:55:27.839325+00:00",
+      "config": {
+        "provider": "deepseek",
+        "model": "deepseek-flash",
+        "groups": [
+          "A",
+          "B"
+        ],
+        "cases": 40,
+        "course_id": [
+          "ds.c_language.v1"
+        ],
+        "policy_version": "ds-v0.6.2-m1.1",
+        "retrieval": {
+          "top_k": 5,
+          "chunk_size": 800,
+          "chunk_overlap": 120
+        },
+        "sampling": {
+          "temperature": 0.3
+        }
+      },
+      "sample_type": "constructed_developer_fixture",
+      "human_subjects": false,
+      "denominator": {
+        "planned_cells": 80,
+        "observed_cells": 80
+      },
+      "outcome": {
+        "completed": 76,
+        "failed": 4,
+        "failure_reason": "empty_model_response"
+      },
+      "code_fingerprint": {
+        "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+        "working_tree_dirty": true,
+        "working_tree_status_sha256": "81e55ef33feaea3630375c8549e82b2e3ad9eb10aaa7c763bd662251d74532f5",
+        "working_tree_diff_sha256": "e170e95b23083443ec4033bb793b41b4246ec654023f971c7d2c7f3816714af8",
+        "audit_fingerprint_available": true,
+        "source_note": "Linked to this run_id in the historical M1 snapshot and first-batch record."
+      },
+      "data_sources": [
+        "source-data/acceptance-audit.json",
+        "source-data/experiment-snapshot.json",
+        "M1-first-batch.md"
+      ],
+      "figure_ids": [
+        "F02",
+        "F05"
+      ]
+    },
+    {
+      "module": "M2 engineering acceptance",
+      "run_id": "ds-m2-offline-cases-v1@2026-09-24T05:01:14.515991+00:00",
+      "run_time_utc": "2026-09-24T05:01:14.515991+00:00",
+      "config": {
+        "runtime": "Python 3.12.14",
+        "sample_type": "constructed_developer_fixture",
+        "requires_network": false,
+        "requires_paid_model": false
+      },
+      "sample_type": "constructed_developer_fixture",
+      "human_subjects": false,
+      "denominator": {
+        "focused_cases": 82,
+        "python_regression": 309,
+        "cli_unit": 5
+      },
+      "overlap": "82 focused cases are a subset of 309 Python tests; do not add these counts.",
+      "outcome": "passed; one non-blocking dependency deprecation warning",
+      "code_fingerprint": {
+        "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+        "working_tree_dirty": true,
+        "working_tree_status_sha256": "10988f14b73e6aef85ad100c264249b60c691e8d39f6bb62124790261dea7cdd",
+        "working_tree_diff_sha256": "b20017ef71509022756b717d2458a9859b98f1d851375998148bf91e185b198c"
+      },
+      "data_sources": [
+        "docs/M2-offline-acceptance.json",
+        "docs/M2-offline-acceptance.md",
+        "source-data/m2-validation.csv"
+      ],
+      "figure_ids": [
+        "F06"
+      ]
+    },
+    {
+      "module": "M3 offline Fake Provider",
+      "run_id": "m3-offline-20260924-final6",
+      "run_time_utc": "2026-09-24T05:00:14.224087+00:00",
+      "config": {
+        "provider": "fake",
+        "model": "fake-model",
+        "sample_type": "constructed_developer_fixture",
+        "cases": 40,
+        "groups": [
+          "A",
+          "B",
+          "C"
+        ],
+        "design": {
+          "main": "40 cases x A/B/C",
+          "rag_ablation": "40 cases x C x 2 x 2",
+          "decision_replay": "same case/group in fresh isolated session"
+        }
+      },
+      "sample_type": "constructed_developer_fixture",
+      "human_subjects": false,
+      "denominator": {
+        "main": 120,
+        "replay": 120,
+        "ablation": 160,
+        "total_cells": 400,
+        "decision_completeness": 520,
+        "bkt_predictions": 120
+      },
+      "outcome": {
+        "status": "framework_passed_local_offline",
+        "action_family_match": "196/280",
+        "locatable_references": "189/189",
+        "replay_agreement": "120/120",
+        "bkt_auc": 0.29642857142857143,
+        "bkt_brier": 0.365589012333575,
+        "bkt_log_loss": 0.9361205509027085,
+        "bkt_ece": 0.5298766778278061
+      },
+      "code_fingerprint": {
+        "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+        "working_tree_dirty": true,
+        "working_tree_status_sha256": "10988f14b73e6aef85ad100c264249b60c691e8d39f6bb62124790261dea7cdd",
+        "working_tree_diff_sha256": "b20017ef71509022756b717d2458a9859b98f1d851375998148bf91e185b198c",
+        "fingerprint_excludes": [
+          "docs/M2-offline-acceptance.json",
+          "docs/M2-offline-acceptance.md",
+          "docs/experiments/figures/*",
+          "docs/experiments/m3-offline/*",
+          "docs/experiments/source-data/R-session-info.txt",
+          "docs/experiments/source-data/experiment-snapshot.json",
+          "docs/experiments/source-data/figure-data.csv",
+          "docs/experiments/source-data/figure-validation.json",
+          "docs/experiments/source-data/plot-runtime.txt",
+          "docs/experiments/图表库.docx",
+          "docs/experiments/图表库.md"
+        ]
+      },
+      "data_sources": [
+        "source-data/M3-offline-summary-redacted.json",
+        "source-data/F09-m3-offline-summary.csv"
+      ],
+      "figure_ids": [
+        "F09"
+      ]
+    },
+    {
+      "module": "M3 live model pilot",
+      "run_id": "m3-live-20260924-071515-indexed-8e41c6d2",
+      "run_time_utc": "2026-09-24T08:18:20.884356+00:00",
+      "config": {
+        "provider": {
+          "profile_id": "deepseek",
+          "model": "deepseek-flash"
+        },
+        "cases": 12,
+        "groups": [
+          "A",
+          "B",
+          "C"
+        ],
+        "max_requests": 36,
+        "actual_requests": 29,
+        "max_tokens": 512,
+        "retries": 0
+      },
+      "sample_type": "constructed_developer_fixture",
+      "human_subjects": false,
+      "denominator": {
+        "observed_cells": 36,
+        "provider_requests": 29,
+        "full_generation": 3,
+        "truncated": 26,
+        "not_generated": 7
+      },
+      "outcome": {
+        "application_terminal_completed": 26,
+        "application_terminal_failed": 10,
+        "evaluation_full_generation": 3,
+        "evaluation_truncation_failed": 26,
+        "evaluation_not_applicable": 7,
+        "completion_tokens_reported_above_limit": 1
+      },
+      "code_fingerprint": {
+        "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+        "working_tree_dirty": true,
+        "working_tree_status_sha256": "a66f04a50ec8593af0808a24966d746b0c8063fd6129d981180f8403c9b46b49",
+        "working_tree_diff_sha256": "e2221ad01875cd985c06d09a3c7298d9c92aaa230bdfd85f4e7cef43b24e862e",
+        "fingerprint_excludes": [
+          "docs/M2-offline-acceptance.json",
+          "docs/M2-offline-acceptance.md",
+          "docs/experiments/figures/*",
+          "docs/experiments/m3-offline/*",
+          "docs/experiments/source-data/R-session-info.txt",
+          "docs/experiments/source-data/experiment-snapshot.json",
+          "docs/experiments/source-data/figure-data.csv",
+          "docs/experiments/source-data/figure-validation.json",
+          "docs/experiments/source-data/plot-runtime.txt",
+          "docs/experiments/图表库.docx",
+          "docs/experiments/图表库.md"
+        ]
+      },
+      "data_sources": [
+        "source-data/m3-live-pilot-live.json",
+        "source-data/m3-live-pilot-live-cells.csv",
+        "M3-live-pilot.md"
+      ],
+      "figure_ids": [
+        "F07",
+        "F08"
+      ]
+    },
+    {
+      "module": "v0.6.2 release validation (separate from historical experiments)",
+      "run_id": "v0.6.2-release-validation-20260924",
+      "run_time_utc": "2026-09-24T14:33:48Z",
+      "config": {
+        "platform": "Windows 11 x64",
+        "node": "24.15.0",
+        "npm": "11.12.1",
+        "python_regression": "3.12.14",
+        "python_cli_runtime": "3.14.7",
+        "cli_version": "0.6.2",
+        "cli_tar_sha256": "a99fff482ca22e4db221f8e33e1df51f97f0868bdabc9a643ac5d48a82615f21",
+        "runtime_requirements_sha256": "ed9c575e574c747877b613fe1e4586f1752d328c8b15ddae37d488910fd84e32",
+        "runtime_ocr": "optional: RapidOCR and PDFium are outside the base dependency set"
+      },
+      "sample_type": "deterministic software tests and constructed engineering fixtures",
+      "human_subjects": false,
+      "denominator": {
+        "python_regression": 318,
+        "m2_focused": 82,
+        "cli_unit": 7,
+        "m3_offline_main": 120,
+        "m3_offline_replay": 120,
+        "m3_offline_ablation": 160,
+        "m3_offline_total": 400,
+        "m3_offline_bkt_predictions": 120
+      },
+      "overlap": {
+        "m2_focused_is_subset_of_python_regression": true,
+        "cli_is_separate_node_suite": true,
+        "m3_matrices_are_separate_and_sum_to_400": true,
+        "release_run_separate_from_historical_m1_m3": true
+      },
+      "outcome": {
+        "python_regression": "passed: 318/318; one non-blocking Starlette/AnyIO deprecation warning",
+        "m2_focused": "passed: 82/82; subset of the 318 Python regression items",
+        "cli_tests": "passed: 7/7",
+        "typescript_build_and_typecheck": "passed",
+        "m3_fake_provider": "passed: 120 main + 120 replay + 160 ablation = 400/400; run_id m3-offline-v0.6.2-release-20260924; constructed history; no paid model requests",
+        "npm_tar": "passed: final local tar supports npx --package, --version and --help",
+        "runtime_setup": "passed: isolated Python environment and locked direct dependencies installed; Python 3.14.7; Gateway doctor ready",
+        "requirements_hash_update": "passed: final runtime requirement fingerprint was applied and Gateway remained ready",
+        "repeat_startup": "passed: doctor reused the per-version environment; Gateway starts and exits cleanly",
+        "stale_setup_lock": "passed: expired lock owner was removed and doctor returned Gateway ready",
+        "archive_scan": "passed: 149 package entries; no test code, restricted experiment fixtures, documents, absolute local paths, or secret-like literals",
+        "ocr_boundary": "passed: RapidOCR and PDFium remain in optional requirements only",
+        "github_remote": "pending: local GitHub API TLS failed and git ls-remote did not return; remote CI and public-release npx command are not verified"
+      },
+      "code_fingerprint": {
+        "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+        "working_tree_dirty": true,
+        "working_tree_status_sha256": "984333f9b6acda26dee3259650b9f731217c0681c81c4c70406a565c2ba127b7",
+        "working_tree_diff_sha256": "1e196c5bf75414d3ff03bf15a26feefbaa838027e8c70e9740f066979e3a2a40",
+        "fingerprint_excludes": [
+          "docs/M2-offline-acceptance.json",
+          "docs/M2-offline-acceptance.md",
+          "docs/experiments/M1-M3-experimental-report.pdf",
+          "docs/experiments/M1-M3-实验报告.md",
+          "docs/experiments/figures/*",
+          "docs/experiments/m3-offline/*",
+          "docs/experiments/releases/M1-M3-SHA256SUMS.txt",
+          "docs/experiments/releases/M1-M3-evidence.zip",
+          "docs/experiments/source-data/F06-collision-audit.json",
+          "docs/experiments/source-data/F06-qa.json",
+          "docs/experiments/source-data/F09-collision-audit.json",
+          "docs/experiments/source-data/F09-m3-offline-summary.csv",
+          "docs/experiments/source-data/F09-qa.json",
+          "docs/experiments/source-data/M1-M3-evidence-manifest.json",
+          "docs/experiments/source-data/M3-offline-summary-redacted.json",
+          "docs/experiments/source-data/R-session-info.txt",
+          "docs/experiments/source-data/experiment-snapshot.json",
+          "docs/experiments/source-data/figure-data.csv",
+          "docs/experiments/source-data/figure-validation.json",
+          "docs/experiments/source-data/plot-runtime.txt",
+          "docs/experiments/source-data/v0.6.2-m2-revalidation-summary.json",
+          "docs/experiments/source-data/v0.6.2-m3-offline-summary.json",
+          "docs/experiments/source-data/v0.6.2-release-validation.json",
+          "docs/experiments/图表库.docx",
+          "docs/experiments/图表库.md"
+        ]
+      },
+      "data_sources": [
+        "source-data/v0.6.2-release-validation.json",
+        "source-data/v0.6.2-m2-revalidation-summary.json",
+        "source-data/v0.6.2-m3-offline-summary.json",
+        "source-data/F06-qa.json",
+        "source-data/F09-qa.json"
+      ],
+      "figure_ids": [
+        "F06",
+        "F09"
+      ]
+    }
+  ],
+  "figures": [
+    {
+      "id": "F01",
+      "n": 30,
+      "unit": "questions",
+      "source": "source-data/figure-data.csv; experiment-snapshot.json",
+      "boundary": "Question bank composition; not learning outcomes.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F02",
+      "n": 80,
+      "unit": "constructed A/B case cells",
+      "source": "source-data/figure-data.csv; acceptance-audit.json",
+      "boundary": "76 completed, four failures preserved; no human subjects.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F03",
+      "n": 347,
+      "unit": "PDF pages",
+      "source": "source-data/figure-data.csv; experiment-snapshot.json",
+      "boundary": "Seven page mappings manually checked; 340 pending.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F04",
+      "n": 40,
+      "unit": "constructed cases",
+      "source": "source-data/figure-data.csv; case version ds-dev-cases-v1",
+      "boundary": "Eight software scenario categories, not participants.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F05",
+      "n": "76/80 cells; 136 latency and 140 token turns",
+      "unit": "cells, ms/turn, tokens/turn",
+      "source": "source-data/turn-performance.csv; experiment-snapshot.json",
+      "boundary": "Engineering timings only; not learning effect.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F06",
+      "n": "309 Python; 82 focused subset; 5 CLI",
+      "unit": "fixed test cases",
+      "source": "source-data/m2-validation.csv; docs/M2-offline-acceptance.json",
+      "boundary": "Focused set is contained in Python total.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F07",
+      "n": 36,
+      "unit": "planned local preflight cells",
+      "source": "source-data/m3-live-pilot-preflight.csv; .json",
+      "boundary": "Historical zero-call preflight; not the later actual pilot.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F08",
+      "n": "36 cells; 29 provider requests",
+      "unit": "cells and requests",
+      "source": "source-data/m3-live-pilot-live-cells.csv; redacted aggregate JSON",
+      "boundary": "Three complete generations, 26 truncations, seven not applicable.",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ]
+    },
+    {
+      "id": "F09",
+      "formats": [
+        "PNG",
+        "SVG",
+        "PDF",
+        "TIFF"
+      ],
+      "n": "120 main + 120 replay + 160 ablation cells; BKT predictions n=120",
+      "unit": "isolated constructed case cells, decisions, references, predictions",
+      "source": "source-data/F09-m3-offline-summary.csv; M3-offline-summary-redacted.json",
+      "boundary": "Fake Provider and constructed history; not teacher ratings or student learning evidence."
+    }
+  ],
+  "publication_safety": {
+    "included": [
+      "aggregate counts",
+      "redacted per-cell outcome fields",
+      "plots",
+      "reproduction scripts"
+    ],
+    "excluded": [
+      "textbooks",
+      "answer keys",
+      "raw model output",
+      "prompts",
+      "retrieved excerpts",
+      "API credentials",
+      "trace/session/learner identifiers",
+      "absolute local paths"
+    ]
+  },
+  "figure_environment": {
+    "record": "source-data/plot-runtime.txt",
+    "backend": "R with ggplot2; patchwork for multi-panel figures; ragg, svglite, base PDF; Cairo PDF for F06",
+    "note": "Exact package versions are retained in the plot runtime record."
+  }
+}

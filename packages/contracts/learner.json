@@ -1,0 +1,40 @@
+{
+  "contract_version": "1.0.0",
+  "Attempt": {
+    "attempt_id": "string, idempotency key",
+    "learner_id": "string, sourced from Session",
+    "session_id": "string",
+    "trace_id": "string",
+    "course_id": "string",
+    "item_id": "string",
+    "scored_concept_id": "string",
+    "concept_ids": "string[]; all concepts covered by the item, retained even when BKT skips ambiguous attribution",
+    "question_bank_version": "string",
+    "correct": "boolean | null; null means manual grading pending",
+    "timestamp": "ISO-8601 string",
+    "hint_count": "integer >= 0",
+    "grading_source": "string",
+    "confidence": "number in [0, 1]"
+  },
+  "LearnerEstimate": {
+    "status": "available | insufficient_data",
+    "model_type": "bkt",
+    "model_version": "string",
+    "config_hash": "sha256 string",
+    "mastery": "number in [0, 1] | null",
+    "evidence_count": "integer",
+    "uncertainty": "binary entropy in bits | null",
+    "uncertainty_kind": "binary_entropy_bits; not a confidence interval | null",
+    "updated_at": "ISO-8601 string | null",
+    "parameter_status": "string"
+  },
+  "BKTDevelopmentParameters": {
+    "p_l0": 0.2,
+    "p_t": 0.1,
+    "p_g": 0.2,
+    "p_s": 0.1,
+    "fitted": false,
+    "teacher_review": "pending"
+  },
+  "minimum_evidence": 3
+}

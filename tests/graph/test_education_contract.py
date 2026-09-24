@@ -97,7 +97,7 @@ def test_composition_root_registers_bindings_skills_and_tools():
     health = service.health()
 
     assert health["bindings"] == ACTION_CAPABILITIES
-    assert {"socratic", "rag", "quiz", "diagnosis", "paper_reader"} <= set(health["skills"])
+    assert set(health["skills"]) == {"socratic", "rag", "quiz", "markitdown"}
     assert "search_textbook" in health["tools"]
 
 

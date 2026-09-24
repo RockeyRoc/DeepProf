@@ -1,0 +1,110 @@
+{
+  "figure_id": "F06",
+  "title": "M2 自动化验收结果",
+  "review_status": "needs_review",
+  "claim_scope": "固定开发测试项的通过数，不是学生或学习效果数据",
+  "data_source": {
+    "file": "m2-validation.csv",
+    "sha256": "f2d864a1411171ff78e45be26aad0473181dfce25a207fbd533ed063123d9538",
+    "rows": 3,
+    "interpretation": "Frozen M2 acceptance record: focused 82 items are included in the 309 Python regression items; the 5 CLI tests are a separate Node.js suite. Release-validation results are recorded separately."
+  },
+  "generator": {
+    "file": "../generate_m2_charts.R",
+    "sha256": "b6d72d4d3c70c571c8425c48d33c74594c8806949b57d37cd632afb843c49cd8",
+    "backend": "R / ggplot2",
+    "runtime": "R version 4.6.1 (2026-06-24 ucrt)",
+    "packages": {
+      "ggplot2": "4.0.3",
+      "svglite": "2.2.2",
+      "ragg": "1.5.2",
+      "scales": "1.4.0"
+    },
+    "locale_warnings": "Windows R startup emitted four non-fatal warnings because C.UTF-8 could not be set for LC_COLLATE, LC_CTYPE, LC_MONETARY, and LC_TIME."
+  },
+  "checks": {
+    "r_parse": "passed",
+    "source_preflight": {
+      "ready": true,
+      "pass": 19,
+      "warn": 2,
+      "fail": 0,
+      "notes": [
+        "Static preflight retains its basic-syntax warning; actual R parse(file=...) succeeded.",
+        "No journal-specific output width is configured because F06 is an internal experiment report."
+      ]
+    },
+    "png_visual_review": {
+      "status": "passed",
+      "findings": "Final-size PNG labels, bars and margins show no visible clipping or overlap.",
+      "dimensions_px": [
+        3279,
+        1440
+      ],
+      "dpi": 400
+    },
+    "pdf_text_audit": {
+      "status": "needs_review",
+      "tool_minimum_pt": 1.0,
+      "minimum_required_pt": 5.0,
+      "text_run_count": 16,
+      "pymupdf_text_span_count": 14,
+      "pymupdf_text_span_size_range_pt": [
+        8.82,
+        13.0
+      ],
+      "notes": "Generic content-stream scan sees Cairo text at 1 pt. PyMuPDF spans show 8.82–13 pt and all 14 spans remain inside the page; trace bounds are expanded for transformed glyphs. The generic audit discrepancy is retained for review."
+    },
+    "pdf_collision_audit": {
+      "status": "needs_review",
+      "fail": 7,
+      "warn": 1,
+      "raw_report": "F06-collision-audit.json",
+      "notes": "Cairo trace geometry expands text boxes, producing 7 FAIL and 1 WARN despite clean full-size PNG review. The scanner report is preserved and not marked passed."
+    }
+  },
+  "outputs": {
+    "png": {
+      "file": "../figures/F06-m2-validation.png",
+      "sha256": "02bcd83446aad8897cf474c4f366ec1db777c846e971a0199fa027c6f923a22e",
+      "bytes": 149422,
+      "dpi": 400,
+      "dimensions_px": [
+        3279,
+        1440
+      ]
+    },
+    "svg": {
+      "file": "../figures/F06-m2-validation.svg",
+      "sha256": "7e43f36bbe726fabd56383546bfcc0f0021fa144dd4a8aac14c0ba9bcbbb07b7",
+      "bytes": 4533,
+      "text_elements": 14
+    },
+    "pdf": {
+      "file": "../figures/F06-m2-validation.pdf",
+      "sha256": "b4df8aae1cc088a5da9adc7f147a8029b81f46407e2e7026047da9c4f89082c6",
+      "bytes": 39962,
+      "text_span_count": 14,
+      "text_size_range_pt": [
+        8.82,
+        13.0
+      ]
+    },
+    "tiff": {
+      "file": "../figures/F06-m2-validation.tiff",
+      "sha256": "8662b93396a740e56dda6443e25199724fe4e973667755b72a11565835695931",
+      "bytes": 257206,
+      "dpi": 600,
+      "compression": "LZW",
+      "dimensions_px": [
+        4920,
+        2160
+      ]
+    }
+  },
+  "limitations": [
+    "The plotted M2 results are the frozen 82/309/5 engineering acceptance record; current v0.6.2 release regressions are reported as a separate run.",
+    "Focused tests are included in the Python regression count and must not be added to it.",
+    "Cairo PDF content-stream text and collision scans disagree with extracted visible text bounds and the visual render; the generic collision result remains needs_review."
+  ]
+}

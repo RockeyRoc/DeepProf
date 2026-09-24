@@ -1,0 +1,71 @@
+{
+  "figure_id": "F07",
+  "title": "M3 真实模型试点预检",
+  "review_status": "needs_review",
+  "claim_scope": "本地检索预检覆盖及 Provider 推理启动状态；不表示模型表现",
+  "data_source": {
+    "file": "m3-live-pilot-preflight.csv",
+    "sha256": "666bb92c5f5d8c05ef38bdcdd89470ab2dff7f581f177ef595252db813ac29b2",
+    "rows": 3,
+    "interpretation": "A/B/C 每组各 12 个构造开发案例；每组 10 个案例有可定位检索结果，2 个被标记为证据不足。每组定位结果计数 50。模型推理执行 0 格、调用 0 次。"
+  },
+  "generator": {
+    "file": "../generate_m3_live_pilot.R",
+    "sha256": "07a47dd8c8a6f3ee4f337aa50684a839c75e3e3327d7a46e163e0f5dc3b5b8c1",
+    "backend": "R / ggplot2",
+    "runtime": "R version 4.6.1 (2026-06-24 ucrt)",
+    "packages": {"ggplot2": "4.0.3", "svglite": "2.2.2", "ragg": "1.5.2"},
+    "locale_warnings": "Windows R emitted four non-fatal warnings because C.UTF-8 could not be set for LC_COLLATE, LC_CTYPE, LC_MONETARY, and LC_TIME."
+  },
+  "checks": {
+    "r_parse": "passed",
+    "source_preflight": {
+      "ready": true,
+      "pass": 19,
+      "warn": 2,
+      "fail": 0,
+      "notes": [
+        "Static preflight retains its basic-syntax warning; R parse(file=...) passed.",
+        "Static width recognition warned; source configures 183 mm width. No journal-specific size contract was requested."
+      ]
+    },
+    "single_panel_alignment": {
+      "status": "not_applicable",
+      "notes": "F07 is one ggplot panel; there is no between-panel alignment comparison."
+    },
+    "png_visual_review": {
+      "status": "passed",
+      "dimensions_px": [2881, 1811],
+      "dpi": 400,
+      "findings": "The final PNG was inspected at full resolution. Chinese text, group labels, bar counts, zero-execution markers, and the wrapped caption are legible without visible clipping or overlap."
+    },
+    "pdf_text_audit": {
+      "status": "needs_review",
+      "tool_minimum_pt": 1.0,
+      "minimum_required_pt": 5.0,
+      "text_run_count": 38,
+      "pymupdf_text_span_count": 28,
+      "pymupdf_text_span_size_range_pt": [8.5, 15.0],
+      "notes": "The generic audit reports Cairo PDF text at 1 pt; PyMuPDF text spans report 8.5–15 pt. Cairo's text matrix and CJK subset extraction are not represented reliably by the generic scanner, so this remains review-only rather than an automatic pass."
+    },
+    "pdf_collision_audit": {
+      "status": "needs_review",
+      "fail": 15,
+      "warn": 2,
+      "raw_report": "../figures/F07-m3-live-pilot-preflight.collision-audit.json",
+      "notes": "The scanner flags Cairo text-trace boxes crossing bar edges and overlapping neighboring ticks. Full-resolution PNG inspection shows no corresponding visual collision; retain the PDF findings unresolved pending a Cairo-aware checker."
+    }
+  },
+  "outputs": {
+    "png": {"file": "../figures/F07-m3-live-pilot-preflight.png", "sha256": "ef53b3c7af060e05e16c7acb59163aa69ea6ebab7a9a2453192606b289ee8a77", "bytes": 264435, "dpi": 400},
+    "svg": {"file": "../figures/F07-m3-live-pilot-preflight.svg", "sha256": "5eb7366bc7128f9f00d9a4d8ddb8bff8a364b7842e456a5de31750180971e05a", "bytes": 9277, "text_elements": 28},
+    "pdf": {"file": "../figures/F07-m3-live-pilot-preflight.pdf", "sha256": "e101ec12c9eea3696ae575529ad3869ca8f9b11a9d8a5119cb4a1bf7a1a06ee4", "bytes": 37589, "physical_size_mm": [183, 115]},
+    "tiff": {"file": "../figures/F07-m3-live-pilot-preflight.tiff", "sha256": "8f57142d30d11027a758c3f73fa949575f46ce54499da4df0c8e2a1f5924f558", "bytes": 470538, "dpi": 600, "compression": "LZW"}
+  },
+  "limitations": [
+    "The source cases are constructed developer fixtures, not human or teacher-labeled data.",
+    "No external Provider inference or model charge occurred.",
+    "Teacher review is pending and student learning effect is not measured.",
+    "PDF text-size and collision audits remain unresolved for Cairo text transforms despite clean PNG visual inspection."
+  ]
+}

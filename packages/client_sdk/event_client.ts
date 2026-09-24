@@ -6,7 +6,8 @@ const EVENT_TYPES = [
   "model.requested", "model.stream.delta", "model.completed", "model.failed",
   "tool.requested", "tool.approved", "tool.started", "tool.completed", "tool.failed",
   "memory.read", "memory.write", "pedagogy.node.entered", "pedagogy.decision",
-  "pedagogy.node.exited", "pedagogy.attempt", "quiz.completed", "insufficient_evidence",
+  "pedagogy.node.exited",
+  "teaching.decision", "teaching.turn.completed", "conversation.turn.completed", "quiz.issued", "quiz.scored",
 ];
 
 export interface EventClientOptions {
@@ -21,6 +22,7 @@ export class EventClient {
   private controller: AbortController | null = null;
   private readonly cursors = new Map<string, number>();
   private activeSession = "";
+  private activeTraceId = "";
   private closed = true;
 
   constructor(private readonly options: EventClientOptions) {}
@@ -29,10 +31,11 @@ export class EventClient {
     return this.activeSession ? (this.cursors.get(this.activeSession) || 0) : 0;
   }
 
-  connect(sessionId: string, fromSequence?: number): void {
+  connect(sessionId: string, fromSequence?: number, traceId?: string): void {
     this.close();
     this.closed = false;
     this.activeSession = sessionId;
+    this.activeTraceId = traceId || "";
     if (fromSequence !== undefined) {
       this.cursors.set(sessionId, Math.max(this.cursors.get(sessionId) || 0, fromSequence));
     }
@@ -50,6 +53,7 @@ export class EventClient {
       const cursor = this.cursors.get(event.session_id) || 0;
       if (event.sequence <= cursor) return;
       this.cursors.set(event.session_id, event.sequence);
+      if (this.activeTraceId && event.trace_id !== this.activeTraceId) return;
       this.options.onEvent(event);
     } catch (error) {
       this.options.onError?.(error instanceof Error ? error : new Error("invalid_event"));

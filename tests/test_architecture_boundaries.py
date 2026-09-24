@@ -100,6 +100,16 @@ def test_runtime_has_no_pedagogical_action_string_constants():
     offenders: list[str] = []
     for path in python_files("runtime"):
         for lineno, value in string_constants(path):
+            # The SQLite schema is static data, not a Runtime action constant.
+            # In particular, the attempts table has a `hint_count` column;
+            # scanning that DDL as executable vocabulary creates a false hit.
+            if path.name == "migrations.py" and value.lstrip().startswith("PRAGMA journal_mode=WAL;"):
+                continue
+            # Static SQLite DDL and its column-copy list are data, not Runtime actions.
+            if path.name == "migrations.py" and (
+                "CREATE TABLE attempts_m2" in value or value.startswith("attempt_id,learner_id,session_id")
+            ):
+                continue
             lowered = value.lower()
             for word, pattern in _ACTION_WORD_PATTERNS.items():
                 if pattern.search(lowered):
@@ -149,7 +159,7 @@ def test_narrow_port_surface_is_frozen():
         if not name.startswith("_") and callable(getattr(RuntimeHost, name, None))
     }
     assert NARROW_PORT_METHODS <= wide
-    assert {"invoke_skill", "call_tool", "generate", "read_memory", "write_memory"} <= wide
+    assert {"invoke_skill", "call_tool", "generate"} <= wide
 
 
 def test_port_methods_are_async_where_contract_requires():
@@ -173,7 +183,7 @@ def test_execute_signature_uses_plain_dicts():
 
 # ---- 守卫 4：图侧只能依赖窄面（graph/ 由 MVP-2 提供，此处自检检测能力） ----
 
-WIDE_SURFACE_ATTRIBUTES = ("invoke_skill", "call_tool", "generate", "read_memory", "write_memory")
+WIDE_SURFACE_ATTRIBUTES = ("invoke_skill", "call_tool", "generate")
 
 
 def graph_wide_surface_accesses(path: Path) -> list[tuple[int, str]]:
@@ -292,13 +302,5 @@ def test_product_code_does_not_import_pi():
     assert not offenders, "产品代码依赖了 Pi：" + "; ".join(offenders)
 
 
-def test_pi_adapter_lives_only_in_integrations():
-    assert (ROOT / "integrations" / "pi" / "rpc_client.py").exists()
-    assert (ROOT / "integrations" / "pi" / "event_adapter.py").exists()
-
-
-def test_pi_events_are_marked_developer_only():
-    from integrations.pi.event_adapter import adapt_event, is_developer_only_event
-
-    event = adapt_event({"event": "message.delta", "payload": {"delta": "x"}})
-    assert is_developer_only_event(event)
+def test_removed_pi_adapter_is_absent():
+    assert not (ROOT / "integrations" / "pi").exists()

@@ -7,7 +7,7 @@
     "type": "textbook | lecture | paper | quiz_bank | student_upload",
     "title": "string",
     "tags": "array[string]",
-    "source_type": "import | upload | crawl",
+    "source_type": "import | upload",
     "source_url": "string",
     "license": "string",
     "hash": "string, SHA-256",

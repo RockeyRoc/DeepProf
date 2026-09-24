@@ -111,8 +111,13 @@ def _parse_pdf(data: bytes) -> ParsedDocument:
             if not decrypted:
                 raise LibraryError("PDF 受密码保护，无法导入", kind="encrypted_document")
         pages = []
+        active_chapter = ""
         for number, page in enumerate(reader.pages, start=1):
-            pages.append(DocumentPage(number, str(page.extract_text() or ""), ""))
+            text = str(page.extract_text() or "")
+            chapter = _chapter_heading(text)
+            if chapter:
+                active_chapter = chapter
+            pages.append(DocumentPage(number, text, active_chapter, _printed_page(text), active_chapter, _text_reliable(text)))
         return ParsedDocument(pages, "application/pdf")
     except ImportError:
         pass
@@ -129,10 +134,14 @@ def _parse_pdf(data: bytes) -> ParsedDocument:
         document = fitz.open(stream=data, filetype="pdf")
         if getattr(document, "needs_pass", False):
             raise LibraryError("PDF 受密码保护，无法导入", kind="encrypted_document")
-        pages = [
-            DocumentPage(number, page.get_text("text") or "", "")
-            for number, page in enumerate(document, start=1)
-        ]
+        pages = []
+        active_chapter = ""
+        for number, page in enumerate(document, start=1):
+            text = page.get_text("text") or ""
+            chapter = _chapter_heading(text)
+            if chapter:
+                active_chapter = chapter
+            pages.append(DocumentPage(number, text, active_chapter, _printed_page(text), active_chapter, _text_reliable(text)))
         document.close()
         return ParsedDocument(pages, "application/pdf")
     except LibraryError:
@@ -141,6 +150,41 @@ def _parse_pdf(data: bytes) -> ParsedDocument:
         raise LibraryError("PDF 解析器未安装", kind="parser_unavailable", format="pdf") from exc
     except Exception as exc:
         raise LibraryError("PDF 解析失败", kind="parse_failed", error=str(exc)) from exc
+
+
+def _printed_page(text: str) -> int | None:
+    """Use an explicitly extracted footer number; never infer a global PDF offset."""
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    for line in reversed(lines[-5:]):
+        match = re.fullmatch(r"(?:第\s*)?(\d{1,3})(?:\s*页)?", line)
+        if match:
+            value = int(match.group(1))
+            return value if value > 0 else None
+    return None
+
+
+def _chapter_heading(text: str) -> str:
+    for line in str(text or "").splitlines():
+        candidate = " ".join(line.split())
+        if len(candidate) > 40 or any(mark in candidate for mark in ("……", "...", "·", "，", ",", "。", "；", ";", "、")):
+            continue
+        match = re.match(r"^第\s*[一二三四五六七八九十百\d]+\s*章\s*(.+)$", candidate)
+        if match and match.group(1).strip() not in {"页", "章页"}:
+            return candidate
+    return ""
+
+
+def _text_reliable(text: str) -> bool:
+    content = str(text or "")
+    if not content.strip():
+        return False
+    if any(char in content for char in ("\ufffd", "\x00", "□", "■")):
+        return False
+    if any(0xE000 <= ord(char) <= 0xF8FF for char in content):
+        return False
+    if any(ord(char) < 32 and char not in "\n\r\t" for char in content):
+        return False
+    return True
 
 
 def _parse_docx(data: bytes) -> list[DocumentPage]:

@@ -1,0 +1,60 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='518.40pt' height='266.40pt' viewBox='0 0 518.40 266.40'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1MTguNDB8MC4wMHwyNjYuNDA='>
+    <rect x='0.00' y='0.00' width='518.40' height='266.40' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1MTguNDB8MC4wMHwyNjYuNDA=)'>
+<rect x='0.00' y='0.00' width='518.40' height='266.40' style='stroke-width: 1.07; stroke: none; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpNDEuOTB8NTAwLjQ3fDQzLjI5fDIwMy45OA=='>
+    <rect x='41.90' y='43.29' width='458.57' height='160.69' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNDEuOTB8NTAwLjQ3fDQzLjI5fDIwMy45OA==)'>
+<polyline points='166.96,203.98 166.96,43.29 ' style='stroke-width: 1.07; stroke: #EBEBEB; stroke-linecap: butt;' />
+<polyline points='375.40,203.98 375.40,43.29 ' style='stroke-width: 1.07; stroke: #EBEBEB; stroke-linecap: butt;' />
+<rect x='114.85' y='200.91' width='104.22' height='3.06' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #477A66;' />
+<rect x='323.29' y='55.19' width='104.22' height='148.78' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #D5DADF;' />
+<text x='375.40' y='133.05' text-anchor='middle' style='font-size: 9.67px; font-weight: bold;fill: #34424A; font-family: "Arial";' textLength='47.83px' lengthAdjust='spacingAndGlyphs'>340 页待核</text>
+<text x='166.96' y='198.38' text-anchor='middle' style='font-size: 8.82px; font-weight: bold;fill: #34424A; font-family: "Arial";' textLength='45.06px' lengthAdjust='spacingAndGlyphs'>已核验 7 页</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1MTguNDB8MC4wMHwyNjYuNDA=)'>
+<text x='36.97' y='207.20' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='5.00px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='36.97' y='163.44' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>100</text>
+<text x='36.97' y='119.68' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>200</text>
+<text x='36.97' y='75.92' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>300</text>
+<text x='166.96' y='215.35' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='29.00px' lengthAdjust='spacingAndGlyphs'>verified</text>
+<text x='375.40' y='215.35' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='32.00px' lengthAdjust='spacingAndGlyphs'>pending</text>
+<text transform='translate(17.13,123.63) rotate(-90)' text-anchor='middle' style='font-size: 10.00px;fill: #34424A; font-family: "Arial";' textLength='42.78px' lengthAdjust='spacingAndGlyphs'>PDF 页数</text>
+<rect x='210.18' y='234.17' width='16.29' height='16.29' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #477A66;' />
+<rect x='283.42' y='234.17' width='16.29' height='16.29' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #D5DADF;' />
+<text x='232.44' y='245.54' style='font-size: 9.00px; font-family: "Arial";' textLength='45.00px' lengthAdjust='spacingAndGlyphs'>已人工核对</text>
+<text x='305.68' y='245.54' style='font-size: 9.00px; font-family: "Arial";' textLength='27.00px' lengthAdjust='spacingAndGlyphs'>待核验</text>
+<text x='41.90' y='35.92' style='font-size: 9.00px;fill: #5D6870; font-family: "Arial";' textLength='153.50px' lengthAdjust='spacingAndGlyphs'>已核验 7/347 页；未使用统一页码偏移</text>
+<text x='41.90' y='21.26' style='font-size: 13.00px; font-weight: bold;fill: #243746; font-family: "Arial";' textLength='104.00px' lengthAdjust='spacingAndGlyphs'>配套教材页码核验</text>
+</g>
+</g>
+</svg>

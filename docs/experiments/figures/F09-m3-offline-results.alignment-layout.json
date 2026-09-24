@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "backend": "r-patchwork",
+  "figure": {
+    "width_pt": 518.740157480315,
+    "height_pt": 402.51968503937
+  },
+  "panels": [
+    {
+      "id": "a",
+      "bbox_pt": [62.69116375, 226.501565190584, 232.491785615158, 327.257752910464],
+      "grid_id": "patchwork-grid-1",
+      "row_start": 12,
+      "row_stop": 13,
+      "col_start": 8,
+      "col_stop": 9
+    },
+    {
+      "id": "b",
+      "bbox_pt": [333.939535615157, 226.501565190584, 503.740157480315, 327.257752910464],
+      "grid_id": "patchwork-grid-1",
+      "row_start": 12,
+      "row_stop": 13,
+      "col_start": 23,
+      "col_stop": 24
+    },
+    {
+      "id": "c",
+      "bbox_pt": [62.69116375, 52.4196274707032, 232.491785615158, 153.175815190583],
+      "grid_id": "patchwork-grid-1",
+      "row_start": 30,
+      "row_stop": 31,
+      "col_start": 8,
+      "col_stop": 9
+    },
+    {
+      "id": "d",
+      "bbox_pt": [333.939535615157, 52.4196274707032, 503.740157480315, 153.175815190583],
+      "grid_id": "patchwork-grid-1",
+      "row_start": 30,
+      "row_stop": 31,
+      "col_start": 23,
+      "col_stop": 24
+    }
+  ],
+  "exemptions": [],
+  "row_groups": [
+    ["a", "b"],
+    ["c", "d"]
+  ],
+  "column_groups": [
+    ["a", "c"],
+    ["b", "d"]
+  ]
+}

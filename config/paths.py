@@ -29,10 +29,6 @@ def providers_file() -> Path:
     return deepprof_home() / "providers.json"
 
 
-def voice_file() -> Path:
-    return deepprof_home() / "voice.json"
-
-
 def sessions_db() -> Path:
     return deepprof_home() / "sessions.sqlite"
 
@@ -45,16 +41,25 @@ def vector_db_dir() -> Path:
     return deepprof_home() / "vectors"
 
 
-def plugins_dir() -> Path:
-    return deepprof_home() / "plugins"
-
-
-def pets_dir() -> Path:
-    return deepprof_home() / "pets"
-
-
 def library_dir() -> Path:
     return deepprof_home() / "library"
+
+
+def course_data_dir() -> Path:
+    return deepprof_home() / "course"
+
+
+def question_bank_file() -> Path:
+    configured = os.environ.get("DEEPPROF_QUESTION_BANK_PATH")
+    return expand(configured) if configured else course_data_dir() / "question_bank.json"
+
+
+def experiment_runs_dir() -> Path:
+    return deepprof_home() / "experiments" / "runs"
+
+
+def experiment_feedback_file() -> Path:
+    return deepprof_home() / "experiments" / "feedback.jsonl"
 
 
 def logs_dir() -> Path:
@@ -77,6 +82,6 @@ def expand(path: str | os.PathLike[str]) -> Path:
 def ensure_layout() -> Path:
     """创建用户数据根及必需子目录，返回数据根。"""
     home = deepprof_home()
-    for directory in (home, logs_dir(), temp_dir(), plugins_dir(), pets_dir(), library_dir()):
+    for directory in (home, logs_dir(), temp_dir(), library_dir(), course_data_dir(), experiment_runs_dir()):
         directory.mkdir(parents=True, exist_ok=True)
     return home

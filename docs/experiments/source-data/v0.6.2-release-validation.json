@@ -1,0 +1,92 @@
+{
+  "schema_version": "deepprof-release-validation-v1",
+  "run_id": "v0.6.2-release-validation-20260924",
+  "generated_at_utc": "2026-09-24T14:33:48Z",
+  "status": "passed_local_remote_ci_pending",
+  "sample_type": "deterministic software tests and constructed engineering fixtures",
+  "human_subjects": false,
+  "paid_model_requests": 0,
+  "environment": {
+    "platform": "Windows 11 x64",
+    "node": "24.15.0",
+    "npm": "11.12.1",
+    "python_regression": "3.12.14",
+    "python_cli_runtime": "3.14.7",
+    "cli_version": "0.6.2",
+    "cli_tar_sha256": "a99fff482ca22e4db221f8e33e1df51f97f0868bdabc9a643ac5d48a82615f21",
+    "runtime_requirements_sha256": "ed9c575e574c747877b613fe1e4586f1752d328c8b15ddae37d488910fd84e32",
+    "runtime_ocr": "optional: RapidOCR and PDFium are outside the base dependency set"
+  },
+  "denominators": {
+    "python_regression": 318,
+    "m2_focused": 82,
+    "cli_unit": 7,
+    "m3_offline_main": 120,
+    "m3_offline_replay": 120,
+    "m3_offline_ablation": 160,
+    "m3_offline_total": 400,
+    "m3_offline_bkt_predictions": 120
+  },
+  "overlap": {
+    "m2_focused_is_subset_of_python_regression": true,
+    "cli_is_separate_node_suite": true,
+    "m3_matrices_are_separate_and_sum_to_400": true,
+    "release_run_separate_from_historical_m1_m3": true
+  },
+  "checks": {
+    "python_regression": "passed: 318/318; one non-blocking Starlette/AnyIO deprecation warning",
+    "m2_focused": "passed: 82/82; subset of the 318 Python regression items",
+    "cli_tests": "passed: 7/7",
+    "typescript_build_and_typecheck": "passed",
+    "m3_fake_provider": "passed: 120 main + 120 replay + 160 ablation = 400/400; run_id m3-offline-v0.6.2-release-20260924; constructed history; no paid model requests",
+    "npm_tar": "passed: final local tar supports npx --package, --version and --help",
+    "runtime_setup": "passed: isolated Python environment and locked direct dependencies installed; Python 3.14.7; Gateway doctor ready",
+    "requirements_hash_update": "passed: final runtime requirement fingerprint was applied and Gateway remained ready",
+    "repeat_startup": "passed: doctor reused the per-version environment; Gateway starts and exits cleanly",
+    "stale_setup_lock": "passed: expired lock owner was removed and doctor returned Gateway ready",
+    "archive_scan": "passed: 149 package entries; no test code, restricted experiment fixtures, documents, absolute local paths, or secret-like literals",
+    "ocr_boundary": "passed: RapidOCR and PDFium remain in optional requirements only",
+    "github_remote": "pending: local GitHub API TLS failed and git ls-remote did not return; remote CI and public-release npx command are not verified"
+  },
+  "data_sources": [
+    "source-data/v0.6.2-release-validation.json",
+    "source-data/v0.6.2-m2-revalidation-summary.json",
+    "source-data/v0.6.2-m3-offline-summary.json",
+    "source-data/M3-offline-summary-redacted.json",
+    "source-data/F06-qa.json",
+    "source-data/F09-qa.json"
+  ],
+  "code_fingerprint": {
+    "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+    "working_tree_dirty": true,
+    "working_tree_status_sha256": "984333f9b6acda26dee3259650b9f731217c0681c81c4c70406a565c2ba127b7",
+    "working_tree_diff_sha256": "1e196c5bf75414d3ff03bf15a26feefbaa838027e8c70e9740f066979e3a2a40",
+    "fingerprint_excludes": [
+      "docs/M2-offline-acceptance.json",
+      "docs/M2-offline-acceptance.md",
+      "docs/experiments/M1-M3-experimental-report.pdf",
+      "docs/experiments/M1-M3-实验报告.md",
+      "docs/experiments/figures/*",
+      "docs/experiments/m3-offline/*",
+      "docs/experiments/releases/M1-M3-SHA256SUMS.txt",
+      "docs/experiments/releases/M1-M3-evidence.zip",
+      "docs/experiments/source-data/F06-collision-audit.json",
+      "docs/experiments/source-data/F06-qa.json",
+      "docs/experiments/source-data/F09-collision-audit.json",
+      "docs/experiments/source-data/F09-m3-offline-summary.csv",
+      "docs/experiments/source-data/F09-qa.json",
+      "docs/experiments/source-data/M1-M3-evidence-manifest.json",
+      "docs/experiments/source-data/M3-offline-summary-redacted.json",
+      "docs/experiments/source-data/R-session-info.txt",
+      "docs/experiments/source-data/experiment-snapshot.json",
+      "docs/experiments/source-data/figure-data.csv",
+      "docs/experiments/source-data/figure-validation.json",
+      "docs/experiments/source-data/plot-runtime.txt",
+      "docs/experiments/source-data/v0.6.2-m2-revalidation-summary.json",
+      "docs/experiments/source-data/v0.6.2-m3-offline-summary.json",
+      "docs/experiments/source-data/v0.6.2-release-validation.json",
+      "docs/experiments/图表库.docx",
+      "docs/experiments/图表库.md"
+    ]
+  }
+}

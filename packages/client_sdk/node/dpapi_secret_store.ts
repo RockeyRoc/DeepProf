@@ -15,15 +15,24 @@ function dataHome(): string {
 
 function protect(value: string, decrypt = false): string {
   if (process.platform !== "win32") throw new Error("dpapi_unavailable");
+  // Windows PowerShell 5.1 does not load the ProtectedData assembly by
+  // default. STA keeps the operation on a normal single-threaded user context.
   const script = decrypt
-    ? "$raw=[Console]::In.ReadToEnd();$bytes=[Convert]::FromBase64String($raw);$plain=[Security.Cryptography.ProtectedData]::Unprotect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))"
-    : "$raw=[Console]::In.ReadToEnd();$bytes=[Text.Encoding]::UTF8.GetBytes($raw);$protected=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($protected))";
-  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
+    ? "Add-Type -AssemblyName System.Security;$raw=[Console]::In.ReadToEnd();$bytes=[Convert]::FromBase64String($raw);$plain=[Security.Cryptography.ProtectedData]::Unprotect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Text.Encoding]::UTF8.GetString($plain))"
+    : "Add-Type -AssemblyName System.Security;$raw=[Console]::In.ReadToEnd();$bytes=[Text.Encoding]::UTF8.GetBytes($raw);$protected=[Security.Cryptography.ProtectedData]::Protect($bytes,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);[Console]::Out.Write([Convert]::ToBase64String($protected))";
+  const result = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-STA", "-Command", script], {
     input: value,
     encoding: "utf8",
     windowsHide: true,
   });
-  if (result.status !== 0 || !result.stdout) throw new Error("dpapi_operation_failed");
+  if (result.status !== 0 || !result.stdout) {
+    const diagnostic = `${result.stderr || ""}\n${result.stdout || ""}`.toLowerCase();
+    if (diagnostic.includes("user profile") || diagnostic.includes("profile loaded")
+      || diagnostic.includes("cryptographicexception") || diagnostic.includes("protecteddata")) {
+      throw new Error("dpapi_user_profile_unavailable; run deepprof from a normal Windows user session");
+    }
+    throw new Error("dpapi_operation_failed");
+  }
   return result.stdout.trim();
 }
 

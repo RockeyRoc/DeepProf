@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: apps/cli/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -o addopts= -q
+      - name: Verify M3 without paid model calls
+        run: python -m evaluation.m3_acceptance --run-id "m3-release-${{ github.run_id }}-${{ github.run_attempt }}" --output-dir "${{ runner.temp }}/deepprof-m3-release"
+      - run: npm ci --prefix apps/cli
+      - run: npm run typecheck --prefix apps/cli
+      - run: npm run pack:release --prefix apps/cli
+      - name: Verify the committed research assets
+        run: |
+          test -s docs/experiments/M1-M3-experimental-report.pdf
+          test -s docs/experiments/M1-M3-实验报告.md
+          test -s docs/experiments/releases/M1-M3-evidence.zip
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+          .release/deepprof-cli-0.6.2.tgz \
+            .release/deepprof-cli-0.6.2.sha256 \
+            .release/DEEPPROF-v0.6.2-SHA256SUMS.txt \
+            docs/experiments/releases/M1-M3-SHA256SUMS.txt \
+            docs/experiments/M1-M3-experimental-report.pdf \
+            docs/experiments/M1-M3-实验报告.md \
+            docs/experiments/releases/M1-M3-evidence.zip \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "DeepProf $GITHUB_REF_NAME — M1–M3 experiment report" \
+            --notes-file .github/RELEASE_NOTES.md
+      - name: Smoke test the published npx package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npm exec --yes --package="https://github.com/RockeyRoc/DeepProf/releases/download/$GITHUB_REF_NAME/deepprof-cli-0.6.2.tgz" -- deepprof --version

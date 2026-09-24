@@ -13,8 +13,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+import asyncio
 
-from api import events, health, library as library_api, providers, sessions
+from api import courses, events, health, library as library_api, providers, replay, sessions
 from config.settings import Settings
 from graph.education.bindings import ACTION_BINDINGS
 from library.service import ResourceLibrary
@@ -22,8 +23,14 @@ from runtime.assembly import build_runtime_service
 from runtime.core.errors import RuntimeFailure
 from runtime.service import RuntimeService
 from runtime.storage.resource_store import SqliteResourceStore
+from runtime.storage.command_store import SqliteCommandStore
+from runtime.tools.base import FunctionTool
 from skills import register_default_skills
 from tools.retrieval import build_search_textbook_tool
+from evaluation.quiz_service import QuizService
+from models.learner.store import SqliteLearnerStore
+from library.markitdown_converter import convert_local as convert_markitdown
+from starlette.concurrency import run_in_threadpool
 
 __all__ = ["app", "create_app", "build_service_with_bindings"]
 
@@ -32,14 +39,10 @@ _ERROR_STATUS = {
     "session_not_found": 404,
     "tool_not_found": 404,
     "skill_not_found": 404,
-    "plugin_not_found": 404,
     "sandbox_denied": 403,
     "approval_required": 409,
     "invalid_arguments": 422,
     "invalid_memory_record": 422,
-    "domain_denied": 403,
-    "tos_not_confirmed": 403,
-    "robots_denied": 403,
     "resource_not_found": 404,
     "resource_forbidden": 403,
     "file_not_found": 404,
@@ -67,6 +70,7 @@ def build_service_with_bindings(
     if with_education:
         register_default_skills(service.skills)
         service.tools.register(build_search_textbook_tool(service.library.search))
+        _attach_m2_services(service)
     return service
 
 
@@ -76,9 +80,16 @@ def create_app(
     settings: Settings | None = None,
     bindings: dict[str, dict[str, Any]] | None = None,
 ) -> FastAPI:
-    app = FastAPI(title="DeepProf Gateway", version="0.6.1")
+    app = FastAPI(title="DeepProf Gateway", version="0.6.2")
     app.state.service = service or build_service_with_bindings(settings=settings, bindings=bindings)
     _attach_library(app.state.service)
+    app.state.command_store = SqliteCommandStore.open(str(app.state.service.settings.resolved_sqlite_path))
+    _attach_m2_services(app.state.service)
+    app.state.learner_store = getattr(app.state.service, "learner_store", None)
+    app.state.quiz_service = getattr(app.state.service, "quiz_service", None)
+    app.state.active_turns = set()
+    app.state.turn_tasks = {}
+    app.state.turn_lock = asyncio.Lock()
 
     @app.exception_handler(RuntimeFailure)
     async def _runtime_failure_handler(request: Request, exc: RuntimeFailure) -> JSONResponse:
@@ -123,6 +134,8 @@ def create_app(
     app.include_router(sessions.router)
     app.include_router(events.router)
     app.include_router(library_api.router)
+    app.include_router(courses.router)
+    app.include_router(replay.router)
     return app
 
 
@@ -138,10 +151,52 @@ def _attach_library(service: RuntimeService) -> None:
         chunk_overlap=settings.library_chunk_overlap,
         max_import_bytes=settings.library_max_import_bytes,
         path_allowed=service.sandbox.is_path_allowed,
-        allowlist=settings.library_allowlist,
-        tos_confirmed_domains=settings.library_tos_confirmed_domains,
-        crawl_delay_seconds=settings.library_crawl_delay_seconds,
     )
+
+
+def _attach_m2_services(service: RuntimeService) -> None:
+    """Install reviewed-quiz and local document-conversion tools at composition time."""
+    if not service.skills.names():
+        return
+    if not hasattr(service, "learner_store"):
+        service.learner_store = SqliteLearnerStore.open(str(service.settings.resolved_sqlite_path))
+    if not hasattr(service, "quiz_service"):
+        service.quiz_service = QuizService(service, service.learner_store)
+    if "quiz" in service.skills.names():
+        async def issue_quiz(arguments: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+            return await service.quiz_service.issue_from_tool(arguments, ctx)
+
+        service.tools.register(FunctionTool(
+            name="issue_quiz", handler=issue_quiz, description="从当前会话冻结版本中签发已审核题目",
+            parameters={"type": "object", "properties": {
+                "concept_id": {"type": "string"}, "difficulty": {"type": ["integer", "null"]}},
+                "required": []},
+        ))
+    if "markitdown" in service.skills.names():
+        async def convert_document(arguments: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
+            source = str(arguments.get("path") or "").strip()
+            if not source:
+                return {"status": "error", "code": "document_path_required"}
+            service.sandbox.check_path(source)
+            try:
+                result = await run_in_threadpool(
+                    convert_markitdown, source,
+                    first_page=arguments.get("first_page"), last_page=arguments.get("last_page"),
+                    force_ocr=bool(arguments.get("force_ocr", False)),
+                    max_bytes=service.settings.library_max_import_bytes,
+                )
+                return result
+            except Exception as exc:
+                return {"status": "error", "code": str(exc).split(":", 1)[0], "message": str(exc)[:240]}
+
+        service.tools.register(FunctionTool(
+            name="convert_document", handler=convert_document,
+            description="只转换沙箱允许的本地文档，结果写入 DeepProf 用户数据目录",
+            parameters={"type": "object", "properties": {
+                "path": {"type": "string"}, "first_page": {"type": ["integer", "null"]},
+                "last_page": {"type": ["integer", "null"]}, "force_ocr": {"type": "boolean"}},
+                "required": ["path"]},
+        ))
 
 
 def main() -> None:  # pragma: no cover - 手动启动入口
@@ -151,6 +206,24 @@ def main() -> None:  # pragma: no cover - 手动启动入口
     uvicorn.run(create_app(settings=resolved), host=resolved.api_host, port=resolved.api_port)
 
 
-# Keep the conventional ``uvicorn api.app:app`` entry point available.  This
-# only initializes empty local storage; it never seeds course content.
-app = create_app()
+class _LazyASGIApplication:
+    """Keep ``uvicorn api.app:app`` without touching user storage at import time."""
+
+    def __init__(self) -> None:
+        self._instance: FastAPI | None = None
+
+    def _get(self) -> FastAPI:
+        if self._instance is None:
+            self._instance = create_app()
+        return self._instance
+
+    async def __call__(self, scope: dict[str, Any], receive: Any, send: Any) -> None:
+        await self._get()(scope, receive, send)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._get(), name)
+
+
+# Uvicorn's conventional object entry remains available while importing the
+# module becomes safe during pytest collection and CLI startup.
+app = _LazyASGIApplication()

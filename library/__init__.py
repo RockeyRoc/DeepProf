@@ -9,7 +9,6 @@ from library.models import (
     ResourceRecord,
     SearchHit,
 )
-from library.crawler import CrawlPolicy, SingleUrlCrawler
 from library.embeddings import Embedder, HashingEmbedder
 from library.errors import LibraryError
 from library.service import ResourceLibrary
@@ -17,7 +16,6 @@ from library.service import ResourceLibrary
 __all__ = [
     "Chunk",
     "ChunkRecord",
-    "CrawlPolicy",
     "Document",
     "DocumentPage",
     "Embedder",
@@ -27,5 +25,4 @@ __all__ = [
     "ResourceLibrary",
     "ResourceRecord",
     "SearchHit",
-    "SingleUrlCrawler",
 ]

@@ -6,7 +6,7 @@ export interface GatewayRecord {
   protocol_version: "1";
   base_url: string;
   pid: number;
-  owner: "desktop" | "cli";
+  owner: "cli";
   started_at: string;
   owner_token: string;
 }

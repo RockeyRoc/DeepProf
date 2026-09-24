@@ -42,7 +42,8 @@ async def hint(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     concept = str(state.get("current_concept") or "")
     current_level = int(state.get("hint_level") or 0)
     wrong_streak = int(state.get("wrong_streak") or 0)
-    level = next_hint_level(current_level, wrong_streak)
+    explicit_request = str(state.get("requested_action") or "").lower() == "hint"
+    level = next_hint_level(current_level, max(wrong_streak, 1) if explicit_request else wrong_streak)
 
     await emit_entered(
         port, state, NODE, concept=concept, hint_level=current_level, wrong_streak=wrong_streak

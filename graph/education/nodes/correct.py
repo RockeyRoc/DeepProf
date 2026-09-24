@@ -30,7 +30,7 @@ from runtime.core.ports import RuntimePort
 from ..contracts import PedagogicalDecision
 from ..policies import ACTION_CORRECT, EMOTION_BY_ACTION
 from ..state import PedagogyState
-from . import dispatch, emit_attempt, emit_decision, emit_entered, emit_exited
+from . import dispatch, emit_decision, emit_entered, emit_exited
 
 NODE = "correct"
 
@@ -58,7 +58,7 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         PedagogicalDecision(
             action=ACTION_CORRECT,
             concept=concept,
-            require_evidence=True,  # 纠错同样必须落在教材上（§7.3）
+            require_evidence=bool(state.get("evidence_constraint", True)),
             reveal_answer=True,  # 纠错要指出正确方向
             require_student_reply=True,
             evidence_sufficient=bool(state.get("evidence_sufficient")),
@@ -66,7 +66,7 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
                 "conflicts": conflicts,
                 "user_input": str(state.get("user_input") or ""),
                 "query": query,
-                "memory_note": str(state.get("memory_note") or ""),
+                "course_id": str(state.get("course_id") or ""),
             },
             reason="出现稳定错误或概念混淆，转入纠错",
         ),
@@ -81,12 +81,6 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     else:
         reason = f"针对稳定错误生成纠错与对比例，依据 {len(citations)} 条可定位教材片段"
 
-    # ---- 作答事实：交给数据组（§16.3 交接 / §18.2 契约）----
-    # 判分缺失（None）或题目不可追踪时由 attempt_gate 给出显式原因，不产出（§13.1）
-    attempt, skip_reason = await emit_attempt(
-        port, state, correct=state.get("last_answer_correct")
-    )
-
     await emit_decision(
         port,
         state,
@@ -97,9 +91,6 @@ async def correct(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
         generation_skipped=result.status == "insufficient_evidence",
         source_attached=bool(citations),
         misconception_count=len(misconceptions),
-        attempt_recorded=attempt is not None,
-        attempt_id=str((attempt or {}).get("attempt_id") or ""),
-        attempt_skip_reason=skip_reason,
         capability=result.capability,
         capability_status=result.status,
     )

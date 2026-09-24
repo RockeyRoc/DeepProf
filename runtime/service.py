@@ -9,7 +9,7 @@ from typing import Any, AsyncIterator, Callable
 
 from config.settings import Settings
 from runtime.capabilities import ActionDispatcher
-from runtime.core.errors import RuntimeFailure
+from runtime.core.errors import KIND_MODEL_TRUNCATED, RuntimeFailure
 from runtime.core.events import (
     EventType,
     InMemoryEventStore,
@@ -17,7 +17,6 @@ from runtime.core.events import (
     new_id,
 )
 from runtime.core.session import Session
-from runtime.memory.service import MemoryService
 from runtime.providers.registry import ProviderRegistry
 from runtime.sandbox.policy import SandboxPolicy
 from runtime.skills import SkillRegistry
@@ -38,7 +37,6 @@ class RuntimeService:
         session_store: Any | None = None,
         skills: SkillRegistry | None = None,
         tools: ToolRegistry | None = None,
-        memory: MemoryService | None = None,
         bindings: dict[str, dict[str, Any]] | None = None,
         sandbox: SandboxPolicy | None = None,
     ) -> None:
@@ -48,10 +46,8 @@ class RuntimeService:
         self.sessions = session_store
         self.skills = skills or SkillRegistry()
         self.tools = tools or ToolRegistry()
-        self.memory = memory or MemoryService()
         self.sandbox = sandbox or SandboxPolicy.from_settings(self.settings)
         self.dispatcher = ActionDispatcher(self, bindings)
-        self.plugins: Any | None = None
         # Product-level services may attach here at the composition root.  The
         # Runtime itself never imports the resource-library package.
         self.library: Any | None = None
@@ -84,8 +80,26 @@ class RuntimeService:
     async def generate(self, request: dict[str, Any], ctx: dict[str, Any]) -> AsyncIterator[dict[str, Any]]:
         """能力层的模型调用入口：解析逻辑角色 → 流式产出统一帧，并写入模型事件。"""
         role = str(request.get("role") or "tutor.default")
-        provider, profile_id, model = self.router.resolve(role, requested_model=request.get("model"))
+        pinned_profile = str(request.get("provider_profile") or ctx.get("provider_profile") or "")
+        pinned_model = str(request.get("model") or ctx.get("model") or "")
+        if pinned_profile:
+            provider = self.router.get(pinned_profile)
+            profile = self.router.profile(pinned_profile)
+            if not profile.enabled:
+                raise RuntimeError(f"provider profile disabled: {pinned_profile}")
+            profile_id = pinned_profile
+            model = pinned_model or profile.default_model
+        elif ctx.get("freeze_model"):
+            raise RuntimeError("真实模型未配置；当前会话的模型配置已冻结")
+        else:
+            try:
+                provider, profile_id, model = self.router.resolve(role, requested_model=request.get("model"))
+            except ValueError as exc:
+                raise RuntimeError("真实模型未配置") from exc
         payload = dict(request)
+        generation_config = ctx.get("generation_config")
+        if isinstance(generation_config, dict) and isinstance(generation_config.get("temperature"), (int, float)):
+            payload["temperature"] = float(generation_config["temperature"])
         payload["model"] = model
 
         await self._emit_ctx(
@@ -96,10 +110,15 @@ class RuntimeService:
         usage: dict[str, Any] = {}
         finish_reason = ""
         failed = False
+        has_text = False
+        suppress_user_stream = bool(ctx.get("suppress_user_stream"))
         async for frame in provider.stream(payload, ctx):
             kind = frame.get("type")
             if kind == "delta":
-                await self._emit_ctx(EventType.MODEL_STREAM_DELTA, {"text": frame.get("text", "")}, ctx)
+                delta_text = str(frame.get("text") or "")
+                has_text = has_text or bool(delta_text.strip())
+                if not suppress_user_stream:
+                    await self._emit_ctx(EventType.MODEL_STREAM_DELTA, {"text": delta_text}, ctx)
             elif kind == "usage":
                 usage = dict(frame.get("usage") or {})
             elif kind == "finish":
@@ -109,29 +128,30 @@ class RuntimeService:
                 await self._emit_ctx(EventType.MODEL_FAILED, {"error": frame.get("error") or {}}, ctx)
             yield frame
         if not failed:
+            if not has_text:
+                kind = KIND_MODEL_TRUNCATED if finish_reason == "length" else "empty_model_response"
+                message = (
+                    "模型输出达到 token 上限但正文为空"
+                    if kind == KIND_MODEL_TRUNCATED
+                    else "模型未返回可用正文"
+                )
+                error = {
+                    "code": kind,
+                    "message": message,
+                    "details": {
+                        "kind": kind,
+                        "finish_reason": finish_reason,
+                        "usage": usage,
+                    },
+                }
+                await self._emit_ctx(EventType.MODEL_FAILED, {"error": error}, ctx)
+                yield {"type": "error", "error": error}
+                return
             await self._emit_ctx(
                 EventType.MODEL_COMPLETED,
                 {"usage": usage, "model": model, "finish_reason": finish_reason},
                 ctx,
             )
-
-    async def read_memory(self, query: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-        records = await self.memory.read(query, ctx)
-        await self._emit_ctx(
-            EventType.MEMORY_READ,
-            {"scope": str(query.get("scope", "")), "count": len(records)},
-            ctx,
-        )
-        return records
-
-    async def write_memory(self, records: list[dict[str, Any]], ctx: dict[str, Any]) -> None:
-        await self.memory.write(records, ctx)
-        await self._emit_ctx(
-            EventType.MEMORY_WRITE,
-            {"scope": str(ctx.get("scope", "")), "count": len(records)},
-            ctx,
-        )
-        return None
 
     # ---- 会话 ----
 
@@ -177,7 +197,6 @@ class RuntimeService:
             "tools": self.tools.names(),
             "providers": self.router.status(),
             "roles": {role: list(binding) for role, binding in self.router.roles.items()},
-            "plugins": [] if self.plugins is None else self.plugins.list(),
         }
 
     async def _emit_ctx(self, event_type: EventType, payload: dict[str, Any], ctx: dict[str, Any]) -> None:

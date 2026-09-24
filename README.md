@@ -1,166 +1,95 @@
+<div align="center">
+
 # DeepProf
 
-<p align="center">
-  <img src="media/DeepProf.jpg" alt="DeepProf logo" width="220">
-</p>
+### An evidence-grounded, adaptive teaching system you can run locally
 
-<p align="center"><strong>A personal learning companion for higher education</strong></p>
+[English](README.md) · [简体中文](README.zh-CN.md) · [Architecture](docs/DESIGNv0.6.2.md) · [Experiment report](docs/experiments/M1-M3-实验报告.md) · [Downloads](https://github.com/RockeyRoc/DeepProf/releases)
 
-<p align="center">
-  <a href="README.zh-CN.md">简体中文</a>
-  · MVP-1—MVP-5 engineering preview
-</p>
+![Python tests](https://img.shields.io/github/actions/workflow/status/RockeyRoc/DeepProf/ci.yml?branch=main&label=CI)
+![Release](https://img.shields.io/github/v/release/RockeyRoc/DeepProf?label=latest%20release)
+![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933)
+![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)
 
-DeepProf combines an education-focused agent runtime, a pedagogical strategy graph, a local resource library, a keyboard-first CLI, and a desktop companion. It is designed to help students learn through questions, evidence, reflection, and durable study context—not to present unverified model output as an authoritative answer.
+</div>
 
-> **Release status:** `v0.6.1` is a pre-release. MVP-1 through MVP-5 have engineering implementations and acceptance records. Real-provider availability, installer packaging, and several research-oriented capabilities remain environment- or roadmap-dependent.
+> Try a single command. The local Gateway and learner data stay on your machine; API keys remain in local secure storage.
 
-## What is included
+## Get started
 
-| Surface | Purpose | Current state |
-| --- | --- | --- |
-| DeepProf Runtime | Sessions, events, providers, memory, tools, plugins, storage, and sandbox boundaries | Delivered and tested |
-| Pedagogical Graph | Assess → Teach/Ask/Hint/Correct → Test → Update Profile | Delivered and tested |
-| Education capabilities | Socratic dialogue, resource retrieval, quiz, diagnosis, and paper reading contracts | Registered; retrieval and evidence paths are available, while BKT/IRT remain planned |
-| Desktop | Electron + React workbench with provider settings, sessions, trace/event projection, and pet window | MVP-3 delivered; loopback-only runtime |
-| CLI | Pi-style keyboard workflow: `login`, `new`, `ask`, `resume`, `tree`, `fork`, `compact`, `models`, `doctor` | MVP-5 delivered; shares sessions with Desktop |
-| Resource library | Import, preview, activate, search, crawl policy, provenance, and citation locations | MVP-4 delivered |
-| Pet package | Codex-compatible event projection and 8×9 sprite-sheet package | Delivered as a companion surface |
+Install Node.js 22+ and Python 3.12+, then run:
+
+```sh
+npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+```
+
+The first run prepares a Python environment under `~/.deepprof`, installs the Runtime dependencies, and starts a Gateway bound to `127.0.0.1`. Configure an OpenAI-compatible provider with `/login` in the CLI. To check the install, run `deepprof doctor`; to install optional OCR support, run `deepprof setup --ocr`.
+
+The package ships its CLI, SDK, Gateway source, course manifest and local replay page. You do not need Git or a repository checkout. PowerShell users can invoke `npx.cmd` with the same package address.
+
+## What it does
+
+- Keeps ordinary chat separate from structured study sessions.
+- Runs a versioned teaching policy over locally indexed course materials and keeps locatable evidence with study turns.
+- Supports three controlled study groups. Only group C reads and updates the cross-question BKT estimate, and only after a sufficiently reliable answer.
+- Stores sessions and audit events locally. The browser page is a read-only replay.
+- Records explicit stop conditions for missing evidence, unreliable grades, cancellation and provider failures.
+
+## M1–M3 evidence
+
+The current report brings together nine figures, redacted source data and generation scripts.
+
+| Batch | Observed engineering evidence | Boundary |
+|---|---|---|
+| M1 A/B | 76 of 80 constructed-case cells completed | Four failed cells remain visible; this is a developer fixture, not a student outcome |
+| M2 | 82/82 focused checks; 309/309 Python regression; 5/5 CLI tests | Engineering acceptance does not establish teacher approval or learning gain |
+| M3 offline | 120 main cells, 120 replay cells and 160 ablation cells | Explicit local Fake Provider and constructed cases |
+| M3 BKT | AUC 0.296, Brier 0.366, log loss 0.936 | Development parameters are not calibrated for prediction |
+| M3 live pilot | 36 cells, 29 requests, 3 complete generations, 26 truncations and 7 cells without a request | Application completion is reported separately from complete model generation |
+| v0.6.2 release validation | 318/318 Python regression, 82/82 focused M2 checks and 7/7 CLI tests; typecheck passed | The 82 focused checks are included in 318; this run is separate from the frozen M2 record |
+
+![M3 live pilot results](docs/experiments/figures/F08-m3-live-pilot-results.png)
+
+![M3 offline framework evidence](docs/experiments/figures/F09-m3-offline-results.png)
+
+Read the [Chinese experiment report](docs/experiments/M1-M3-实验报告.md), [figure catalogue](docs/experiments/图表库.md), [M2 acceptance record](docs/M2-offline-acceptance.md) and [release evidence bundle](docs/experiments/releases/M1-M3-evidence.zip). Teacher review, parameter calibration and real-student learning outcomes remain open research steps.
 
 ## Architecture
 
-DeepProf keeps educational strategy separate from generic agent execution. Graph nodes produce a declaration (`PedagogicalDecision`); a binding table maps it to capabilities; the Runtime performs the work and emits auditable events.
-
 ```mermaid
-flowchart TD
-    UI[Desktop · CLI · Pet] --> SDK[Client SDK]
-    SDK --> API[Gateway / FastAPI]
-    API --> GRAPH[Pedagogical Graph\nAssess · Teach · Ask · Hint · Correct · Test]
-    GRAPH -->|PedagogicalDecision| PORT[RuntimePort.execute]
-    PORT --> RT[DeepProf Runtime]
-    RT --> CORE[Session · Event · Provider · Memory · Tool · Plugin]
-    RT --> EDU[Skills and Resource Library]
-    RT --> STORE[SQLite · Storage · Sandbox]
+flowchart LR
+  CLI[TypeScript CLI] --> API[Loopback FastAPI Gateway]
+  API --> Decision[Teaching policy and BKT]
+  Decision --> Evidence[Versioned local course index]
+  Decision --> Provider[Configured model provider]
+  API --> Events[(Local sessions and audit events)]
+  Replay[Read-only replay page] --> Events
 ```
 
-The important boundary is `WHAT → HOW`: `graph/education` owns teaching policy, while `runtime/` remains generic and does not depend on teaching vocabulary. Architecture guard tests enforce this boundary.
+The policy graph returns a structured teaching decision. The Runtime binds allowed actions, calls the configured provider and records a replayable event trail. Student answer content and provider secrets are not included in the published experiment bundle.
 
-## Quick start
+## Requirements
 
-### Requirements
+- Node.js 22+
+- Python 3.12+
+- A local OpenAI-compatible provider for model responses
 
-- Python 3.12 or newer (the acceptance environment uses Python 3.14).
-- Node.js and npm for the Desktop, CLI, and Pet surfaces.
-- An OpenAI-compatible provider, a local provider, or the deterministic fake provider for offline tests.
+The core application runs locally. It uses no provider credentials until you configure a profile; setting up the CLI never starts a model request. Scanned-page OCR is optional. See the [CLI guide](apps/cli/README.md) for setup, commands and configuration.
 
-### Python runtime and API
+## Development
 
 ```powershell
-python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-
-# Start the local Gateway directly
-python -m uvicorn api.app:app --host 127.0.0.1 --port 8000
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+npm ci --prefix apps/cli
+npm run typecheck --prefix apps/cli
+npm test --prefix apps/cli
+python -m pytest
 ```
 
-The default data root is `~/.deepprof`. The Gateway only binds to loopback by default. Put provider configuration in the supported Provider/Secret path; do not commit API keys or place them in the React renderer.
+Start the Gateway and CLI in separate terminals with `uvicorn api.app:app --host 127.0.0.1 --port 8000` and `npm run start --prefix apps/cli`. The M2 and M3 offline evaluations run without network access or paid model calls; see the experiment report for the recorded commands, exact run IDs, data definitions and limits.
 
-### Desktop workbench
+## Contributing and security
 
-```powershell
-Push-Location apps/desktop
-npm.cmd install
-npm.cmd run dev
-Pop-Location
-```
-
-The Electron Main process starts the local Runtime and a loopback workbench. Renderer code has no Node privileges and does not access Provider, Memory, Tool, or Secret internals.
-
-### CLI
-
-```powershell
-Push-Location apps/cli
-npm.cmd install
-npm.cmd run build
-node dist/apps/cli/src/index.js --json new --title "Linear algebra"
-node dist/apps/cli/src/index.js --json ask <session_id> "What is gradient descent?"
-Pop-Location
-```
-
-Without a command, the CLI opens its interactive REPL. Use `/login` to configure a provider, or use `--api-key-stdin` / `DEEPPROF_SECRET_*`; plaintext `--api-key` arguments are intentionally rejected.
-
-### API highlights
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/health` | Runtime, provider, capability, binding, and sandbox health |
-| `GET` | `/sessions`, `/sessions/{id}/messages` | Inspect sessions and read transcripts |
-| `POST` | `/commands` | Send a client command/message |
-| `GET` | `/sessions/{id}/events?from_sequence=0` | Replay events for reconnecting clients |
-| `GET` / `PUT` | `/providers`, `/providers/{id}` | Manage OpenAI-compatible profiles |
-| `GET` / `POST` | `/resources`, `/search`, `/resources/{id}/activate` | Manage and search the resource library |
-
-Errors are structured (`code`, `message`, `details`) so clients do not need to parse prose. See `api/` and `packages/contracts/` for the current wire contracts.
-
-## MVP verification
-
-The release gate covers Python contracts, Runtime behavior, provider switching, education routing, resource provenance, Desktop/CLI cross-surface recovery, and Pet package validation.
-
-```powershell
-python -m pytest -q
-npm.cmd run typecheck --prefix apps/cli
-npm.cmd run build --prefix apps/cli
-npm.cmd run test --prefix apps/cli
-npm.cmd run typecheck --prefix apps/desktop
-npm.cmd run build --prefix apps/desktop
-npm.cmd run validate --prefix apps/pet
-```
-
-The detailed records are in [`docs/MVP-1_验收记录.md`](docs/MVP-1_验收记录.md), [`docs/MVP-2_验收记录.md`](docs/MVP-2_验收记录.md), [`docs/MVP-3_验收记录.md`](docs/MVP-3_验收记录.md), [`docs/MVP-4_验收记录.md`](docs/MVP-4_验收记录.md), and [`docs/MVP-5-final-verification.md`](docs/MVP-5-final-verification.md).
-
-## Project layout
-
-```text
-DeepProf/
-├── runtime/              # Generic agent runtime and execution boundaries
-├── graph/education/      # Teaching strategy graph and decision contracts
-├── skills/               # Socratic, RAG, quiz, diagnosis, paper-reader skills
-├── library/              # Resource import, parsing, crawling, indexing, provenance
-├── api/                  # FastAPI composition root and Gateway routes
-├── packages/             # Client SDK, contracts, and design system
-├── apps/                 # Desktop, CLI, and Pet surfaces
-├── models/learner/       # Learner model contracts and attempt facts
-├── evaluation/           # MVP-5 metrics and cost/latency checks
-├── tests/                # Unit, contract, integration, and architecture tests
-└── docs/                 # Design document and acceptance records
-```
-
-## Known limitations of this pre-release
-
-- BKT/IRT knowledge tracing is represented by contracts and DTOs; the full estimators are not yet shipped.
-- Provider fallback is explicit by design, but the streaming main path still needs the remaining fallback wiring.
-- The plugin registry and trust model exist; plugin composition-root installation is still being completed.
-- A real model account, quota, and model capability determine whether live generation succeeds. Fake/local providers support deterministic offline work.
-- `npm run build` produces development/production build output, not a signed Windows installer.
-
-These are tracked in the design document and acceptance records; the release is intentionally marked pre-release.
-
-## Security and privacy
-
-- Runtime, Gateway, and Desktop services bind to loopback by default.
-- API keys stay outside Renderer code, session events, graph state, and logs.
-- Resource crawling uses allowlists, robots/Terms-of-Service confirmation, size limits, rate limits, and provenance fields.
-- Student memory is local-first and should be reviewable, revocable, and removable.
-- Third-party content is treated as untrusted data, not as system instructions.
-
-## Documentation
-
-- [`docs/DESIGNv0.6.1.md`](docs/DESIGNv0.6.1.md) — architecture, interfaces, dependency rules, security, and delivery roadmap.
-- [`docs/MVP-5-final-verification.md`](docs/MVP-5-final-verification.md) — final cross-surface verification snapshot.
-- [`apps/desktop/README.md`](apps/desktop/README.md) — Desktop-specific development notes.
-- [`apps/cli/README.md`](apps/cli/README.md) — CLI commands and secret handling.
-- [`apps/pet/package/README.md`](apps/pet/package/README.md) — Pet package format and event boundary.
-
-## License and contribution
-
-This repository currently has no `LICENSE` file. Until the team selects and adds a license, all rights are reserved; please do not redistribute or use the code commercially without permission. Issues and design discussions are welcome through GitHub Issues.
+Please read [CONTRIBUTING.md](.github/CONTRIBUTING.md) before submitting a change. Report vulnerabilities through GitHub's private security advisory feature; see [SECURITY.md](.github/SECURITY.md). Avoid committing course answers, raw model replies, API keys, local databases or learner data.

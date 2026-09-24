@@ -8,8 +8,6 @@ from config.settings import Settings
 from runtime.capabilities import ActionDispatcher
 from runtime.core.events import InMemoryEventStore
 from runtime.core.session import InMemorySessionStore
-from runtime.memory.service import MemoryService
-from runtime.memory.sqlite_memory import SqliteMemoryStore
 from runtime.providers.fake import FakeProvider
 from runtime.providers.profiles import ProviderProfile
 from runtime.providers.registry import ProviderRegistry
@@ -40,7 +38,6 @@ def make_service(
     settings: Settings | None = None,
     skills: Any | None = None,
     tools: Any | None = None,
-    memory: MemoryService | None = None,
 ) -> RuntimeService:
     """构造全内存的 RuntimeService，供单元测试使用。"""
     resolved = settings or make_settings()
@@ -65,7 +62,6 @@ def make_service(
         session_store=InMemorySessionStore(),
         skills=skills,
         tools=tools,
-        memory=memory or MemoryService(SqliteMemoryStore(path=":memory:")),
         bindings=bindings or {},
     )
     return service
@@ -81,14 +77,12 @@ class RecordingHost:
         skill_result: dict[str, Any] | None = None,
         tool_result: dict[str, Any] | None = None,
         model_text: str = "generated",
-        memory_records: list[dict[str, Any]] | None = None,
         fail_skills: set[str] | None = None,
     ) -> None:
         self.evidence = evidence if evidence is not None else []
         self.skill_result = skill_result or {}
         self.tool_result = tool_result or {}
         self.model_text = model_text
-        self.memory_records = memory_records or []
         self.fail_skills = fail_skills or set()
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.emitted: list[dict[str, Any]] = []
@@ -117,14 +111,6 @@ class RecordingHost:
         yield {"type": "delta", "text": self.model_text}
         yield {"type": "finish", "finish_reason": "stop"}
 
-    async def read_memory(self, query: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-        self.calls.append(("read_memory", query))
-        return [dict(item) for item in self.memory_records]
-
-    async def write_memory(self, records: list[dict[str, Any]], ctx: dict[str, Any]) -> None:
-        self.calls.append(("write_memory", {"records": records}))
-        return None
-
     def called(self, kind: str) -> list[dict[str, Any]]:
         return [payload for name, payload in self.calls if name == kind]
 
@@ -141,7 +127,6 @@ class FakeRuntime:
     - ``replies``：依次返回的模型文本（最后一轮之后重复最后一条）；
     - ``skill_results``：按 Skill 名返回的固定结果；
     - ``tool_results``：按 Tool 名返回的固定结果，未声明时回 ``evidence``；
-    - ``memories``：``read_memory`` 的召回结果；
     - ``evidence``：未声明 tool_results 时的检索命中。
     """
 
@@ -151,18 +136,15 @@ class FakeRuntime:
         replies: list[str] | None = None,
         skill_results: dict[str, dict[str, Any]] | None = None,
         tool_results: dict[str, dict[str, Any]] | None = None,
-        memories: list[dict[str, Any]] | None = None,
         evidence: list[dict[str, Any]] | None = None,
         action_bindings: dict[str, dict[str, Any]] | None = None,
     ) -> None:
         self.replies = [str(item) for item in (replies or ["（模型回复）"])]
         self.skill_results = {name: dict(value) for name, value in (skill_results or {}).items()}
         self.tool_results = {name: dict(value) for name, value in (tool_results or {}).items()}
-        self.memory_records = [dict(item) for item in (memories or [])]
         self.evidence = [dict(item) for item in (evidence or [])]
         self.events: list[dict[str, Any]] = []
         self.calls: list[tuple[str, dict[str, Any]]] = []
-        self.written_memories: list[dict[str, Any]] = []
         self._reply_index = 0
         self.dispatcher = ActionDispatcher(self, action_bindings or {})
 
@@ -198,15 +180,6 @@ class FakeRuntime:
         self._reply_index += 1
         yield {"type": "delta", "text": self.replies[index]}
         yield {"type": "finish", "finish_reason": "stop"}
-
-    async def read_memory(self, query: dict[str, Any], ctx: dict[str, Any]) -> list[dict[str, Any]]:
-        self.calls.append(("read_memory", dict(query)))
-        return [dict(item) for item in self.memory_records]
-
-    async def write_memory(self, records: list[dict[str, Any]], ctx: dict[str, Any]) -> None:
-        self.calls.append(("write_memory", {"records": [dict(item) for item in records]}))
-        self.written_memories.extend(dict(item) for item in records)
-        return None
 
     # ---- 断言辅助 ----
 

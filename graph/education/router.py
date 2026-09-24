@@ -24,7 +24,6 @@ from .policies import (
     ACTION_HINT,
     ACTION_NODES,
     ACTION_REFLECT,
-    ACTION_TEST,
     ACTION_TEACH,
     CORRECT_WRONG_STREAK,
     END_ACTIONS,
@@ -92,14 +91,27 @@ def decide_action(state: PedagogyState) -> tuple[str, str]:
     attempt_count = int(state.get("attempt_count") or 0)
     misconceptions = list(state.get("misconceptions") or [])
 
+    requested_action = str(state.get("requested_action") or "").lower()
+    if requested_action == "hint":
+        if hint_level >= HINT_MAX_LEVEL:
+            return ACTION_REFLECT, f"三级提示已用尽（{HINT_MAX_LEVEL}/{HINT_MAX_LEVEL}），结束本轮"
+        return ACTION_HINT, "学习者主动请求提示；不依据未判分回答推断掌握度"
+    if requested_action == "ask":
+        return ACTION_ASK, "学习者主动请求苏格拉底追问"
+    if requested_action in {"quiz", "test", "answer"}:
+        return "test", "题库未配置；不生成替代题目或判分"
+
     # 稳定错误：连续答错达到阈值，**且提示阶梯已用尽**。
     # 加 hint_level 这一重条件，是为了让“从轻到重给提示”这条教学路径真正走得完：
     # 否则连错到阈值就会打断提示、直接纠错，高等级提示模板永远轮不到（等于死代码）。
-    if wrong_streak >= CORRECT_WRONG_STREAK and hint_level >= HINT_MAX_LEVEL:
+    if (
+        wrong_streak >= CORRECT_WRONG_STREAK
+        and hint_level >= HINT_MAX_LEVEL
+        and bool(state.get("evidence_sufficient"))
+    ):
         return (
             ACTION_CORRECT,
-            f"连续答错 {wrong_streak} 次（阈值 {CORRECT_WRONG_STREAK}）"
-            f"且提示已用尽 {hint_level}/{HINT_MAX_LEVEL}，判定为稳定错误，需直接纠错",
+            f"连续答错 {wrong_streak} 次（阈值 {CORRECT_WRONG_STREAK}）且教材证据充分，进入纠错",
         )
     if len(misconceptions) >= MISCONCEPTION_LIMIT:
         return (
@@ -112,19 +124,9 @@ def decide_action(state: PedagogyState) -> tuple[str, str]:
                 ACTION_HINT,
                 f"尝试受阻（连续答错 {wrong_streak} 次）且提示级别 {hint_level}/{HINT_MAX_LEVEL} 未用尽，从轻到重给提示",
             )
-        # 提示已到最高级别：继续复用最高一级提示（仍不给出最终答案），
-        # 只有连续答错累计到 CORRECT_WRONG_STREAK 才转 Correct（见 docstring 第 3/4 条）
-        return (
-            ACTION_HINT,
-            f"提示已达最高级别 {hint_level}/{HINT_MAX_LEVEL} 且本轮再次受阻，"
-            f"复用第 {HINT_MAX_LEVEL} 级提示（不给出最终答案）；"
-            f"连续答错累计 {CORRECT_WRONG_STREAK} 次再判定为稳定错误转纠错",
-        )
+        return ACTION_REFLECT, f"提示已达上限 {hint_level}/{HINT_MAX_LEVEL}，停止重复提示并结束本轮"
     if attempt_count >= QUIZ_AFTER_ATTEMPTS:
-        return (
-            ACTION_TEST,
-            f"累计尝试 {attempt_count} 次（阈值 {QUIZ_AFTER_ATTEMPTS}）且本轮无未处理错误，转测验验证理解",
-        )
+        return "test", "题库未配置；不生成替代题目或判分"
     if attempt_count == 0 and bool(state.get("prior_knowledge_gap")):
         return (
             ACTION_TEACH,
@@ -153,35 +155,18 @@ def route_from_assess(state: PedagogyState) -> str:
 
 
 def route_from_teaching(state: PedagogyState) -> str:
-    """教学动作节点（teach/ask/hint/correct）出口：仍需写回学情（§6.2 UpdateProfile）。
-
-    条件边的意义：学生在节点执行期间停止时直接 END，不再生成学情增量。
-    """
-    if state.get("student_stopped"):
-        return END
-    return "update_profile"
+    """每个请求只推进一轮；长期学情写入暂未接入。"""
+    return END
 
 
 def route_from_test(state: PedagogyState) -> str:
-    """Test 出口：答错且提示未用尽、未超轮次 → 回退一次重新 Assess（补提示）。
-
-    这是本图唯一的回退边，由三重限界保证收敛（§7.3 防无限追问）：
-        hint_level < HINT_MAX_LEVEL、turn_count < max_turns、LangGraph recursion_limit。
-    """
-    if state.get("student_stopped"):
-        return "update_profile"
-    if (
-        state.get("last_answer_correct") is False
-        and int(state.get("hint_level") or 0) < HINT_MAX_LEVEL
-        and not _at_turn_limit(state)
-    ):
-        return "assess"
-    return "update_profile"
+    """题库和可靠判分未接入；Test 只说明缺口并结束本轮。"""
+    return END
 
 
 def route_from_reflect(state: PedagogyState) -> str:  # noqa: ARG001 - 条件边需保持统一签名
-    """Reflect 出口：无论换策略还是求助教师，都要先落一次学情增量。"""
-    return "update_profile"
+    """本批只保存会话与教学事件，不写长期学情记忆。"""
+    return END
 
 
 # ======================================================================

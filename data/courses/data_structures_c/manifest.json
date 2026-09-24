@@ -1,0 +1,847 @@
+{
+  "course_id": "ds.c_language.v1",
+  "title": "数据结构（C语言版）",
+  "language": "zh-CN",
+  "source": {
+    "title": "数据结构（C语言版）",
+    "authors": [
+      "严蔚敏",
+      "吴伟民"
+    ],
+    "publisher": "清华大学出版社",
+    "isbn": "978-7-302-14751-0",
+    "printing": "2011年5月第34次印刷",
+    "pdf_pages": 347,
+    "sha256": "bce3d6d54eafffedb63cf80a7e2e7267250573b71e622a6c9e50829142114a8b",
+    "local_path_env": "DEEPPROF_DATA_STRUCTURES_PDF",
+    "license_note": "用户确认团队内部测试使用授权；不得随仓库或索引再分发。",
+    "source_uri": "local://course/data-structures-c-programming.pdf"
+  },
+  "page_mapping": {
+    "pdf_page_is_one_based": true,
+    "printed_page_source": "逐页从抽取文本的页脚识别；不能识别时保留 null",
+    "global_offset_assumption": false,
+    "chapter_ranges": [
+      {
+        "chapter": "线性表",
+        "printed_page_start": 18,
+        "printed_page_end": 43,
+        "pdf_pages_verified": false
+      },
+      {
+        "chapter": "栈和队列",
+        "printed_page_start": 44,
+        "printed_page_end": 69,
+        "pdf_pages_verified": false
+      },
+      {
+        "chapter": "树和二叉树",
+        "printed_page_start": 118,
+        "printed_page_end": 155,
+        "pdf_pages_verified": false
+      },
+      {
+        "chapter": "图",
+        "printed_page_start": 156,
+        "printed_page_end": 192,
+        "pdf_pages_verified": false
+      },
+      {
+        "chapter": "查找（二叉排序树）",
+        "printed_page_start": 227,
+        "printed_page_end": 237,
+        "pdf_pages_verified": false
+      },
+      {
+        "chapter": "内部排序",
+        "printed_page_start": 263,
+        "printed_page_end": 292,
+        "pdf_pages_verified": false
+      }
+    ]
+  },
+  "concepts": [
+    {
+      "concept_id": "DS-LIN-01",
+      "module": "线性表",
+      "name": "线性表 ADT 与基本操作",
+      "prerequisites": [],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "线性表",
+          "printed_page_start": 18,
+          "printed_page_end": 43
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "解释线性表抽象数据类型，并区分头指针、头结点和首元结点。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-LIN-01-Q2.1"
+        ],
+        "question_count": 1,
+        "deterministic_count": 0,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-02",
+      "module": "线性表",
+      "name": "顺序表的存储、访问、插入与删除",
+      "prerequisites": [
+        "DS-LIN-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "线性表",
+          "printed_page_start": 18,
+          "printed_page_end": 43
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "说明顺序表的存储方式，并分析访问、插入和删除的移动代价。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-LIN-03-Q2.3"
+        ],
+        "question_count": 1,
+        "deterministic_count": 0,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-03",
+      "module": "线性表",
+      "name": "动态数组扩容与均摊复杂度",
+      "prerequisites": [
+        "DS-LIN-02"
+      ],
+      "difficulty": 2,
+      "source_refs": [],
+      "mapping_status": "evidence_gap",
+      "gap_reason": "教材未找到动态数组扩容与均摊复杂度的充分依据",
+      "learning_objective": "解释动态数组扩容策略及均摊复杂度；教材依据不足时标记证据缺口。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-04",
+      "module": "线性表",
+      "name": "单链表的查找、插入与删除",
+      "prerequisites": [
+        "DS-LIN-01"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "线性表",
+          "printed_page_start": 18,
+          "printed_page_end": 43
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "沿单链表定位结点，并正确完成插入、删除和边界处理。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-LIN-02-Q2.2-3",
+          "DS-LIN-04-Q2.6-b",
+          "DS-LIN-05-Q2.7-c"
+        ],
+        "question_count": 3,
+        "deterministic_count": 3,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-05",
+      "module": "线性表",
+      "name": "双向链表与循环链表",
+      "prerequisites": [
+        "DS-LIN-04"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "线性表",
+          "printed_page_start": 18,
+          "printed_page_end": 43
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "比较双向链表与循环链表的链接关系，并据此维护邻接指针。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-LIN-06-Q2.8-c",
+          "DS-LIN-07-Q2.9-1"
+        ],
+        "question_count": 2,
+        "deterministic_count": 2,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-06",
+      "module": "线性表",
+      "name": "栈及其典型应用",
+      "prerequisites": [
+        "DS-LIN-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "栈和队列",
+          "printed_page_start": 44,
+          "printed_page_end": 69
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "使用栈的后进先出性质，解释其基本操作及典型应用。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-07",
+      "module": "线性表",
+      "name": "队列、循环队列及其典型应用",
+      "prerequisites": [
+        "DS-LIN-01"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "栈和队列",
+          "printed_page_start": 44,
+          "printed_page_end": 69
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "使用队列和循环队列完成入队、出队并说明队空/队满条件。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-LIN-08",
+      "module": "线性表",
+      "name": "线性结构的选型与操作复杂度比较",
+      "prerequisites": [
+        "DS-LIN-02",
+        "DS-LIN-04",
+        "DS-LIN-06",
+        "DS-LIN-07"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "线性表",
+          "printed_page_start": 18,
+          "printed_page_end": 43
+        },
+        {
+          "chapter": "栈和队列",
+          "printed_page_start": 44,
+          "printed_page_end": 69
+        }
+      ],
+      "mapping_status": "partial",
+      "gap_reason": "教材分别介绍结构与操作；跨结构复杂度对比需逐项核验后再作为证据",
+      "learning_objective": "根据访问、插入、删除及空间约束选择合适的线性结构。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-TREE-01",
+      "module": "树",
+      "name": "树的术语、性质与存储",
+      "prerequisites": [
+        "DS-LIN-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "树和二叉树",
+          "printed_page_start": 118,
+          "printed_page_end": 155
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "正确使用树的根、叶子、双亲、孩子、层次和深度等术语。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-TREE-01-Q6.1",
+          "DS-TREE-06-Q6.5",
+          "DS-TREE-07-Q6.6",
+          "DS-TREE-08-Q6.7"
+        ],
+        "question_count": 4,
+        "deterministic_count": 3,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-TREE-02",
+      "module": "树",
+      "name": "二叉树性质与链式/顺序表示",
+      "prerequisites": [
+        "DS-TREE-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "树和二叉树",
+          "printed_page_start": 118,
+          "printed_page_end": 155
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "应用二叉树性质，并在链式和顺序表示之间解释结点关系。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-TREE-02-Q6.3-count",
+          "DS-TREE-03-Q6.4-1",
+          "DS-TREE-04-Q6.4-2",
+          "DS-TREE-05-Q6.4-3"
+        ],
+        "question_count": 4,
+        "deterministic_count": 4,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-TREE-03",
+      "module": "树",
+      "name": "二叉树先序、中序、后序遍历",
+      "prerequisites": [
+        "DS-TREE-02"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "树和二叉树",
+          "printed_page_start": 118,
+          "printed_page_end": 155
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "区分并执行二叉树先序、中序和后序遍历。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-TREE-04",
+      "module": "树",
+      "name": "二叉树层序遍历",
+      "prerequisites": [
+        "DS-TREE-02",
+        "DS-LIN-07"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "树和二叉树",
+          "printed_page_start": 118,
+          "printed_page_end": 155
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "使用队列执行二叉树层序遍历。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-TREE-05",
+      "module": "树",
+      "name": "二叉搜索树的查找、插入与删除",
+      "prerequisites": [
+        "DS-TREE-02",
+        "DS-TREE-03"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "查找（二叉排序树）",
+          "printed_page_start": 227,
+          "printed_page_end": 237
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "说明二叉搜索树的查找、插入和删除过程及其边界。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-TREE-06",
+      "module": "树",
+      "name": "堆与优先队列",
+      "prerequisites": [
+        "DS-TREE-02",
+        "DS-LIN-07"
+      ],
+      "difficulty": 3,
+      "source_refs": [
+        {
+          "chapter": "内部排序（堆排序相关页）",
+          "printed_page_start": 287,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "partial",
+      "gap_reason": "可映射堆排序操作；优先队列抽象及完整操作依据未核实",
+      "learning_objective": "维护堆序性质并解释堆调整在堆排序中的作用。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-01",
+      "module": "图",
+      "name": "图的基本术语及邻接矩阵/邻接表",
+      "prerequisites": [
+        "DS-LIN-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "解释图的基本术语，并在邻接矩阵和邻接表等表示间转换。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-GRAPH-01-Q7.1",
+          "DS-GRAPH-02-Q7.2",
+          "DS-GRAPH-03-Q7.3"
+        ],
+        "question_count": 3,
+        "deterministic_count": 1,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-02",
+      "module": "图",
+      "name": "广度优先搜索 BFS",
+      "prerequisites": [
+        "DS-GRAPH-01",
+        "DS-LIN-07"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "按给定邻接顺序执行广度优先搜索并构造生成森林。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-GRAPH-04-Q7.4"
+        ],
+        "question_count": 1,
+        "deterministic_count": 0,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-03",
+      "module": "图",
+      "name": "深度优先搜索 DFS",
+      "prerequisites": [
+        "DS-GRAPH-01"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "按给定邻接顺序执行深度优先搜索并构造生成森林。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-04",
+      "module": "图",
+      "name": "连通性与连通分量",
+      "prerequisites": [
+        "DS-GRAPH-02",
+        "DS-GRAPH-03"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "识别连通分量或强连通分量并说明判定依据。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-05",
+      "module": "图",
+      "name": "无权图最短路径与 BFS 距离",
+      "prerequisites": [
+        "DS-GRAPH-02"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "使用 BFS 求无权图最短路径并解释距离层次。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-06",
+      "module": "图",
+      "name": "非负权图最短路径与 Dijkstra",
+      "prerequisites": [
+        "DS-GRAPH-01",
+        "DS-TREE-06"
+      ],
+      "difficulty": 3,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "在非负边权条件下使用 Dijkstra 并跟踪距离更新。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-07",
+      "module": "图",
+      "name": "最小生成树与 Prim/Kruskal 思路",
+      "prerequisites": [
+        "DS-GRAPH-01",
+        "DS-TREE-06",
+        "DS-SORT-01"
+      ],
+      "difficulty": 3,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "应用 Prim 或 Kruskal 构造最小生成树并核对边选择。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-GRAPH-05-Q7.7"
+        ],
+        "question_count": 1,
+        "deterministic_count": 0,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-GRAPH-08",
+      "module": "图",
+      "name": "有向无环图与拓扑排序",
+      "prerequisites": [
+        "DS-GRAPH-01",
+        "DS-GRAPH-03"
+      ],
+      "difficulty": 3,
+      "source_refs": [
+        {
+          "chapter": "图",
+          "printed_page_start": 156,
+          "printed_page_end": 192
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "对有向无环图执行拓扑排序，并识别 AOE 网络的关键路径。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-GRAPH-06-Q7.9",
+          "DS-GRAPH-07-Q7.10"
+        ],
+        "question_count": 2,
+        "deterministic_count": 0,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-01",
+      "module": "排序",
+      "name": "排序复杂度、稳定性与原地性",
+      "prerequisites": [
+        "DS-LIN-02"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "比较排序算法的时间复杂度、稳定性和原地性，并注明适用前提。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-SORT-02-Q10.3",
+          "DS-SORT-08-Q10.13"
+        ],
+        "question_count": 2,
+        "deterministic_count": 1,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-02",
+      "module": "排序",
+      "name": "插入排序",
+      "prerequisites": [
+        "DS-SORT-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "跟踪直接插入排序，并分析输入有序程度对比较次数的影响。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-SORT-01-Q10.1",
+          "DS-SORT-03-Q10.4-1",
+          "DS-SORT-04-Q10.4-2",
+          "DS-SORT-05-Q10.4-3",
+          "DS-SORT-06-Q10.4-4"
+        ],
+        "question_count": 5,
+        "deterministic_count": 2,
+        "status": "covered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-03",
+      "module": "排序",
+      "name": "选择排序",
+      "prerequisites": [
+        "DS-SORT-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "解释简单选择排序的选择与交换步骤及复杂度。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-04",
+      "module": "排序",
+      "name": "冒泡排序",
+      "prerequisites": [
+        "DS-SORT-01"
+      ],
+      "difficulty": 1,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "解释冒泡排序的相邻比较过程及复杂度。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-05",
+      "module": "排序",
+      "name": "希尔排序",
+      "prerequisites": [
+        "DS-SORT-02"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "按给定增量序列执行希尔排序并跟踪各趟状态。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-06",
+      "module": "排序",
+      "name": "归并排序",
+      "prerequisites": [
+        "DS-SORT-01",
+        "DS-TREE-03"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "执行归并排序并解释合并过程及复杂度。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-07",
+      "module": "排序",
+      "name": "快速排序与划分过程",
+      "prerequisites": [
+        "DS-SORT-01",
+        "DS-TREE-03"
+      ],
+      "difficulty": 2,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 263,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "跟踪快速排序的划分过程并说明其复杂度前提。",
+      "question_coverage": {
+        "item_ids": [],
+        "question_count": 0,
+        "deterministic_count": 0,
+        "status": "uncovered"
+      }
+    },
+    {
+      "concept_id": "DS-SORT-08",
+      "module": "排序",
+      "name": "堆排序",
+      "prerequisites": [
+        "DS-SORT-01",
+        "DS-TREE-06"
+      ],
+      "difficulty": 3,
+      "source_refs": [
+        {
+          "chapter": "内部排序",
+          "printed_page_start": 287,
+          "printed_page_end": 292
+        }
+      ],
+      "mapping_status": "mapped",
+      "learning_objective": "维护大顶堆/小顶堆性质并跟踪堆排序调整。",
+      "question_coverage": {
+        "item_ids": [
+          "DS-SORT-07-Q10.12"
+        ],
+        "question_count": 1,
+        "deterministic_count": 0,
+        "status": "covered"
+      }
+    }
+  ],
+  "import_status": "not_imported",
+  "learning_objectives_version": "ds-learning-objectives-v1",
+  "question_bank_coverage_version": "ds-c-dev-v1",
+  "question_coverage_file": "question_coverage.json"
+}

@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 ResourceType = Literal["textbook", "lecture", "paper", "quiz_bank", "student_upload"]
-SourceType = Literal["import", "upload", "crawl"]
+SourceType = Literal["import", "upload"]
 ResourceStatus = Literal["draft", "active", "archived"]
 Visibility = Literal["private", "public"]
 
@@ -75,6 +75,9 @@ class DocumentPage:
     page: int
     text: str
     section: str = ""
+    printed_page: int | None = None
+    chapter: str = ""
+    reliable: bool = True
 
 
 @dataclass(slots=True)
@@ -87,12 +90,17 @@ class Chunk:
     text: str
     section: str = ""
     vector: list[float] = field(default_factory=list)
+    printed_page: int | None = None
+    chapter: str = ""
+    reliable: bool = True
 
     def locator(self, *, source: str) -> dict[str, Any]:
         return {
             "document_id": self.document_id,
             "chunk_id": self.chunk_id,
             "page": self.page,
+            "printed_page": self.printed_page,
+            "chapter": self.chapter,
             "source": source,
         }
 
@@ -112,12 +120,16 @@ class SearchHit:
     section: str = ""
     resource_id: str = ""
     course_id: str | None = None
+    printed_page: int | None = None
+    chapter: str = ""
 
     def to_evidence(self) -> dict[str, Any]:
         return {
             "document_id": self.document_id,
             "chunk_id": self.chunk_id,
             "page": self.page,
+            "printed_page": self.printed_page,
+            "chapter": self.chapter,
             "source": self.source,
             "text": self.text,
             "score": round(float(self.score), 6),

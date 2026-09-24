@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import httpx
 import pytest
@@ -77,26 +78,45 @@ def test_command_requires_session_id(client):
     assert response.status_code == 400
 
 
-def test_message_turn_writes_session_and_events(client):
-    session_id = client.post(
-        "/commands", json={"command_id": "c1", "type": "session.new", "payload": {}}
-    ).json()["session_id"]
+def test_message_turn_writes_session_and_events():
+    from api.app import create_app
+    from graph.education.bindings import ACTION_BINDINGS
+    from runtime.testing import make_service
+    from skills import register_default_skills
+    from tools.retrieval import build_search_textbook_tool
 
-    response = client.post(
-        "/commands",
-        json={
-            "command_id": "c2",
-            "type": "message.send",
-            "session_id": session_id,
-            "payload": {"content": "什么是极限"},
-        },
-    )
-    assert response.status_code == 200
+    service = make_service(bindings=ACTION_BINDINGS)
+    register_default_skills(service.skills)
+    app = create_app(service=service)
+    service.tools.register(build_search_textbook_tool(service.library.search))
+    with TestClient(app) as client:
+        client.app_state_service = service
+        session_id = client.post(
+            "/commands", json={"command_id": "c1", "type": "session.new", "payload": {}}
+        ).json()["session_id"]
 
-    # 事件经 Runtime 事件存储落库（SSE 端点无限流，测试里直接读存储）
-    events = client.app_state_service.history(session_id)
-    assert any(e["type"] == "model.stream.delta" for e in events)
-    assert [e["sequence"] for e in events] == sorted(e["sequence"] for e in events)
+        response = client.post(
+            "/commands",
+            json={
+                "command_id": "c2",
+                "type": "message.send",
+                "session_id": session_id,
+                "payload": {"content": "什么是极限"},
+            },
+        )
+        assert response.status_code == 200
+
+        # 该会话没有教材证据，因此走无生成模型的证据不足终态。
+        task = client.app.state.turn_tasks[session_id]
+        deadline = time.monotonic() + 2
+        while not task.done() and time.monotonic() < deadline:
+            time.sleep(0.01)
+        events = client.app_state_service.history(session_id)
+        assert task.done()
+        assert not any(e["type"] == "model.stream.delta" for e in events)
+        assert any(e["type"] == "agent.turn.completed" for e in events)
+        assert events[-1]["payload"]["status"] == "ok"
+        assert [e["sequence"] for e in events] == sorted(e["sequence"] for e in events)
 
 
 def test_execute_returns_no_binding_for_unmapped_action(client):

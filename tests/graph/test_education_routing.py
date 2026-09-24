@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from graph.education.bindings import ACTION_BINDINGS
 from graph.education.builder import build_education_graph, run_teaching_turn
 from graph.education.nodes import (
@@ -95,7 +97,7 @@ def test_teach_branch_when_student_asks_for_explanation():
     assert result["response_text"] == MODEL_REPLY
     assert result["citations"], "有证据时应当给出引用"
     assert "证据不足" not in result["response_text"]
-    assert entered_nodes(port) == ["assess", "teach", "update_profile"]
+    assert entered_nodes(port) == ["assess", "teach"]
 
 
 def test_teach_branch_when_prior_knowledge_missing():
@@ -109,7 +111,7 @@ def test_teach_branch_when_prior_knowledge_missing():
     result = run_turn(port, user_input="我没学过前面的导数，这块还能听吗")
 
     assert result["action"] == "teach"
-    assert entered_nodes(port) == ["assess", "teach", "update_profile"]
+    assert entered_nodes(port) == ["assess", "teach"]
 
     assess_decision = next(
         event["payload"]
@@ -132,7 +134,7 @@ def test_ask_branch_by_default():
     assert result["action"] == "ask"
     assert result["emotion"] == "curious"
     assert result["citations"] == []
-    assert entered_nodes(port) == ["assess", "ask", "update_profile"]
+    assert entered_nodes(port) == ["assess", "ask"]
 
 
 def test_hint_branch_escalates_level_on_wrong_streak():
@@ -148,9 +150,9 @@ def test_hint_level_is_capped_and_never_leaks_answer():
     """提示级别封顶在 HINT_MAX_LEVEL，且不会出现最终答案。"""
     port = make_port(with_evidence=True)
     result = run_turn(port, user_input="还是不对", attempt_count=4, wrong_streak=1, hint_level=HINT_MAX_LEVEL)
-    assert result["action"] == "hint"
+    assert result["action"] == "reflect"
     assert result["hint_level"] == HINT_MAX_LEVEL
-    assert "最终答案" in result["response_text"]  # 模板显式声明"不给出最终答案"
+    assert "最终答案" not in result["response_text"]
 
 
 def test_hint_ladder_reaches_every_level_before_correcting():
@@ -202,7 +204,7 @@ def test_correct_branch_on_stable_error():
     assert result["action"] == "correct"
     assert result["citations"], "有证据的纠错应当给出引用"
     assert result["wrong_streak"] == 0 and result["hint_level"] == 0, "纠错后清零连续错误与提示级别"
-    assert entered_nodes(port) == ["assess", "correct", "update_profile"]
+    assert entered_nodes(port) == ["assess", "correct"]
 
 
 def test_correct_branch_on_misconception_confusion():
@@ -216,14 +218,48 @@ def test_correct_branch_on_misconception_confusion():
     assert result["action"] == "correct"
 
 
-def test_test_branch_verifies_after_enough_attempts():
-    """累积尝试足够且本轮无未处理错误 → Test（验证理解）。"""
+def test_test_branch_reports_missing_bank_after_enough_attempts():
+    """题库未配置时 Test 只显式报告缺口，不能生成替代题或判分。"""
     port = make_port(with_evidence=True)
     result = run_turn(port, user_input="我的答案是沿负梯度更新", attempt_count=3, wrong_streak=0)
     assert result["action"] == "test"
-    assert result["attempt_count"] == 4, "本轮有作答应记为一次尝试"
+    assert result["attempt_count"] == 3, "缺少题库与可靠判分时不累计作答事实"
     assert result["wrong_streak"] == 0, "缺少可靠判分时不得当成答错"
-    assert entered_nodes(port) == ["assess", "test", "update_profile"]
+    assert entered_nodes(port) == ["assess", "test"]
+    assert "题库未配置" in result["response_text"]
+
+
+@pytest.mark.parametrize(
+    ("mastery", "item_id", "expected"),
+    [
+        (0.299, "", "teach"),
+        (0.30, "", "ask"),
+        (0.59, "active-item", "hint"),
+        (0.60, "", "ask"),
+        (0.849, "", "ask"),
+        (0.85, "", "test"),
+    ],
+)
+def test_c_group_mastery_ranges_choose_documented_action(mastery, item_id, expected):
+    result = run_turn(make_port(with_evidence=True), user_input="继续检查这个知识点",
+                      current_concept_id="DS-LIN-01", experiment_group="C",
+                      learner_estimate={"status": "available", "mastery": mastery,
+                                        "model_version": "bkt-four-parameter-dev-v1", "evidence_count": 3},
+                      item_id=item_id)
+    assert result["action"] == expected
+
+
+def test_c_group_keeps_cold_start_and_corrects_repeated_errors_before_mastery_override():
+    cold = run_turn(make_port(), user_input="先检查一下", current_concept_id="DS-LIN-01",
+                    experiment_group="C", learner_estimate={"status": "insufficient_data", "mastery": None,
+                                                              "evidence_count": 2})
+    assert cold["action"] == "ask"
+
+    corrected = run_turn(make_port(), user_input="这条推理还是不对吗", current_concept_id="DS-LIN-01",
+                         experiment_group="C", learner_estimate={"status": "available", "mastery": 0.9,
+                                                                  "evidence_count": 4}, wrong_streak=2,
+                         hint_level=3, attempt_count=3, misconceptions=["概念条件混淆"])
+    assert corrected["action"] == "correct"
 
 
 def test_reflect_branch_at_turn_limit():
@@ -250,8 +286,8 @@ def test_student_stopped_exits_without_teaching_action():
     assert "rag" not in invoked, "已停止时不应再检索教材"
 
 
-def test_test_retry_edge_loops_once_and_converges():
-    """Test 出口的回退边：答错且提示未用尽 → 回到 Assess 补提示，且只回退一次。"""
+def test_test_does_not_infer_grading_or_loop_back():
+    """没有可靠判分时，Test 结束本轮且不伪造错误序列。"""
     port = make_port(with_evidence=True)
     result = run_turn(
         port,
@@ -262,10 +298,9 @@ def test_test_retry_edge_loops_once_and_converges():
         hint_level=0,
     )
     nodes = entered_nodes(port)
-    assert nodes.count("assess") == 2, "应有且仅有一次回退到 Assess"
-    assert "hint" in nodes
-    assert result["action"] == "hint"
-    assert result["wrong_streak"] == 1, "回退前的判错应被累计"
+    assert nodes == ["assess", "test"]
+    assert result["action"] == "test"
+    assert result["wrong_streak"] == 0
 
 
 def test_max_turns_never_loops_forever():
@@ -276,8 +311,7 @@ def test_max_turns_never_loops_forever():
     for _ in range(10):
         before = entered_nodes(port).count("assess")
         state = asyncio.run(run_teaching_turn(port, state))
-        # 单轮内最多进入 Assess 两次（一次正常入口 + 一次 Test 回退），说明没有死循环
-        assert entered_nodes(port).count("assess") - before <= 2
+        assert entered_nodes(port).count("assess") - before <= 1
         assert state["turn_count"] <= max_turns, "turn_count 不得越过 max_turns"
         assert state["action"] in ("teach", "ask", "hint", "correct", "test", "reflect", "end")
     assert state["action"] == "reflect" or state["next_action"] == "end"

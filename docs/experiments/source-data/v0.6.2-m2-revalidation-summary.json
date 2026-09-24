@@ -1,0 +1,27 @@
+{
+  "record_id": "m2-focused-v0.6.2-release-revalidation",
+  "acceptance_version": "ds-m2-offline-cases-v1",
+  "created_at_utc": "2026-09-24T13:27:10.196178Z",
+  "status": "passed",
+  "sample_type": "constructed_developer_fixture",
+  "human_subjects": false,
+  "requires_network": false,
+  "requires_paid_model": false,
+  "denominator": {
+    "passed": 82,
+    "total": 82,
+    "failures": 0
+  },
+  "test_files": [
+    "tests/models/test_bkt.py",
+    "tests/models/test_learner_store.py",
+    "tests/graph/test_education_routing.py",
+    "tests/api/test_ab_and_replay.py",
+    "tests/library/test_markitdown_converter.py",
+    "tests/test_question_bank.py",
+    "tests/test_contract_consistency.py",
+    "tests/test_architecture_boundaries.py"
+  ],
+  "overlap": "The focused 82-item set is a subset of the 318-item Python regression; do not add the counts.",
+  "source_record_sha256": "313b3f942579cbebeb0fb8b3f67ccfaf394a44ba4bc23544f3b3f1cefb80b589"
+}

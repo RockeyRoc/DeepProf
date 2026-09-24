@@ -34,7 +34,9 @@ class PedagogyState(TypedDict, total=False):
     session_id: str
     learning_goal: str
     current_concept: str
-    learner_state_ref: str  # 学情记忆的 Storage 引用（不是原文）
+    current_concept_id: str
+    experiment_group: str
+    learner_estimate: dict[str, Any]
     retrieved_evidence_refs: list[dict]  # 教材证据定位，不含原文
     attempt_count: int  # 学生作答尝试累计
     hint_level: int  # 已给出的提示级别（0=未给提示）
@@ -46,6 +48,12 @@ class PedagogyState(TypedDict, total=False):
     learner_id: str
     trace_id: str
     user_input: str  # 本轮学生输入（短文本，随会话落盘，不放完整历史）
+    course_id: str
+    provider_profile: str
+    model: str
+    freeze_model: bool
+    generation_config: dict[str, Any]
+    requested_action: str
 
     # ---------- 本轮输出（§16.3：向前端输出文本、教学动作和情感标签） ----------
     action: str
@@ -55,11 +63,13 @@ class PedagogyState(TypedDict, total=False):
 
     # ---------- 判断依据 ----------
     evidence_sufficient: bool
+    evidence_constraint: bool
     wrong_streak: int  # 连续答错次数
     last_answer_correct: bool | None  # None = 缺少可靠判分，不得当成答错
     prior_knowledge_gap: bool  # 学生自述缺少先验（前置概念未学）→ 讲解起点前移
     item_id: str  # 本轮作答对应的题目（Attempt 的幂等与来源映射依据；题库未接入时为空）
-    memory_note: str  # 本轮召回的学情记忆摘要（有界、压缩后），供提示词个性化参考
+    quiz_question: dict[str, Any]
+    test_difficulty: int | None
 
     # ---------- 循环控制（§7.3 防无限追问） ----------
     student_stopped: bool
@@ -75,7 +85,9 @@ DEFAULT_STATE: dict[str, Any] = {
     "session_id": "",
     "learning_goal": "",
     "current_concept": "",
-    "learner_state_ref": "",
+    "current_concept_id": "",
+    "experiment_group": "B",
+    "learner_estimate": {},
     "retrieved_evidence_refs": [],
     "attempt_count": 0,
     "hint_level": 0,
@@ -85,16 +97,24 @@ DEFAULT_STATE: dict[str, Any] = {
     "learner_id": "",
     "trace_id": "",
     "user_input": "",
+    "course_id": "",
+    "provider_profile": "",
+    "model": "",
+    "freeze_model": True,
+    "generation_config": {},
+    "requested_action": "",
     "action": "",
     "response_text": "",
     "emotion": "",
     "citations": [],
     "evidence_sufficient": False,
+    "evidence_constraint": True,
     "wrong_streak": 0,
     "last_answer_correct": None,
     "prior_knowledge_gap": False,
     "item_id": "",
-    "memory_note": "",
+    "quiz_question": {},
+    "test_difficulty": None,
     "student_stopped": False,
     "turn_count": 0,
     "max_turns": MAX_TURNS_DEFAULT,

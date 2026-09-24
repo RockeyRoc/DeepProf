@@ -43,21 +43,12 @@ class EventType(str, Enum):
     MEMORY_READ = "memory.read"
     MEMORY_WRITE = "memory.write"
 
-    PLUGIN_STARTED = "plugin.started"
-    PLUGIN_STOPPED = "plugin.stopped"
-    PLUGIN_FAILED = "plugin.failed"
-
     LIBRARY_IMPORTED = "library.imported"
-    LIBRARY_CRAWLED = "library.crawled"
     LIBRARY_INDEXED = "library.indexed"
 
     PEDAGOGY_NODE_ENTERED = "pedagogy.node.entered"
     PEDAGOGY_DECISION = "pedagogy.decision"
     PEDAGOGY_NODE_EXITED = "pedagogy.node.exited"
-    # 作答事实：教育组 → 数据组的交接通道（§18.2 Attempt 契约）
-    PEDAGOGY_ATTEMPT = "pedagogy.attempt"
-
-    QUIZ_COMPLETED = "quiz.completed"
 
 
 def utc_now() -> str:

@@ -58,7 +58,7 @@ async def teach(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
             action=ACTION_TEACH,
             concept=concept,
             # 讲解必须落在教材上：没有可定位证据就不生成（§7.3 不编造引用）
-            require_evidence=True,
+            require_evidence=bool(state.get("evidence_constraint", True)),
             reveal_answer=True,  # 讲解就是要给出结论
             require_student_reply=True,
             evidence_sufficient=evidence_sufficient,
@@ -66,8 +66,8 @@ async def teach(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
                 "learning_goal": str(state.get("learning_goal") or ""),
                 "user_input": str(state.get("user_input") or ""),
                 "query": query,
+                "course_id": str(state.get("course_id") or ""),
                 "prior_gap_note": teach_prior_note(prior_gap),
-                "memory_note": str(state.get("memory_note") or ""),
             },
             reason=(
                 "学生自述缺少先验，讲解起点前移到前置概念"

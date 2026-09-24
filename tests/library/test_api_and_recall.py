@@ -4,13 +4,11 @@ import asyncio
 import json
 from pathlib import Path
 
-import httpx
 from fastapi.testclient import TestClient
 
 from api.app import create_app
 from config.settings import Settings
 from graph.education.bindings import ACTION_BINDINGS
-from library.crawler import CrawlPolicy, SingleUrlCrawler
 from library.service import ResourceLibrary
 from runtime.storage.migrations import connect_memory
 from runtime.storage.resource_store import SqliteResourceStore
@@ -77,7 +75,7 @@ def test_real_rag_chain_keeps_text_out_of_graph_capability_evidence(tmp_path: Pa
         SqliteResourceStore(connect_memory()),
         library_root=tmp_path / "library",
     )
-    library.import_path(source, metadata={"owner_id": "local"}, activate=True)
+    library.import_path(source, metadata={"owner_id": "local", "course_id": "math"}, activate=True)
 
     service = make_service(bindings=ACTION_BINDINGS)
     service.library = library
@@ -101,11 +99,11 @@ def test_real_rag_chain_keeps_text_out_of_graph_capability_evidence(tmp_path: Pa
                 "concept": "derivative",
                 "require_evidence": True,
                 "params": {
+                    "course_id": "math",
                     "query": "derivative slope",
                     "learning_goal": "understand",
                     "user_input": "explain",
                     "prior_gap_note": "",
-                    "memory_note": "",
                 },
             },
             {"learner_id": "local", "trace_id": "teach-test"},
@@ -114,29 +112,3 @@ def test_real_rag_chain_keeps_text_out_of_graph_capability_evidence(tmp_path: Pa
     assert result["status"] == "success"
     assert result["evidence"]
     assert "text" not in result["evidence"][0]
-
-
-def test_crawler_uses_fake_http_and_rejects_cross_domain_redirect() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/robots.txt":
-            return httpx.Response(200, text="User-agent: *\nAllow: /")
-        if request.url.path == "/redirect":
-            return httpx.Response(302, headers={"location": "https://evil.example/file.md"})
-        return httpx.Response(200, headers={"content-type": "text/markdown"}, content=b"# Web\nPublic notes.")
-
-    async def run() -> None:
-        client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        crawler = SingleUrlCrawler(
-            CrawlPolicy(["example.com"], ["example.com"], delay_seconds=0), client=client
-        )
-        fetched = await crawler.fetch("https://example.com/file.md")
-        assert fetched.extension == ".md"
-        try:
-            await crawler.fetch("https://example.com/redirect")
-        except Exception as exc:
-            assert getattr(exc, "details", {}).get("kind") == "domain_denied"
-        else:  # pragma: no cover - safety assertion
-            raise AssertionError("cross-domain redirect was accepted")
-        await client.aclose()
-
-    asyncio.run(run())

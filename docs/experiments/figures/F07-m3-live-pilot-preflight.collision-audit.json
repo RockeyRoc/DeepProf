@@ -1,0 +1,430 @@
+{
+  "pdf": "docs\\experiments\\figures\\F07-m3-live-pilot-preflight.pdf",
+  "auditable": true,
+  "verdict": "FIX BEFORE DELIVERY",
+  "page_count": 1,
+  "visible_text_box_count": 28,
+  "text_trace_count": 165,
+  "stroke_path_count": 17,
+  "filled_region_count": 14,
+  "image_region_count": 0,
+  "summary": {
+    "fail": 15,
+    "warn": 2,
+    "contained_fill_overlays": 10,
+    "contained_image_overlays": 0
+  },
+  "thresholds": {
+    "text_inset_pt": 0.6,
+    "min_overlap_ratio": 0.05,
+    "clipping_tolerance_pt": 0.5
+  },
+  "findings": [
+    {
+      "severity": "FAIL",
+      "kind": "text-stroke",
+      "page": 1,
+      "message": "Text is crossed by 5 stroked path(s)",
+      "text": "10",
+      "text_bbox": [
+        244.2890625,
+        67.1209945678711,
+        253.78221130371094,
+        215.2154083251953
+      ],
+      "other_text": null,
+      "other_bbox": [
+        109.5739974975586,
+        60.172000885009766,
+        444.281005859375,
+        221.36000061035156
+      ],
+      "object_count": 5,
+      "object_indexes": [
+        7,
+        8,
+        9,
+        13,
+        14
+      ]
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-stroke",
+      "page": 1,
+      "message": "Text is crossed by 7 stroked path(s)",
+      "text": "2",
+      "text_bbox": [
+        261.39453125,
+        67.1209945678711,
+        418.7628479003906,
+        215.2154083251953
+      ],
+      "other_text": null,
+      "other_bbox": [
+        109.5739974975586,
+        50.05500030517578,
+        444.281005859375,
+        266.36700439453125
+      ],
+      "object_count": 7,
+      "object_indexes": [
+        4,
+        5,
+        7,
+        8,
+        9,
+        13,
+        14
+      ]
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-stroke",
+      "page": 1,
+      "message": "Text is crossed by 1 stroked path(s)",
+      "text": "12 待授权",
+      "text_bbox": [
+        261.39453125,
+        171.78897094726562,
+        292.46490478515625,
+        180.3247833251953
+      ],
+      "other_text": null,
+      "other_bbox": [
+        276.92999267578125,
+        50.05500030517578,
+        276.92999267578125,
+        266.36700439453125
+      ],
+      "object_count": 1,
+      "object_indexes": [
+        4
+      ]
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-stroke",
+      "page": 1,
+      "message": "Text is crossed by 1 stroked path(s)",
+      "text": "12 待授权",
+      "text_bbox": [
+        261.39453125,
+        241.56631469726562,
+        292.46490478515625,
+        250.1021270751953
+      ],
+      "other_text": null,
+      "other_bbox": [
+        276.92999267578125,
+        50.05500030517578,
+        276.92999267578125,
+        266.36700439453125
+      ],
+      "object_count": 1,
+      "object_indexes": [
+        4
+      ]
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-stroke",
+      "page": 1,
+      "message": "Text is crossed by 1 stroked path(s)",
+      "text": "12 待授权",
+      "text_bbox": [
+        273.2593078613281,
+        102.0116195678711,
+        292.46490478515625,
+        110.54744720458984
+      ],
+      "other_text": null,
+      "other_bbox": [
+        276.92999267578125,
+        50.05500030517578,
+        276.92999267578125,
+        266.36700439453125
+      ],
+      "object_count": 1,
+      "object_indexes": [
+        4
+      ]
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        107.0703125,
+        269.99456787109375,
+        449.2867126464844,
+        278.99456787109375
+      ],
+      "other_text": "3",
+      "other_bbox": [
+        190.7523193359375,
+        269.1479797363281,
+        195.75631713867188,
+        279.19195556640625
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        107.0703125,
+        269.99456787109375,
+        449.2867126464844,
+        278.99456787109375
+      ],
+      "other_text": "6",
+      "other_bbox": [
+        274.42578125,
+        269.1479797363281,
+        279.4297790527344,
+        279.19195556640625
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        107.0703125,
+        269.99456787109375,
+        449.2867126464844,
+        278.99456787109375
+      ],
+      "other_text": "9",
+      "other_bbox": [
+        358.0987854003906,
+        269.1479797363281,
+        363.102783203125,
+        279.19195556640625
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        107.0703125,
+        269.99456787109375,
+        449.2867126464844,
+        278.99456787109375
+      ],
+      "other_text": "12",
+      "other_bbox": [
+        439.27734375,
+        269.1479797363281,
+        449.28533935546875,
+        279.19195556640625
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 100.0% of the smaller box",
+      "text": "10",
+      "text_bbox": [
+        244.2890625,
+        67.1209945678711,
+        253.78221130371094,
+        215.2154083251953
+      ],
+      "other_text": "10",
+      "other_bbox": [
+        244.2890625,
+        136.0953826904297,
+        253.78091430664062,
+        145.62136840820312
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 98.0% of the smaller box",
+      "text": "10",
+      "text_bbox": [
+        244.2890625,
+        67.1209945678711,
+        253.78221130371094,
+        215.2154083251953
+      ],
+      "other_text": "10",
+      "other_bbox": [
+        244.2890625,
+        205.8766326904297,
+        253.78091430664062,
+        215.40261840820312
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 100.0% of the smaller box",
+      "text": "2",
+      "text_bbox": [
+        261.39453125,
+        67.1209945678711,
+        418.7628479003906,
+        215.2154083251953
+      ],
+      "other_text": "2",
+      "other_bbox": [
+        414.015625,
+        136.0953826904297,
+        418.76153564453125,
+        145.62136840820312
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 98.0% of the smaller box",
+      "text": "2",
+      "text_bbox": [
+        261.39453125,
+        67.1209945678711,
+        418.7628479003906,
+        215.2154083251953
+      ],
+      "other_text": "2",
+      "other_bbox": [
+        414.015625,
+        205.8766326904297,
+        418.76153564453125,
+        215.40261840820312
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 100.0% of the smaller box",
+      "text": "2",
+      "text_bbox": [
+        261.39453125,
+        67.1209945678711,
+        418.7628479003906,
+        215.2154083251953
+      ],
+      "other_text": "12 待授权",
+      "other_bbox": [
+        273.2593078613281,
+        102.0116195678711,
+        292.46490478515625,
+        110.54744720458984
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 100.0% of the smaller box",
+      "text": "2",
+      "text_bbox": [
+        261.39453125,
+        67.1209945678711,
+        418.7628479003906,
+        215.2154083251953
+      ],
+      "other_text": "12 待授权",
+      "other_bbox": [
+        261.39453125,
+        171.78897094726562,
+        292.46490478515625,
+        180.3247833251953
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "WARN",
+      "kind": "text-fill-edge",
+      "page": 1,
+      "message": "Text partially overlaps the edge of 5 filled region(s)",
+      "text": "10",
+      "text_bbox": [
+        244.2890625,
+        67.1209945678711,
+        253.78221130371094,
+        215.2154083251953
+      ],
+      "other_text": null,
+      "other_bbox": [
+        109.5739974975586,
+        60.172000885009766,
+        444.281005859375,
+        221.36000061035156
+      ],
+      "object_count": 5,
+      "object_indexes": [
+        7000,
+        8000,
+        9000,
+        13000,
+        14000
+      ]
+    },
+    {
+      "severity": "WARN",
+      "kind": "text-fill-edge",
+      "page": 1,
+      "message": "Text partially overlaps the edge of 5 filled region(s)",
+      "text": "2",
+      "text_bbox": [
+        261.39453125,
+        67.1209945678711,
+        418.7628479003906,
+        215.2154083251953
+      ],
+      "other_text": null,
+      "other_bbox": [
+        109.5739974975586,
+        60.172000885009766,
+        444.281005859375,
+        221.36000061035156
+      ],
+      "object_count": 5,
+      "object_indexes": [
+        7000,
+        8000,
+        9000,
+        13000,
+        14000
+      ]
+    }
+  ]
+}

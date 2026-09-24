@@ -40,6 +40,7 @@ ACTION_ASK = "ask"  # 学生具备推理基础 → 苏格拉底追问
 ACTION_HINT = "hint"  # 尝试受阻但不宜直接给答案
 ACTION_CORRECT = "correct"  # 出现稳定错误或概念混淆
 ACTION_TEST = "test"  # 需要验证理解或间隔复习
+ACTION_QUIZ = "quiz"  # API/CLI 显式测验别名
 ACTION_REFLECT = "reflect"  # 多轮无进展、异常或策略失效
 ACTION_END = "end"  # 本轮结束（学生停止或已完成）
 
@@ -48,14 +49,6 @@ ACTION_END = "end"  # 本轮结束（学生停止或已完成）
 #: 不加入 ACTION_NODES：route_from_assess 会把 ACTION_NODES 里的动作映射成节点，
 #: 若把 assess 放进去，next_action=assess 就会映射回 assess 自身，形成自环。
 ACTION_ASSESS = "assess"
-
-#: 读学情记忆（Assess 判断依据之二）与把本轮结果落成学情增量（UpdateProfile）。
-#: 与 ACTION_ASSESS 同样属于“信息请求/落盘请求”，不是教学动作，同样不进 ACTION_NODES。
-ACTION_RECALL = "recall"
-ACTION_UPDATE_PROFILE = "update_profile"
-
-#: 问学情模型要结构化估计（未接入时返回 not_implemented，图侧据此退化为规则化观察，§18.1）。
-ACTION_DIAGNOSE = "diagnose"
 
 #: 动作 → 图节点名（reflect 有自己的节点，end 落到 END）
 ACTION_NODES = {
@@ -77,6 +70,29 @@ EMOTION_BY_ACTION = {
     ACTION_REFLECT: "supportive",
     ACTION_END: "warm",
 }
+
+
+# Requests that explicitly state the textbook does not support the requested
+# fact must fail closed even when a weak lexical retriever returns unrelated
+# but locatable passages.
+_EXPLICIT_SOURCE_GAP_CUES = (
+    "教材没有明确覆盖",
+    "教材未明确覆盖",
+    "教材中未出现",
+    "教材中没有出现",
+    "教材无法支持",
+    "教材没有覆盖",
+    "当前教材不支持",
+    "未出现在教材",
+    "not covered by the textbook",
+    "not in the textbook",
+    "unsupported by the textbook",
+)
+
+def request_explicitly_claims_source_gap(query: str) -> bool:
+    """Detect requests that themselves state the course source lacks support."""
+    normalized_query = str(query or "").casefold()
+    return any(cue in normalized_query for cue in _EXPLICIT_SOURCE_GAP_CUES)
 
 
 # ======================================================================
@@ -124,8 +140,8 @@ def next_hint_level(current_level: int, wrong_streak: int) -> int:
 # 四、Correct / Test 触发阈值（§6.2）
 # ======================================================================
 
-#: 连续答错达到该次数 → 判定为“稳定错误”，转入 Correct 直接纠错
-CORRECT_WRONG_STREAK = 3
+#: 连续答错达到该次数且提示阶梯已用尽 → 判定为“稳定错误”，转入 Correct
+CORRECT_WRONG_STREAK = 2
 
 #: 累积误解条目达到该数量 → 判定为“概念混淆”，转入 Correct
 MISCONCEPTION_LIMIT = 2
@@ -134,7 +150,7 @@ MISCONCEPTION_LIMIT = 2
 MISCONCEPTION_KEEP = 5
 
 #: 尝试次数达到该值且本轮无未处理错误 → 进入 Test 验证理解
-QUIZ_AFTER_ATTEMPTS = 3
+QUIZ_AFTER_ATTEMPTS = 3  # Reaching the threshold reports quiz_not_configured; no item is generated.
 
 #: 主动求讲解的意图关键词（§16.3 教学样例“主动求讲解”）
 EXPLAIN_INTENT_KEYWORDS = (
@@ -148,6 +164,11 @@ EXPLAIN_INTENT_KEYWORDS = (
     "是什么",
     "怎么理解",
     "说明一下",
+    "逐步说明",
+    "请从头解释",
+    "请逐步解释",
+    "讲一讲",
+    "解释",
     "不会",
     "不懂",
     "没听懂",
@@ -203,36 +224,6 @@ def reports_prior_gap(text: str) -> bool:
 def teach_prior_note(prior_gap: bool) -> str:
     """按先验判定选讲解提示（分层讲解的“起点”由这条策略决定）。"""
     return PRIOR_GAP_TEACH_NOTE if prior_gap else PRIOR_OK_TEACH_NOTE
-
-
-# ======================================================================
-# 五、作答事实（Attempt）的产出纪律（§16.3 / §18.2）
-# ======================================================================
-
-
-def attempt_gate(correct: bool | None, item_id: str, learner_id: str) -> tuple[bool, str]:
-    """是否产出 Attempt，以及不产出时的显式原因（§18.2 / §13.1）。
-
-    三个必要条件，缺一不可：
-
-    1. **归属明确**：``learner_id`` 非空。无法归属到具体学习者的作答事实
-       会污染别人的画像，宁可这一轮不产出（与 UpdateProfile 的写入纪律一致）。
-    2. **判分可靠**：``correct`` 必须是显式 bool。判分缺失（None）既不能当成
-       答错，也不能写进学情——否则 BKT / IRT 会把“判不了”学成“答错了”（§13.1）。
-    3. **题目可追踪**：``item_id`` 非空。Attempt 的幂等键与来源映射都依赖
-       item_id（§18.2 必需字段），课程题库未接入时 Quiz 给不出 item_id，
-       因此**宁可不产出**，也不编造一个无法与题库对齐的 id。
-
-    返回 ``(True, "")`` 或 ``(False, 原因)``。原因会写进决策事件，
-    让人一眼看出“这一轮为什么没有答题记录”，而不是误以为链路坏了。
-    """
-    if not str(learner_id or "").strip():
-        return False, "缺少 learner_id，无法归属：不产出 Attempt，避免跨学习者污染（§13.2）"
-    if correct is None:
-        return False, "缺少可靠判分（自动判分未接入）：不产出 Attempt，不得把判不了当成答错（§13.1）"
-    if not str(item_id or "").strip():
-        return False, "缺少可追踪 item_id（课程题库未接入）：不产出 Attempt，不编造无法与题库对齐的 id（§18.2）"
-    return True, ""
 
 
 # ======================================================================
@@ -293,141 +284,17 @@ REFLECT_TEXT = (
 REFLECT_STRATEGY_OPTIONS = ("回退前置概念", "换表征方式", "请教师介入")
 
 #: 学生主动停止时的收束语（§16.3：学生停止时退出）
-STOPPED_TEXT = (
-    "好，本轮先到这里。我已经把本轮的学习情况写入可撤回的学情记忆，"
-    "你随时可以让我更正或删除它。下次我们接着这个知识点继续。"
+STOPPED_TEXT = "好，本轮先到这里。下次我们可以从这个知识点继续。"
+
+EVIDENCE_GAP_TEXT = (
+    "目前在已选课程的教材中没有找到足够且可定位的依据，因此我先不生成讲解或追问，"
+    "也不附引用。请检查教材导入状态，或把问题缩小到一个具体概念。"
 )
 
-#: Test 节点必须声明的限制（诚实原则：题库与自动判分尚未接入）
-QUIZ_NOT_CONNECTED_NOTE = (
-    "（说明：课程题库与自动判分尚未接入——题目由模型即时生成，判分结论不写入学情；"
-    "作答事实（Attempt）只在题目可追踪且判分可靠时产出，当前题库未接入，故本轮不产出。）"
-)
-
-#: Quiz Skill 不可用时的兜底自检题（仍然不给答案）
-QUIZ_FALLBACK_ITEM = (
-    "请你用自己的话复述「{concept}」的定义，并说明它的适用条件与一个反例。"
-)
-
-#: Test 回复的“框架”键：节点按 mode 与判分三态算出键，bindings 声明每个键
-#: 对应哪段文案。键放在 policies 是因为两边都要引用它——写歪一个字符不会报错，
-#: 只会让回复少一段框架，所以必须共用同一份常量。
-REPLY_FRAME_QUIZ = "quiz"  # 出题（本轮没有作答可评价）
-REPLY_FRAME_CORRECT = "correct"  # 判为正确
-REPLY_FRAME_INCORRECT = "incorrect"  # 判为错误
-REPLY_FRAME_UNKNOWN = "unknown"  # 判分缺失（自动判分未接入）
-
-#: 出题回复的开头
-QUIZ_ITEM_PREFIX = "【自检】"
-
-#: 评价回复的开头：三态判分必须分开措辞——§13.1 不把“判不了”当成“答错”，
-#: 所以 REPLY_FRAME_UNKNOWN 用“先对齐”而不是“还有问题”。
-QUIZ_FRAME_CORRECT = "这一步是对的。"
-QUIZ_FRAME_INCORRECT = "这一步还有问题："
-QUIZ_FRAME_UNKNOWN = "我们先对齐一下："
-
-#: Quiz Skill 没给出评价内容时的兜底正文
-QUIZ_EVALUATION_FALLBACK = "请把你的推理过程再写一步，我们逐句检查。"
-
-#: 判分信息缺失时的说明（不得把“判分不了”当成“答错”，§13.1 不贴永久标签）
-QUIZ_NO_JUDGEMENT_NOTE = (
-    "（判分未接入）我无法确认这一步的对错，因此本轮不更新你的错误计数，"
-    "也不会把结论写成学情标签。请补充你的推理过程，我们继续讨论。"
-)
-
+QUIZ_NOT_CONFIGURED_TEXT = "题库未配置，当前不能生成测验或判定作答。"
 
 # ======================================================================
-# 七、记忆读写（§5.5：任何长期记忆都必须带来源、置信度、过期策略与可撤回标记）
-# ======================================================================
-
-#: 召回条数上限（写入侧与读取侧共用）
-MEMORY_READ_LIMIT = 10
-
-#: 记忆作用域（与 runtime/memory/base.py 的 SCOPE_* 取值一致）
-MEMORY_SCOPE_LONG_TERM = "long_term"
-MEMORY_SCOPE_EPISODIC = "episodic"
-
-#: 记忆标签：分类口径放在策略层，读写两侧共用同一份常量。
-#: 原先两处各写一遍字符串，等于一个契约两个主人——改一处忘另一处不会报错，
-#: 只会让“历史误解”静默读不到。
-TAG_OBSERVATION = "observation"
-TAG_MISCONCEPTION = "misconception"
-TAG_STUDENT_CONTEXT = "student_context"
-TAG_INTERVENTION = "intervention"
-
-#: 误解条目的标签字段名（读取方按它取标签，避免解析正文）
-MISCONCEPTION_LABEL_FIELD = "misconception"
-
-#: 规则化观察的置信度基线（BKT 未接入前的最低可解释基线，§18.1）
-MEMORY_CONFIDENCE_BASE = 0.30
-MEMORY_CONFIDENCE_WITH_EVIDENCE = 0.20
-MEMORY_CONFIDENCE_WITH_ATTEMPT = 0.10
-MEMORY_CONFIDENCE_CAP = 0.60
-
-#: 记录学情估计来源的模型版本；接入 BKT/IRT 后由数据组替换（§18.1）
-RULE_MODEL_VERSION = "rule_based_v0_no_bkt"
-
-
-def is_misconception_record(record: dict) -> bool:
-    """该记忆记录是否为误解条目（按标签判定，不猜正文）。"""
-    tags = record.get("tags") or []
-    if isinstance(tags, (list, tuple)) and TAG_MISCONCEPTION in tags:
-        return True
-    metadata = record.get("metadata") or {}
-    return bool(str(metadata.get(MISCONCEPTION_LABEL_FIELD) or "").strip())
-
-
-def misconception_label(record: dict) -> str:
-    """从误解条目里取出标签；取不到返回空串，由调用方决定跳过。"""
-    metadata = record.get("metadata") or {}
-    return str(metadata.get(MISCONCEPTION_LABEL_FIELD) or "").strip()
-
-
-#: 规则化观察不得被解读成掌握结论的免责表述（§13.1 不给学生贴永久标签）
-MEMORY_DISCLAIMER = "该结论由规则生成，未接入 BKT/IRT 学情模型，不代表已掌握或未掌握。"
-
-
-def memory_confidence(evidence_sufficient: bool, attempt_count: int) -> float:
-    """规则化置信度：证据越充分、作答痕迹越多，观察越可信（§18.1）。"""
-    value = MEMORY_CONFIDENCE_BASE
-    if evidence_sufficient:
-        value += MEMORY_CONFIDENCE_WITH_EVIDENCE
-    if int(attempt_count or 0) > 0:
-        value += MEMORY_CONFIDENCE_WITH_ATTEMPT
-    return round(min(value, MEMORY_CONFIDENCE_CAP), 2)
-
-
-# ---- 学情记忆 → 生成上下文（跨轮记忆探针实验发现的缺口） ----
-# 记忆读写如果只落在存储里，跨轮个性化就是空转：召回内容必须经 Assess 压缩、
-# 由节点透传、最终拼进绑定声明的提示词。此处的常量与函数定义“怎么压缩”。
-
-#: 进入提示词的最大记录条数与单条截断长度（§6.4 状态不放大文本的提示词版）
-MEMORY_NOTE_MAX_RECORDS = 3
-MEMORY_NOTE_MAX_CHARS = 120
-
-#: UpdateProfile 写入“学生自述背景”时的原文摘录上限（可撤回，§13.2 最小必要）
-STUDENT_CONTEXT_MAX_CHARS = 120
-
-
-def memory_note(records: list[dict]) -> str:
-    """把召回的学情记录压缩成生成提示词片段；无可用记录返回空串。
-
-    有界压缩：最多 ``MEMORY_NOTE_MAX_RECORDS`` 条、每条截断到
-    ``MEMORY_NOTE_MAX_CHARS`` 字。标题行显式声明“不是教材依据”，
-    与 §7.3 的引用纪律衔接——记忆只能个性化表达，不能充当结论来源。
-    """
-    entries: list[str] = []
-    for record in list(records or [])[:MEMORY_NOTE_MAX_RECORDS]:
-        content = str(record.get("content") or "").strip()
-        if content:
-            entries.append(f"- {content[:MEMORY_NOTE_MAX_CHARS]}")
-    if not entries:
-        return ""
-    return "学情记忆（个性化参考，不是教材依据，不得作为结论来源）：\n" + "\n".join(entries)
-
-
-# ======================================================================
-# 八、RuntimePort 调用与事件约定
+# 六、RuntimePort 调用与事件约定
 # ======================================================================
 
 #: 图内所有调用与事件的来源标识（便于事件回放时按 source 过滤，§5.4）
@@ -437,10 +304,6 @@ GRAPH_SOURCE = "deepprof.graph.education"
 EVENT_NODE_ENTERED = "pedagogy.node.entered"
 EVENT_DECISION = "pedagogy.decision"
 EVENT_NODE_EXITED = "pedagogy.node.exited"
-#: 作答事实事件：教育组 → 数据组的 Attempt 交接通道（§16.3 / §18.2），
-#: 随事件落盘，数据组按 learner_id / concept 消费（BKT / IRT 输入）。
-EVENT_ATTEMPT = "pedagogy.attempt"
-
 #: 模型调用的默认温度：讲解/纠错要稳，追问要有点变化
 GENERATE_TEMPERATURE = 0.3
 

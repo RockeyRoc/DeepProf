@@ -1,0 +1,2 @@
+# Optional PDF report authoring dependency; normal CLI use does not require it.
+reportlab==4.4.9

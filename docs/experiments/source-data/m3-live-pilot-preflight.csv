@@ -1,0 +1,4 @@
+group,planned_cases,cases_with_retrieval_evidence,cases_insufficient_evidence,locatable_references,provider_cells_executed,provider_calls,awaiting_cases,run_id,status
+A,12,10,2,50,0,0,12,m3-live-20260924-071515-indexed-8e41c6d2,preflight_complete_inference_not_started
+B,12,10,2,50,0,0,12,m3-live-20260924-071515-indexed-8e41c6d2,preflight_complete_inference_not_started
+C,12,10,2,50,0,0,12,m3-live-20260924-071515-indexed-8e41c6d2,preflight_complete_inference_not_started

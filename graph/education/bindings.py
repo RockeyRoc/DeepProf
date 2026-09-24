@@ -66,38 +66,23 @@ from .policies import (
     ACTION_ASK,
     ACTION_ASSESS,
     ACTION_CORRECT,
-    ACTION_DIAGNOSE,
     ACTION_END,
     ACTION_HINT,
-    ACTION_RECALL,
     ACTION_REFLECT,
     ACTION_TEACH,
     ACTION_TEST,
-    ACTION_UPDATE_PROFILE,
     ASK_FALLBACK_QUESTION,
     ASK_NO_EVIDENCE_NOTE,
     CORRECT_INSUFFICIENT_EVIDENCE_TEXT,
+    EVIDENCE_GAP_TEXT,
     EVIDENCE_MAX_TEXT_CHARS,
     EVIDENCE_TOP_K,
     GENERATE_TEMPERATURE,
     GENERATION_FAILED_TEXT,
     HINT_LEVEL_TEMPLATES,
-    MEMORY_READ_LIMIT,
-    MEMORY_SCOPE_LONG_TERM,
-    QUIZ_EVALUATION_FALLBACK,
-    QUIZ_FALLBACK_ITEM,
-    QUIZ_FRAME_CORRECT,
-    QUIZ_FRAME_INCORRECT,
-    QUIZ_FRAME_UNKNOWN,
-    QUIZ_ITEM_PREFIX,
-    QUIZ_NO_JUDGEMENT_NOTE,
-    QUIZ_NOT_CONNECTED_NOTE,
+    QUIZ_NOT_CONFIGURED_TEXT,
     RAG_SKILL,
     REFLECT_TEXT,
-    REPLY_FRAME_CORRECT,
-    REPLY_FRAME_INCORRECT,
-    REPLY_FRAME_QUIZ,
-    REPLY_FRAME_UNKNOWN,
     ROLE_TUTOR,
     STOPPED_TEXT,
     TEACH_INSUFFICIENT_EVIDENCE_TEXT,
@@ -107,14 +92,11 @@ from .policies import (
 #: Teach 的提示词模板（绑定侧是唯一来源；节点不自带一份）。
 #: 起讲点由 `{prior_gap_note}` 决定——它来自 policies.teach_prior_note：
 #: 先验不足时要求先补前置概念，先验正常时精简基础步骤（§16.3 先验不足样例）。
-#: `{memory_note}` 是 Assess 召回并压缩后的学情记忆摘要（policies.memory_note），
-#: 只作个性化参考，明确声明它不是教材依据（§7.3 引用纪律）。
 #: `{evidence_block}` 由 Runtime 依据检索到的证据原文填入（节点拿不到原文）。
 TEACH_PROMPT_TEMPLATE = (
     "请针对知识点「{concept}」做分层讲解。\n"
     "学习目标：{learning_goal}\n"
     "{prior_gap_note}\n"
-    "{memory_note}\n"
     "学生的问题：{user_input}\n\n"
     "教材片段（唯一允许的依据）：\n"
     "{evidence_block}\n\n"
@@ -129,7 +111,6 @@ CORRECT_PROMPT_TEMPLATE = (
     "学生在知识点「{concept}」上出现了稳定错误。\n"
     "学生的说法/疑似误解：{conflicts}\n"
     "学生的原话：{user_input}\n"
-    "{memory_note}\n\n"
     "教材片段（唯一允许的依据）：\n"
     "{evidence_block}\n\n"
     "要求：用中文输出三部分，不要引入片段之外的文献或来源：\n"
@@ -151,6 +132,7 @@ _EVIDENCE_BINDING = {
         "input": {
             "query": "${params.query}",
             "concept": "${concept}",
+            "course_id": "${params.course_id}",
             "top_k": EVIDENCE_TOP_K,
         },
     },
@@ -164,47 +146,6 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
     # 不设 require_evidence 门：Assess 要的正是“有没有证据”这个信号本身，
     # 设了门反而会先取一次、再取一次。
     ACTION_ASSESS: _EVIDENCE_BINDING,
-    # --------------------------------------------------------------- Recall
-    # 读学情记忆：身份（learner_id）由能力层从调用上下文取，这里只声明检索口径——
-    # “查哪一类记忆、查多少条、按哪个知识点过滤”才是策略。
-    ACTION_RECALL: {
-        "capability": "read_memory",
-        "params": {
-            "query": {
-                "scope": MEMORY_SCOPE_LONG_TERM,
-                "concept_ids": ["${concept}"],
-                "limit": MEMORY_READ_LIMIT,
-            },
-        },
-    },
-    # -------------------------------------------------------------- Diagnose
-    # 问学情模型要结构化估计：**不声明 content_field**，因此这是“只问状态”的调用——
-    # 模型未接入时 Skill 回 not_implemented 也算调用成功（结论在 skill_status 里），
-    # 图侧据此退化为规则化观察（§18.1），而不是把“没接入”当成失败。
-    ACTION_DIAGNOSE: {
-        "capability": "invoke_skill",
-        "params": {
-            "skill": "diagnosis",
-            "input": {
-                "learner_id": "${params.learner_id}",
-                "concept": "${concept}",
-                "attempt_count": "${params.attempt_count}",
-                "wrong_streak": "${params.wrong_streak}",
-                "hint_level": "${params.hint_level}",
-                "misconceptions": "${params.misconceptions}",
-                "last_answer_correct": "${params.last_answer_correct}",
-                "recent_actions": "${params.recent_actions}",
-                "evidence_count": "${params.evidence_count}",
-            },
-        },
-    },
-    # -------------------------------------------------------- UpdateProfile
-    # 落学情增量：记录本身由策略层构造（来源/置信度/过期策略/可撤回都在记录里，
-    # §5.5），这里只声明“把它写进去”。空列表 = 本轮没有可写的增量。
-    ACTION_UPDATE_PROFILE: {
-        "capability": "write_memory",
-        "params": {"records": "${params.records}"},
-    },
     # ------------------------------------------------------------------ End
     # 学生主动停止时的收束语：纯模板，不经模型（收束语不该被模型改写）。
     ACTION_END: {
@@ -213,11 +154,11 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
     },
     # -------------------------------------------------------------- Reflect
     # 两条分支都是确定性模板：换策略建议 / 学生已停止的收束语。
-    ACTION_REFLECT: {
+ACTION_REFLECT: {
         "capability": "render_template",
         "params": {
-            "templates": {"False": REFLECT_TEXT, "True": STOPPED_TEXT},
-            "select": "${params.stopped}",
+            "templates": {"limit": REFLECT_TEXT, "stopped": STOPPED_TEXT, "evidence_gap": EVIDENCE_GAP_TEXT},
+            "select": "${params.mode}",
             "values": {"concept": "${concept}"},
         },
     },
@@ -246,7 +187,6 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "learner_input": "${params.user_input}",
                 "hint_level": "${level}",
                 "prior_attempts": "${params.attempt_count}",
-                "memory_note": "${params.memory_note}",
                 "avoid_answer": True,
             },
         },
@@ -277,7 +217,6 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "learning_goal": "${params.learning_goal}",
                 "user_input": "${params.user_input}",
                 "prior_gap_note": "${params.prior_gap_note}",
-                "memory_note": "${params.memory_note}",
             },
             "temperature": GENERATE_TEMPERATURE,
             "max_chars": EVIDENCE_MAX_TEXT_CHARS,
@@ -303,7 +242,6 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
                 "concept": "${concept}",
                 "conflicts": "${params.conflicts}",
                 "user_input": "${params.user_input}",
-                "memory_note": "${params.memory_note}",
             },
             "temperature": GENERATE_TEMPERATURE,
             "max_chars": EVIDENCE_MAX_TEXT_CHARS,
@@ -331,47 +269,11 @@ ACTION_BINDINGS: dict[str, dict[str, Any]] = {
         "capability": "invoke_skill",
         "params": {
             "skill": "quiz",
-            "content_field": {
-                "select": "${params.mode}",
-                "templates": {"generate": "item.stem", "evaluate": "evaluation.feedback"},
-            },
-            "input": {
-                "mode": "${params.mode}",
-                "concept": "${concept}",
-                "learning_goal": "${params.learning_goal}",
-                "difficulty": "${params.difficulty}",
-                "item_type": "${params.item_type}",
-                "student_answer": "${params.student_answer}",
-                "evidence_refs": "${params.evidence_refs}",
-            },
-            "passthrough": ["item_bank_connected"],
+            "content_field": "question.prompt",
+            "passthrough": ["result_data"],
+            "input": {"concept_id": "${params.concept_id}", "difficulty": "${params.difficulty}"},
         },
-        "fallback": {
-            "select": "${params.mode}",
-            "templates": {
-                "generate": QUIZ_FALLBACK_ITEM,
-                "evaluate": QUIZ_EVALUATION_FALLBACK,
-            },
-            "values": {"concept": "${concept}"},
-        },
-        "prefix": {
-            "select": "${params.reply_frame}",
-            "templates": {
-                REPLY_FRAME_QUIZ: QUIZ_ITEM_PREFIX,
-                REPLY_FRAME_CORRECT: QUIZ_FRAME_CORRECT,
-                REPLY_FRAME_INCORRECT: QUIZ_FRAME_INCORRECT,
-                REPLY_FRAME_UNKNOWN: QUIZ_FRAME_UNKNOWN,
-            },
-        },
-        "suffix": {
-            "select": "${params.reply_frame}",
-            "templates": {
-                REPLY_FRAME_QUIZ: "\n" + QUIZ_NOT_CONNECTED_NOTE,
-                REPLY_FRAME_CORRECT: "\n" + QUIZ_NOT_CONNECTED_NOTE,
-                REPLY_FRAME_INCORRECT: "\n" + QUIZ_NOT_CONNECTED_NOTE,
-                REPLY_FRAME_UNKNOWN: "\n" + QUIZ_NO_JUDGEMENT_NOTE,
-            },
-        },
+        "fallback": {"template": QUIZ_NOT_CONFIGURED_TEXT, "values": {}},
     },
 }
 

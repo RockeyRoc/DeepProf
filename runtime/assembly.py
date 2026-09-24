@@ -10,8 +10,6 @@ from typing import Any
 
 from config import paths
 from config.settings import Settings
-from runtime.memory.service import MemoryService
-from runtime.memory.sqlite_memory import SqliteMemoryStore
 from runtime.providers.factory import build_registry, load_profiles, load_role_map
 from runtime.providers.profiles import ProviderProfile
 from runtime.providers.secrets import ChainedSecretStore, EnvSecretStore, SecretStore
@@ -28,8 +26,7 @@ def build_runtime_service(
     role_map: dict[str, tuple[str, str]] | None = None,
     transport: Any = None,
     sqlite_path: str | None = None,
-    memory_path: str | None = None,
-    with_mock: bool = True,
+    with_mock: bool = False,
 ) -> RuntimeService:
     """按用户数据根装配一套可运行的 Runtime。
 
@@ -51,14 +48,11 @@ def build_runtime_service(
     )
 
     db = sqlite_path or str(resolved.resolved_sqlite_path)
-    memory_db = memory_path or str(paths.memory_db())
-
     service = RuntimeService(
         router=registry,
         settings=resolved,
         event_store=SqliteEventStore.open(db),
         session_store=SqliteSessionStore.open(db),
-        memory=MemoryService(SqliteMemoryStore(path=memory_db)),
         bindings=bindings or {},
     )
     return service

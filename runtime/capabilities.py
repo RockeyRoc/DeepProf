@@ -33,12 +33,10 @@ PRIMITIVE_NAMES = (
     "invoke_skill",
     "retrieve_evidence",
     "generate_grounded",
-    "read_memory",
-    "write_memory",
 )
 
 _PLACEHOLDER = re.compile(r"\$\{([^}]+)\}")
-_LOCATOR_FIELDS = ("document_id", "chunk_id", "page", "source")
+_LOCATOR_FIELDS = ("document_id", "chunk_id", "page", "printed_page", "chapter", "section", "source")
 
 #: 送入模型前每条证据原文的截断长度（绑定可用 ``max_chars`` 覆盖）
 DEFAULT_EVIDENCE_MAX_CHARS = 600
@@ -303,11 +301,13 @@ class ActionDispatcher:
 
         # 证据前置：取不到可定位证据就不执行主能力、不调模型
         raw_evidence: list[dict[str, Any]] = []
+        m3_evidence_options = ctx.get("m3_evidence_options") if isinstance(ctx.get("m3_evidence_options"), dict) else {}
+        enforce_evidence = bool(m3_evidence_options.get("evidence_constraint", True))
         evidence_spec = binding.get("evidence")
-        if evidence_spec or decision.get("require_evidence"):
+        if evidence_spec or (decision.get("require_evidence") and enforce_evidence):
             spec = evidence_spec or {"capability": "retrieve_evidence"}
             raw_evidence = await self._collect_evidence(spec, decision, ctx)
-            if not raw_evidence:
+            if not raw_evidence and enforce_evidence:
                 try:
                     text = render_block(binding.get("insufficient_text"), decision)
                 except _TemplateNotFound as exc:
@@ -639,7 +639,16 @@ async def _generate_grounded(
             evidence, max_chars=int(params.get("max_chars") or DEFAULT_EVIDENCE_MAX_CHARS)
         )
         messages: list[dict[str, Any]] = []
+        options = ctx.get("m3_evidence_options") if isinstance(ctx.get("m3_evidence_options"), dict) else {}
+        unconstrained = options.get("evidence_constraint") is False
         system_prompt = str(params.get("system_prompt") or "")
+        if unconstrained:
+            system_prompt = "你是 DeepProf，一名面向高校学生的伴学老师。用中文回答，语气亲切严谨。不得编造出处。"
+            prompt_template = prompt_template.replace("教材片段（唯一允许的依据）：", "可用教材片段：")
+            prompt_template = prompt_template.replace(
+                "2) 每个结论都必须能对应到上面的片段，不得引入片段之外的文献或来源；",
+                "2) 说明相关条件与推理过程；",
+            ).replace("不得引入片段之外的文献或来源", "不得编造来源")
         if system_prompt:
             messages.append({"role": "system", "content": system_prompt})
         messages.append({"role": "user", "content": format_text(prompt_template, values)})
@@ -672,30 +681,6 @@ async def _generate_grounded(
     return _PrimitiveResult(content="".join(parts), evidence=evidence, metadata=metadata)
 
 
-async def _read_memory(
-    dispatcher: ActionDispatcher,
-    decision: dict[str, Any],
-    params: dict[str, Any],
-    ctx: dict[str, Any],
-    evidence: list[dict[str, Any]],
-) -> _PrimitiveResult:
-    query = dict(params.get("query") or params)
-    records = await dispatcher._host.read_memory(query, ctx)
-    return _PrimitiveResult(records=[dict(item) for item in (records or [])])
-
-
-async def _write_memory(
-    dispatcher: ActionDispatcher,
-    decision: dict[str, Any],
-    params: dict[str, Any],
-    ctx: dict[str, Any],
-    evidence: list[dict[str, Any]],
-) -> _PrimitiveResult:
-    records = list(params.get("records") or [])
-    await dispatcher._host.write_memory(records, ctx)
-    return _PrimitiveResult(metadata={"written": len(records)})
-
-
 def data_evidence(params: dict[str, Any]) -> list[dict[str, Any]]:
     items = params.get("evidence")
     if isinstance(items, list):
@@ -708,6 +693,4 @@ _PRIMITIVES: dict[str, Primitive] = {
     "invoke_skill": _invoke_skill,
     "retrieve_evidence": _retrieve_evidence,
     "generate_grounded": _generate_grounded,
-    "read_memory": _read_memory,
-    "write_memory": _write_memory,
 }

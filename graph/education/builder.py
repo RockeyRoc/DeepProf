@@ -12,10 +12,7 @@
 图结构（§6.2 + §7.3）：
 
     START → assess ─(条件: 六类动作 / reflect / END)→ teach|ask|hint|correct|test|reflect
-    teach|ask|hint|correct ─(条件: 学生是否停止)→ update_profile 或 END
-    test (条件: 答错且提示未用尽且未超轮次)→ assess（有界回退）或 update_profile
-    reflect ─(条件边)→ update_profile
-    update_profile → END
+    teach|ask|hint|correct|test|reflect → END
 
 防无限追问由三层保证（§7.3、§16.3 验收“图不能形成无限追问”）：
     ① assess 递增 turn_count，达到 max_turns 直接出 reflect 并结束；
@@ -41,7 +38,6 @@ from .nodes.hint import hint
 from .nodes.reflect import reflect
 from .nodes.teach import teach
 from .nodes.test import test as test_node
-from .nodes.update_profile import update_profile
 from .policies import MAX_TURNS_DEFAULT, recursion_limit
 from .router import (
     route_from_assess,
@@ -61,9 +57,9 @@ _ASSESS_PATHS = {
     "reflect": "reflect",
     END: END,
 }
-_TEACHING_PATHS = {"update_profile": "update_profile", END: END}
-_TEST_PATHS = {"assess": "assess", "update_profile": "update_profile"}
-_REFLECT_PATHS = {"update_profile": "update_profile"}
+_TEACHING_PATHS = {END: END}
+_TEST_PATHS = {END: END}
+_REFLECT_PATHS = {END: END}
 
 
 def build_education_graph(port: RuntimePort) -> CompiledStateGraph:
@@ -77,20 +73,18 @@ def build_education_graph(port: RuntimePort) -> CompiledStateGraph:
     graph.add_node("correct", partial(correct, port=port))
     graph.add_node("test", partial(test_node, port=port))
     graph.add_node("reflect", partial(reflect, port=port))
-    graph.add_node("update_profile", partial(update_profile, port=port))
 
     graph.add_edge(START, "assess")
 
     # Assess → 六类教学动作 / Reflect / END
     graph.add_conditional_edges("assess", route_from_assess, _ASSESS_PATHS)
-    # 教学动作 → UpdateProfile（学生停止时直接 END）
+    # 每条用户命令只运行一个有界回合，不写入跨题学情历史。
     for node_name in ("teach", "ask", "hint", "correct"):
         graph.add_conditional_edges(node_name, route_from_teaching, _TEACHING_PATHS)
-    # Test → 有界回退到 Assess 或进入 UpdateProfile
+    # Test 明确报告题库未配置，不生成题目或判分。
     graph.add_conditional_edges("test", route_from_test, _TEST_PATHS)
-    # Reflect → UpdateProfile
+    # Reflect 纯模板收束。
     graph.add_conditional_edges("reflect", route_from_reflect, _REFLECT_PATHS)
-    graph.add_edge("update_profile", END)
 
     return graph.compile()
 

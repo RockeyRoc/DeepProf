@@ -116,6 +116,8 @@ def _normalize_hits(data: dict[str, Any]) -> list[dict[str, Any]]:
                 "document_id": document_id,
                 "chunk_id": chunk_id,
                 "page": page,
+                "printed_page": item.get("printed_page"),
+                "chapter": str(item.get("chapter") or item.get("section") or ""),
                 "text": str(item.get("text") or item.get("content") or ""),
                 "source": str(item.get("source") or item.get("title") or document_id),
                 "score": item.get("score"),

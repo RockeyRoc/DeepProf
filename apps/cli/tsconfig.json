@@ -12,7 +12,7 @@
     "declaration": false,
     "sourceMap": true,
     "types": ["node"],
-    "typeRoots": ["./node_modules/@types", "../../apps/desktop/node_modules/@types"]
+    "typeRoots": ["./node_modules/@types"]
   },
   "include": ["src/**/*.ts", "test/**/*.ts", "../../packages/client_sdk/**/*.ts"]
 }

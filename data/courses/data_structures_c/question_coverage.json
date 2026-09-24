@@ -1,0 +1,396 @@
+{
+  "course_id": "ds.c_language.v1",
+  "bank_version": "ds-c-dev-v1",
+  "question_count": 30,
+  "concept_count": 30,
+  "coverage": [
+    {
+      "concept_id": "DS-LIN-01",
+      "module": "线性表",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-LIN-01-Q2.1"
+      ],
+      "question_count": 1,
+      "deterministic_count": 0,
+      "review_counts": {
+        "verified": 1
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-LIN-02",
+      "module": "线性表",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-LIN-03-Q2.3"
+      ],
+      "question_count": 1,
+      "deterministic_count": 0,
+      "review_counts": {
+        "verified": 1
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-LIN-03",
+      "module": "线性表",
+      "mapping_status": "evidence_gap",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-LIN-04",
+      "module": "线性表",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-LIN-02-Q2.2-3",
+        "DS-LIN-04-Q2.6-b",
+        "DS-LIN-05-Q2.7-c"
+      ],
+      "question_count": 3,
+      "deterministic_count": 3,
+      "review_counts": {
+        "verified": 3
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-LIN-05",
+      "module": "线性表",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-LIN-06-Q2.8-c",
+        "DS-LIN-07-Q2.9-1"
+      ],
+      "question_count": 2,
+      "deterministic_count": 2,
+      "review_counts": {
+        "verified": 2
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-LIN-06",
+      "module": "线性表",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-LIN-07",
+      "module": "线性表",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-LIN-08",
+      "module": "线性表",
+      "mapping_status": "partial",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-TREE-01",
+      "module": "树",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-TREE-01-Q6.1",
+        "DS-TREE-06-Q6.5",
+        "DS-TREE-07-Q6.6",
+        "DS-TREE-08-Q6.7"
+      ],
+      "question_count": 4,
+      "deterministic_count": 3,
+      "review_counts": {
+        "verified": 4
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-TREE-02",
+      "module": "树",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-TREE-02-Q6.3-count",
+        "DS-TREE-03-Q6.4-1",
+        "DS-TREE-04-Q6.4-2",
+        "DS-TREE-05-Q6.4-3"
+      ],
+      "question_count": 4,
+      "deterministic_count": 4,
+      "review_counts": {
+        "verified": 4
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-TREE-03",
+      "module": "树",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-TREE-04",
+      "module": "树",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-TREE-05",
+      "module": "树",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-TREE-06",
+      "module": "树",
+      "mapping_status": "partial",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-GRAPH-01",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-GRAPH-01-Q7.1",
+        "DS-GRAPH-02-Q7.2",
+        "DS-GRAPH-03-Q7.3"
+      ],
+      "question_count": 3,
+      "deterministic_count": 1,
+      "review_counts": {
+        "verified": 3
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-GRAPH-02",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-GRAPH-04-Q7.4"
+      ],
+      "question_count": 1,
+      "deterministic_count": 0,
+      "review_counts": {
+        "verified": 1
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-GRAPH-03",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-GRAPH-04",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-GRAPH-05",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-GRAPH-06",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-GRAPH-07",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-GRAPH-05-Q7.7"
+      ],
+      "question_count": 1,
+      "deterministic_count": 0,
+      "review_counts": {
+        "verified": 1
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-GRAPH-08",
+      "module": "图",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-GRAPH-06-Q7.9",
+        "DS-GRAPH-07-Q7.10"
+      ],
+      "question_count": 2,
+      "deterministic_count": 0,
+      "review_counts": {
+        "verified": 2
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-SORT-01",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-SORT-02-Q10.3",
+        "DS-SORT-08-Q10.13"
+      ],
+      "question_count": 2,
+      "deterministic_count": 1,
+      "review_counts": {
+        "verified": 2
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-SORT-02",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-SORT-01-Q10.1",
+        "DS-SORT-03-Q10.4-1",
+        "DS-SORT-04-Q10.4-2",
+        "DS-SORT-05-Q10.4-3",
+        "DS-SORT-06-Q10.4-4"
+      ],
+      "question_count": 5,
+      "deterministic_count": 2,
+      "review_counts": {
+        "verified": 5
+      },
+      "coverage_status": "covered"
+    },
+    {
+      "concept_id": "DS-SORT-03",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-SORT-04",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-SORT-05",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-SORT-06",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-SORT-07",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [],
+      "question_count": 0,
+      "deterministic_count": 0,
+      "review_counts": {},
+      "coverage_status": "uncovered"
+    },
+    {
+      "concept_id": "DS-SORT-08",
+      "module": "排序",
+      "mapping_status": "mapped",
+      "item_ids": [
+        "DS-SORT-07-Q10.12"
+      ],
+      "question_count": 1,
+      "deterministic_count": 0,
+      "review_counts": {
+        "verified": 1
+      },
+      "coverage_status": "covered"
+    }
+  ],
+  "uncovered_concepts": [
+    "DS-LIN-03",
+    "DS-LIN-06",
+    "DS-LIN-07",
+    "DS-LIN-08",
+    "DS-TREE-03",
+    "DS-TREE-04",
+    "DS-TREE-05",
+    "DS-TREE-06",
+    "DS-GRAPH-03",
+    "DS-GRAPH-04",
+    "DS-GRAPH-05",
+    "DS-GRAPH-06",
+    "DS-SORT-03",
+    "DS-SORT-04",
+    "DS-SORT-05",
+    "DS-SORT-06",
+    "DS-SORT-07"
+  ]
+}

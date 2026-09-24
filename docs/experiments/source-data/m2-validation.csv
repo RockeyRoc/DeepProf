@@ -1,0 +1,4 @@
+figure_id,verification_id,passed,failed,total,unit,runtime_group,source_artifact
+F06,python_full,309,0,309,test_cases,Python,../M2-offline-acceptance.md
+F06,m2_focused,82,0,82,test_cases,Python,../M2-offline-acceptance.json
+F06,cli_unit,5,0,5,test_cases,Node.js,../M2-offline-acceptance.md

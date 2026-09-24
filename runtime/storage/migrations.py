@@ -38,6 +38,75 @@ CREATE TABLE IF NOT EXISTS sessions (
 
 CREATE INDEX IF NOT EXISTS idx_sessions_learner ON sessions (learner_id);
 
+CREATE TABLE IF NOT EXISTS command_receipts (
+    command_id TEXT PRIMARY KEY,
+    trace_id   TEXT NOT NULL,
+    session_id TEXT,
+    status     TEXT NOT NULL,
+    result     TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS attempts (
+    attempt_id TEXT PRIMARY KEY,
+    learner_id TEXT NOT NULL,
+    session_id TEXT NOT NULL,
+    trace_id TEXT NOT NULL DEFAULT '',
+    item_id TEXT NOT NULL,
+    scored_concept_id TEXT NOT NULL,
+    concept_ids TEXT NOT NULL DEFAULT '[]',
+    is_correct INTEGER CHECK (is_correct IN (0, 1) OR is_correct IS NULL),
+    answer_value TEXT NOT NULL DEFAULT '',
+    hint_count INTEGER NOT NULL DEFAULT 0,
+    grading_source TEXT NOT NULL,
+    confidence REAL NOT NULL,
+    bank_version TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_attempts_learner_concept ON attempts (learner_id, scored_concept_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_attempts_session ON attempts (session_id, created_at);
+
+CREATE TABLE IF NOT EXISTS learner_estimates (
+    learner_id TEXT NOT NULL,
+    course_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    model_version TEXT NOT NULL,
+    config_hash TEXT NOT NULL,
+    parameters TEXT NOT NULL,
+    mastery REAL NOT NULL CHECK (mastery >= 0 AND mastery <= 1),
+    evidence_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (learner_id, course_id, concept_id, model_version, config_hash)
+);
+
+CREATE TABLE IF NOT EXISTS bkt_observations (
+    attempt_id TEXT PRIMARY KEY,
+    learner_id TEXT NOT NULL,
+    course_id TEXT NOT NULL,
+    concept_id TEXT NOT NULL,
+    predicted_correct REAL NOT NULL,
+    mastery_before REAL NOT NULL,
+    mastery_after REAL NOT NULL,
+    evidence_count INTEGER NOT NULL,
+    model_version TEXT NOT NULL,
+    config_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS learner_event_outbox (
+    event_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    trace_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    payload TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    delivered_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_learner_outbox_pending ON learner_event_outbox (delivered_at, created_at);
+
 CREATE TABLE IF NOT EXISTS memory_records (
     record_id   TEXT PRIMARY KEY,
     learner_id  TEXT NOT NULL,
@@ -95,6 +164,9 @@ CREATE TABLE IF NOT EXISTS library_chunks (
     page        INTEGER NOT NULL,
     ordinal     INTEGER NOT NULL,
     section     TEXT NOT NULL DEFAULT '',
+    printed_page INTEGER,
+    chapter     TEXT NOT NULL DEFAULT '',
+    reliable    INTEGER NOT NULL DEFAULT 1,
     text        TEXT NOT NULL,
     vector      TEXT NOT NULL,
     indexed_at  TEXT NOT NULL,
@@ -129,6 +201,16 @@ def connect(path: str | Path) -> sqlite3.Connection:
     connection = sqlite3.connect(str(target), check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.executescript(SCHEMA)
+    chunk_columns = {row["name"] for row in connection.execute("PRAGMA table_info(library_chunks)")}
+    for name, declaration in (
+        ("printed_page", "INTEGER"),
+        ("chapter", "TEXT NOT NULL DEFAULT ''"),
+        ("reliable", "INTEGER NOT NULL DEFAULT 1"),
+    ):
+        if name not in chunk_columns:
+            connection.execute(f"ALTER TABLE library_chunks ADD COLUMN {name} {declaration}")
+    _upgrade_attempts(connection)
+    connection.commit()
     return connection
 
 
@@ -136,4 +218,55 @@ def connect_memory() -> sqlite3.Connection:
     connection = sqlite3.connect(":memory:", check_same_thread=False)
     connection.row_factory = sqlite3.Row
     connection.executescript(SCHEMA)
+    _upgrade_attempts(connection)
     return connection
+
+
+def _upgrade_attempts(connection: sqlite3.Connection) -> None:
+    attempt_columns = {row["name"] for row in connection.execute("PRAGMA table_info(attempts)")}
+    for name, declaration in (
+        ("course_id", "TEXT NOT NULL DEFAULT ''"),
+        ("concept_ids", "TEXT NOT NULL DEFAULT '[]'"),
+        ("eligible", "INTEGER NOT NULL DEFAULT 0"),
+        ("skip_reason", "TEXT NOT NULL DEFAULT 'legacy_unreviewed'"),
+    ):
+        if name not in attempt_columns:
+            connection.execute(f"ALTER TABLE attempts ADD COLUMN {name} {declaration}")
+    connection.commit()
+    table_sql = connection.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='attempts'"
+    ).fetchone()[0]
+    if "is_correct integer not null" in str(table_sql).lower():
+        # Older installations required a boolean score, which made it impossible
+        # to preserve a manual-pending Attempt without falsely labeling it wrong.
+        connection.execute("BEGIN IMMEDIATE")
+        try:
+            connection.execute("DROP INDEX IF EXISTS idx_attempts_learner_concept")
+            connection.execute("DROP INDEX IF EXISTS idx_attempts_session")
+            connection.execute("DROP INDEX IF EXISTS idx_attempts_first_eligible")
+            connection.execute('''CREATE TABLE attempts_m2 (
+                attempt_id TEXT PRIMARY KEY, learner_id TEXT NOT NULL, session_id TEXT NOT NULL,
+                trace_id TEXT NOT NULL DEFAULT '', item_id TEXT NOT NULL, scored_concept_id TEXT NOT NULL,
+                concept_ids TEXT NOT NULL DEFAULT '[]',
+                is_correct INTEGER CHECK (is_correct IN (0, 1) OR is_correct IS NULL),
+                answer_value TEXT NOT NULL DEFAULT '', hint_count INTEGER NOT NULL DEFAULT 0,
+                grading_source TEXT NOT NULL, confidence REAL NOT NULL, bank_version TEXT NOT NULL,
+                created_at TEXT NOT NULL, course_id TEXT NOT NULL DEFAULT '', eligible INTEGER NOT NULL DEFAULT 0,
+                skip_reason TEXT NOT NULL DEFAULT 'legacy_unreviewed'
+            )''')
+            columns = ("attempt_id,learner_id,session_id,trace_id,item_id,scored_concept_id,concept_ids,is_correct,answer_value,"
+                       "hint_count,grading_source,confidence,bank_version,created_at,course_id,eligible,skip_reason")
+            connection.execute(f"INSERT INTO attempts_m2 ({columns}) SELECT {columns} FROM attempts")
+            connection.execute("DROP TABLE attempts")
+            connection.execute("ALTER TABLE attempts_m2 RENAME TO attempts")
+            connection.execute("CREATE INDEX idx_attempts_learner_concept ON attempts (learner_id, scored_concept_id, created_at)")
+            connection.execute("CREATE INDEX idx_attempts_session ON attempts (session_id, created_at)")
+            connection.commit()
+        except BaseException:
+            connection.rollback()
+            raise
+    connection.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_attempts_first_eligible "
+        "ON attempts (learner_id, course_id, item_id, bank_version) WHERE eligible = 1"
+    )
+    connection.commit()

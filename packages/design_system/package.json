@@ -1,8 +1,0 @@
-{
-  "name": "@deepprof/design-system",
-  "version": "0.6.1",
-  "private": true,
-  "type": "module",
-  "main": "./index.ts",
-  "types": "./index.ts"
-}

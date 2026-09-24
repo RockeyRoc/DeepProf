@@ -1,0 +1,160 @@
+{
+  "figure_id": "F09",
+  "title": "M3 离线主矩阵、回放、消融与 BKT 预测",
+  "review_status": "passed_with_noted_pdf_stream_audit_discrepancy",
+  "claim_scope": "冻结 Fake Provider 开发案例的路径完成度、策略字段核对和合成历史预测指标；不代表教师评分或学生学习结果。",
+  "run_id": "m3-offline-20260924-final6",
+  "data_source": {
+    "file": "F09-m3-offline-summary.csv",
+    "sha256": "f8328344db6329be800587b2ea2e3ab37fe394b32e26471968d76c68ee9e71bc",
+    "rows": 12,
+    "unit": "fixed constructed case cells, decisions, references and predictions",
+    "summary_file": "M3-offline-summary-redacted.json",
+    "summary_sha256": "edd759981c160b5d0775f6f7e689a4c6aca2bf002035a5823fcdd5a258972e0e",
+    "denominators": {
+      "main_cells": 120,
+      "replay_cells": 120,
+      "ablation_cells": 160,
+      "total_cells": 400,
+      "action_family_match": "196/280",
+      "replay_agreement": "120/120",
+      "decision_completeness": "520/520",
+      "locatable_references": "189/189",
+      "bkt_predictions": 120,
+      "evidence_gap_blocked": "40/40",
+      "evidence_gap_generated": "26/40"
+    }
+  },
+  "generator": {
+    "file": "../generate_m3_offline_results.R",
+    "sha256": "0b7b744afdd0774dc02368b63f9c1d19b8f8208b51e773955db8787ec0ff5c5d",
+    "backend": "R / ggplot2 + patchwork; ragg, svglite and base R PDF",
+    "runtime": "R version 4.6.1 (2026-06-24 ucrt)",
+    "packages": {
+      "ggplot2": "4.0.3",
+      "patchwork": "1.3.2",
+      "jsonlite": "2.0.0",
+      "svglite": "2.2.2",
+      "ragg": "1.5.2",
+      "scales": "1.4.0"
+    }
+  },
+  "checks": {
+    "data_invariants": {
+      "status": "passed",
+      "details": "CSV has 12 rows; matrices sum to 400/400; all offline summary numerators and denominators match the frozen run."
+    },
+    "r_parse": "not re-run: Rscript is unavailable in the release container; the change only redirects the input to the redacted summary wrapper.",
+    "source_preflight": {
+      "status": "ready",
+      "pass": 19,
+      "warn": 2,
+      "fail": 0,
+      "notes": [
+        "Static R syntax check requests a real parse; R parse(file=...) also passed.",
+        "No journal-specific width is configured for this internal report figure."
+      ]
+    },
+    "panel_alignment": {
+      "status": "passed",
+      "comparisons": 4,
+      "fail": 0,
+      "warn": 0,
+      "exemptions": 0
+    },
+    "png_visual_review": {
+      "status": "passed",
+      "dimensions_px": [
+        3242,
+        2515
+      ],
+      "dpi": 450,
+      "details": "Reviewed full-size PNG after final render; all four panels, labels and notes are legible with no visible clipping or collisions."
+    },
+    "svg": {
+      "status": "passed",
+      "text_elements": 63,
+      "details": "SVG retains editable vector text."
+    },
+    "pdf_collision_audit": {
+      "status": "passed",
+      "fail": 0,
+      "warn": 0,
+      "details": "Base R PDF geometry audit reports no text collisions or clipping after label/gridline adjustments."
+    },
+    "pdf_text_audit": {
+      "status": "needs_review",
+      "content_stream_minimum_pt": 1.0,
+      "pymupdf_span_count": 63,
+      "pymupdf_size_range_pt": [
+        6.0,
+        12.0
+      ],
+      "text_spans_outside_page": 0,
+      "details": "Generic content-stream Tf audit interprets R PDF scale transforms as 1 pt; independent PyMuPDF extraction yields visible text spans of 6–12 pt, all within page boundaries. Preserve the discrepancy rather than treating the generic scan as a pass."
+    },
+    "tiff": {
+      "status": "passed",
+      "dimensions_px": [
+        4322,
+        3354
+      ],
+      "dpi": 600,
+      "compression": "LZW"
+    },
+    "redacted_source_validation": {
+      "status": "passed",
+      "details": "Python report validation cross-checks the redacted summary, frozen run denominators and the 12-row F09 CSV; the figure input values are unchanged."
+    }
+  },
+  "outputs": {
+    "png": {
+      "file": "../figures/F09-m3-offline-results.png",
+      "sha256": "921817a8d22b07c1769a066be678d63c31aa6ffcbc37fa8fc2cd007aded916a0",
+      "bytes": 336960,
+      "dpi": 450,
+      "dimensions_px": [
+        3242,
+        2515
+      ]
+    },
+    "svg": {
+      "file": "../figures/F09-m3-offline-results.svg",
+      "sha256": "7c02d80ede78df6b4fbf42afbcfd8169cc366f78ff6c40425b8ba688fe7b1bc4",
+      "bytes": 19130,
+      "text_elements": 63
+    },
+    "pdf": {
+      "file": "../figures/F09-m3-offline-results.pdf",
+      "sha256": "1041c97f656ed24d6fe21ba632a03b923f5ea2a4af28dc41c098b02e7ba38094",
+      "bytes": 6866,
+      "page_size_pt": [
+        518,
+        402
+      ],
+      "text_span_count": 63,
+      "text_size_range_pt": [
+        6.0,
+        12.0
+      ]
+    },
+    "tiff": {
+      "file": "../figures/F09-m3-offline-results.tiff",
+      "sha256": "e90fb7949d665fa6e29b4e3ee03591b9c49be3e122f46c3b96c7304421efd0ab",
+      "bytes": 633138,
+      "dpi": 600,
+      "compression": "LZW",
+      "dimensions_px": [
+        4322,
+        3354
+      ]
+    }
+  },
+  "limitations": [
+    "All cases and learning outcomes are constructed; no students or teacher raters were involved.",
+    "The BKT model uses unfit development parameters and has poor prediction metrics (AUC 0.296, Brier 0.366, log loss 0.936, ECE 0.530).",
+    "Reference locatability does not verify semantic support.",
+    "The content-stream font scanner does not account for the PDF transform matrix; visible text size was cross-checked with PyMuPDF and the discrepancy remains documented.",
+    "R rendering was not repeated in the final container because Rscript is unavailable; the existing figure content uses unchanged CSV metrics and prior visual QA remains documented."
+  ]
+}

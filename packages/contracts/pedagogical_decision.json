@@ -10,6 +10,9 @@
     "require_student_reply": "boolean, 循环控制；Runtime 不参与",
     "evidence_sufficient": "boolean, 本轮评估结论",
     "params": "object, 学生正文只在这里，且不得整体写进事件",
-    "reason": "string, 决策依据，写入决策事件供复盘"
+    "reason": "string, 决策依据，写入决策事件供复盘",
+    "policy_version": "string, 固定策略版本",
+    "reason_codes": "string[], 稳定的机器可读依据",
+    "evidence_refs": "locator[], 可定位引用白名单（兼容读取旧 citations/sources）"
   }
 }

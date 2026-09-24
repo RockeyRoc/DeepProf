@@ -41,6 +41,9 @@ def chunk_pages(
                         ordinal=ordinal,
                         text=piece,
                         section=page.section,
+                        printed_page=page.printed_page,
+                        chapter=page.chapter,
+                        reliable=page.reliable,
                     )
                 )
                 ordinal += 1

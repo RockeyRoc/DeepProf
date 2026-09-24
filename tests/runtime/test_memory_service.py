@@ -5,7 +5,6 @@ from __future__ import annotations
 import pytest
 
 from runtime.core.errors import RuntimeFailure
-from runtime.core.events import EventType
 from runtime.memory.service import MemoryService
 from runtime.memory.sqlite_memory import SqliteMemoryStore
 from runtime.testing import make_service
@@ -15,13 +14,19 @@ def make_memory() -> MemoryService:
     return MemoryService(SqliteMemoryStore(path=":memory:"))
 
 
-async def test_write_memory_returns_none():
-    """契约冻结：write_memory 必须返回 None。"""
-    service = make_service(memory=make_memory())
-    result = await service.write_memory(
-        [{"content": "掌握度 0.6", "scope": "long_term", "source": "diagnose", "confidence": 0.6}], {}
+async def test_legacy_memory_store_remains_available_without_runtime_bridge():
+    """旧存储实现可单独读取；M1 Gateway/Runtime 不再暴露跨题记忆原语。"""
+    memory = make_memory()
+    result = await memory.write(
+        [{"content": "掌握度 0.6", "scope": "long_term", "source": "legacy", "confidence": 0.6}],
+        {"learner_id": "local"},
     )
     assert result is None
+    service = make_service()
+    assert not hasattr(service, "read_memory")
+    assert not hasattr(service, "write_memory")
+    from runtime.capabilities import PRIMITIVE_NAMES
+    assert "read_memory" not in PRIMITIVE_NAMES and "write_memory" not in PRIMITIVE_NAMES
 
 
 async def test_write_requires_source_confidence_scope():
@@ -76,23 +81,6 @@ async def test_memory_can_be_revoked():
     assert memory.forget("L1", record_id) is True
     assert await memory.read({}, {"learner_id": "L1"}) == []
     assert memory.forget("L1", record_id) is False
-
-
-async def test_memory_events_are_recorded_without_content():
-    service = make_service(memory=make_memory())
-    ctx = {"session_id": "s1", "trace_id": "t1", "learner_id": "L1"}
-    await service.write_memory(
-        [{"content": "学生的秘密原文", "scope": "long_term", "source": "s", "confidence": 0.5}], ctx
-    )
-    await service.read_memory({}, ctx)
-
-    events = service.events.replay("s1")
-    write_event = next(e for e in events if e.type == EventType.MEMORY_WRITE.value)
-    assert write_event.payload == {"scope": "", "count": 1}
-    assert "学生的秘密原文" not in repr(write_event.payload)
-
-    read_event = next(e for e in events if e.type == EventType.MEMORY_READ.value)
-    assert read_event.payload["count"] == 1
 
 
 async def test_record_carries_audit_fields():

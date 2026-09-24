@@ -86,7 +86,7 @@ def build_registry(
     settings: Settings | None = None,
     transport: Any = None,
     role_map: dict[str, tuple[str, str]] | None = None,
-    with_mock: bool = True,
+    with_mock: bool = False,
 ) -> ProviderRegistry:
     """从 Profile 列表装配 Registry；无可用 Profile 时回落到 Mock。"""
     secrets = secret_store or ChainedSecretStore(EnvSecretStore())

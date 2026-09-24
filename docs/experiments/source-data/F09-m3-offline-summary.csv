@@ -1,0 +1,13 @@
+metric,series,observed,planned,rate,completed,secondary_1,secondary_2,secondary_3,unit,source
+matrix_coverage,Main A,40,40,1,40,0,0,0,case_cells,M3-offline-summary-redacted.json
+matrix_coverage,Main B,40,40,1,40,0,0,0,case_cells,M3-offline-summary-redacted.json
+matrix_coverage,Main C,40,40,1,40,0,0,0,case_cells,M3-offline-summary-redacted.json
+matrix_coverage,Replay,120,120,1,120,0,0,0,case_cells,M3-offline-summary-redacted.json
+matrix_coverage,RAG ablation,160,160,1,160,0,0,0,case_cells,M3-offline-summary-redacted.json
+agreement,action_family_match,196,280,0.7,196,0,0,0,decisions,M3-offline-summary-redacted.json
+agreement,replay_decision_agreement,120,120,1,120,0,0,0,case_pairs,M3-offline-summary-redacted.json
+agreement,decision_completeness,520,520,1,520,0,0,0,decisions,M3-offline-summary-redacted.json
+agreement,locatable_reference,189,189,1,189,0,0,0,references,M3-offline-summary-redacted.json
+bkt_auc,BKT AUC,120,120,0.2964285714,120,0.3655890123,0.9361205509,0.5298766778,predictions,M3-offline-summary-redacted.json
+evidence_gap,constraint_blocks,40,40,1,40,0,0,0,case_cells,M3-offline-summary-redacted.json
+evidence_gap,constraint_off_generates,26,40,0.65,26,0,0,0,case_cells,M3-offline-summary-redacted.json

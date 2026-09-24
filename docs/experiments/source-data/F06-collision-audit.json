@@ -1,0 +1,206 @@
+{
+  "pdf": "docs\\experiments\\figures\\F06-m2-validation.pdf",
+  "auditable": true,
+  "verdict": "FIX BEFORE DELIVERY",
+  "page_count": 1,
+  "visible_text_box_count": 14,
+  "text_trace_count": 79,
+  "stroke_path_count": 3,
+  "filled_region_count": 5,
+  "image_region_count": 0,
+  "summary": {
+    "fail": 7,
+    "warn": 1,
+    "contained_fill_overlays": 0,
+    "contained_image_overlays": 0
+  },
+  "thresholds": {
+    "text_inset_pt": 0.6,
+    "min_overlap_ratio": 0.05,
+    "clipping_tolerance_pt": 0.5
+  },
+  "findings": [
+    {
+      "severity": "FAIL",
+      "kind": "text-stroke",
+      "page": 1,
+      "message": "Text is crossed by 2 stroked path(s)",
+      "text": "300/300 passed | 0 failed",
+      "text_bbox": [
+        81.58984375,
+        78.2965087890625,
+        510.2644958496094,
+        197.1910858154297
+      ],
+      "other_text": null,
+      "other_bbox": [
+        71.96499633789062,
+        66.88300323486328,
+        403.99200439453125,
+        152.74200439453125
+      ],
+      "object_count": 2,
+      "object_indexes": [
+        2,
+        3
+      ]
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        69.4609375,
+        229.0180206298828,
+        522.173583984375,
+        238.0180206298828
+      ],
+      "other_text": "100",
+      "other_bbox": [
+        175.1328125,
+        228.17140197753906,
+        190.14480590820312,
+        238.2154083251953
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        69.4609375,
+        229.0180206298828,
+        522.173583984375,
+        238.0180206298828
+      ],
+      "other_text": "200",
+      "other_bbox": [
+        285.80859375,
+        228.17140197753906,
+        300.8205871582031,
+        238.2154083251953
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        69.4609375,
+        229.0180206298828,
+        522.173583984375,
+        238.0180206298828
+      ],
+      "other_text": "300",
+      "other_bbox": [
+        396.484375,
+        228.17140197753906,
+        411.4963684082031,
+        238.2154083251953
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 89.6% of the smaller box",
+      "text": "0",
+      "text_bbox": [
+        69.4609375,
+        229.0180206298828,
+        522.173583984375,
+        238.0180206298828
+      ],
+      "other_text": "400",
+      "other_bbox": [
+        507.16015625,
+        228.17140197753906,
+        522.1722412109375,
+        238.2154083251953
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 100.0% of the smaller box",
+      "text": "300/300 passed | 0 failed",
+      "text_bbox": [
+        81.58984375,
+        78.2965087890625,
+        510.2644958496094,
+        197.1910858154297
+      ],
+      "other_text": "77/77 passed | 0 failed",
+      "other_bbox": [
+        164.27734375,
+        132.505859375,
+        252.86891174316406,
+        142.34938049316406
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "FAIL",
+      "kind": "text-text",
+      "page": 1,
+      "message": "Text boxes overlap by 98.0% of the smaller box",
+      "text": "300/300 passed | 0 failed",
+      "text_bbox": [
+        81.58984375,
+        78.2965087890625,
+        510.2644958496094,
+        197.1910858154297
+      ],
+      "other_text": "3/3 passed | 0 failed",
+      "other_bbox": [
+        81.58984375,
+        187.541015625,
+        160.37319946289062,
+        197.38453674316406
+      ],
+      "object_count": 1,
+      "object_indexes": []
+    },
+    {
+      "severity": "WARN",
+      "kind": "text-fill-edge",
+      "page": 1,
+      "message": "Text partially overlaps the edge of 2 filled region(s)",
+      "text": "300/300 passed | 0 failed",
+      "text_bbox": [
+        81.58984375,
+        78.2965087890625,
+        510.2644958496094,
+        197.1910858154297
+      ],
+      "other_text": null,
+      "other_bbox": [
+        71.96499633789062,
+        66.88300323486328,
+        403.99200439453125,
+        152.74200439453125
+      ],
+      "object_count": 2,
+      "object_indexes": [
+        2000,
+        3000
+      ]
+    }
+  ]
+}

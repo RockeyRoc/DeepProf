@@ -1,0 +1,2488 @@
+{
+  "schema_version": "deepprof-acceptance-audit-v1",
+  "generated_at": "2026-09-23T23:45:46.021946+00:00",
+  "run_id": "run_20260923T161737Z_e0a8d8b9",
+  "sample_type": "constructed_developer_fixture",
+  "provider_profile": "deepseek",
+  "model": "deepseek-flash",
+  "status": "needs_attention",
+  "matrix": {
+    "planned": 80,
+    "observed": 80,
+    "completed": 74,
+    "missing_pairs": [],
+    "duplicate_cells": false,
+    "groups": {
+      "A": {
+        "completed": 39,
+        "failed": 1
+      },
+      "B": {
+        "completed": 35,
+        "failed": 5
+      }
+    }
+  },
+  "frozen_configuration": {
+    "passed": true,
+    "unique_values": {
+      "course_id": [
+        "\"ds.c_language.v1\""
+      ],
+      "provider_profile": [
+        "\"deepseek\""
+      ],
+      "model": [
+        "\"deepseek-flash\""
+      ],
+      "policy_version": [
+        "null"
+      ],
+      "retrieval": [
+        "null"
+      ],
+      "sampling": [
+        "null"
+      ],
+      "question_bank_version": [
+        "null"
+      ]
+    },
+    "run_policy_version": "ds-v0.6.2-m1.1",
+    "course_id_recovered_from_session_records": false,
+    "observed_course_ids": [
+      "ds.c_language.v1"
+    ],
+    "run_retrieval": {
+      "top_k": 5,
+      "chunk_size": 800,
+      "chunk_overlap": 120
+    },
+    "run_sampling": {
+      "temperature": 0.3
+    },
+    "case_mismatches": [],
+    "requested_model_mismatches": [],
+    "session_configuration_mismatches": [],
+    "run_fingerprint_available": true
+  },
+  "session_isolation": {
+    "passed": true,
+    "unique_sessions": 80,
+    "observed_attempt_counts": [
+      0
+    ]
+  },
+  "automated_checks": {
+    "cells_passed": 69,
+    "cells_failed": 11,
+    "evidence_locator_or_gap_failures": 0,
+    "mechanical_answer_guard_flags": 0,
+    "cross_case_learning_state_failures": 0,
+    "requested_provider_mismatches": 0,
+    "expected_action_mismatches": 5,
+    "terminal_or_trace_failures": 5,
+    "model_call_count_mismatches": 4
+  },
+  "human_review": {
+    "teacher_scoring": "pending_human_review",
+    "semantic_leakage_labels": "pending_human_review",
+    "citation_support_labels": "pending_human_review"
+  },
+  "findings": [
+    {
+      "case_id": "DSDEV-011",
+      "group": "B",
+      "trace_ids": [
+        "trc_d800b7b1227c425fbb4b23d744188a7c"
+      ],
+      "failed_checks": [
+        "expected_action_family"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-012",
+      "group": "B",
+      "trace_ids": [
+        "trc_75ab89436afc4d0eb6b839945d793e7c"
+      ],
+      "failed_checks": [
+        "expected_action_family"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-013",
+      "group": "B",
+      "trace_ids": [
+        "trc_b0249b01eec7413d900b6e2a34d96a73"
+      ],
+      "failed_checks": [
+        "expected_action_family"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-014",
+      "group": "B",
+      "trace_ids": [
+        "trc_66ea920c568340c0a456911ad24ff6a7"
+      ],
+      "failed_checks": [
+        "expected_action_family"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-015",
+      "group": "B",
+      "trace_ids": [
+        "trc_228940efca844a459a0f765a0a2da741"
+      ],
+      "failed_checks": [
+        "expected_action_family"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-017",
+      "group": "B",
+      "trace_ids": [
+        "trc_5a236428bd3146a1815d6411cb021adb",
+        "trc_5b972ff6f4a345779e15369776f7f3dc",
+        "trc_7a2dc8f6f38441f1bd65184baaaf2dd8"
+      ],
+      "failed_checks": [
+        "cell_completed",
+        "turn_terminals_ok",
+        "model_call_count_matches"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-018",
+      "group": "B",
+      "trace_ids": [
+        "trc_429c0ae259414aafad3d0c98d5896dc9",
+        "trc_da147096896946698843ab9b76a52dd0",
+        "trc_e40ca395753345cbbc9cf0be9e183067"
+      ],
+      "failed_checks": [
+        "cell_completed",
+        "turn_terminals_ok",
+        "model_call_count_matches"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-019",
+      "group": "B",
+      "trace_ids": [
+        "trc_1c04860e2c6f4af78139cb43c6b51484",
+        "trc_85a1315e301046ecbd7edec3883bebe5"
+      ],
+      "failed_checks": [
+        "cell_completed"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-020",
+      "group": "A",
+      "trace_ids": [
+        "trc_e3300477ad2a4896acfa66a188a5803d"
+      ],
+      "failed_checks": [
+        "cell_completed",
+        "turn_terminals_ok"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-020",
+      "group": "B",
+      "trace_ids": [
+        "trc_679bb6290f674ed1a9013efb44b0f290",
+        "trc_6ebaba0c2dfd4fb89155d21a1bef715e",
+        "trc_f8d6e9afceca49899c3574312f2a9eb1"
+      ],
+      "failed_checks": [
+        "cell_completed",
+        "turn_terminals_ok",
+        "model_call_count_matches"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    },
+    {
+      "case_id": "DSDEV-034",
+      "group": "B",
+      "trace_ids": [
+        "trc_f55f7458b22f4dfcb45adcdf2003fef7"
+      ],
+      "failed_checks": [
+        "cell_completed",
+        "turn_terminals_ok",
+        "model_call_count_matches"
+      ],
+      "reason": "One or more deterministic acceptance checks did not pass."
+    }
+  ],
+  "cells": [
+    {
+      "case_id": "DSDEV-001",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-001",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-002",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-002",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-003",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-003",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-004",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-004",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-005",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-005",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-006",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-006",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-007",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-007",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-008",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-008",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-009",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-009",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-010",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-010",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-011",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-011",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": false
+      }
+    },
+    {
+      "case_id": "DSDEV-012",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-012",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": false
+      }
+    },
+    {
+      "case_id": "DSDEV-013",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-013",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": false
+      }
+    },
+    {
+      "case_id": "DSDEV-014",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-014",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": false
+      }
+    },
+    {
+      "case_id": "DSDEV-015",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-015",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": false
+      }
+    },
+    {
+      "case_id": "DSDEV-016",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-016",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "teach"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-017",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-017",
+      "group": "B",
+      "status": "failed",
+      "trace_count": 3,
+      "turn_count": 2,
+      "model_calls_recorded": 2,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "teach"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": false,
+        "turn_terminals_ok": false,
+        "model_call_count_matches": false,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-018",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-018",
+      "group": "B",
+      "status": "failed",
+      "trace_count": 3,
+      "turn_count": 2,
+      "model_calls_recorded": 2,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "teach"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": false,
+        "turn_terminals_ok": false,
+        "model_call_count_matches": false,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-019",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-019",
+      "group": "B",
+      "status": "failed",
+      "trace_count": 2,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 4,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 4,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": false,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-020",
+      "group": "A",
+      "status": "failed",
+      "trace_count": 1,
+      "turn_count": 0,
+      "model_calls_recorded": 0,
+      "model_calls_in_events": 0,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": false,
+        "turn_terminals_ok": false,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-020",
+      "group": "B",
+      "status": "failed",
+      "trace_count": 3,
+      "turn_count": 2,
+      "model_calls_recorded": 0,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "teach"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": false,
+        "turn_terminals_ok": false,
+        "model_call_count_matches": false,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-021",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-021",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "hint"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-022",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-022",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "hint"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-023",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-023",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "hint"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-024",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-024",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "hint"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-025",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-025",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask",
+        "hint"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-026",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-026",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-027",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-027",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-028",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-028",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-029",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-029",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-030",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-030",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-031",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-031",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-032",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-032",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-033",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-033",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-034",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-034",
+      "group": "B",
+      "status": "failed",
+      "trace_count": 1,
+      "turn_count": 0,
+      "model_calls_recorded": 0,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": false,
+        "turn_terminals_ok": false,
+        "model_call_count_matches": false,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-035",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 1,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-035",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 1,
+      "turn_count": 1,
+      "model_calls_recorded": 1,
+      "model_calls_in_events": 1,
+      "persistent_learning_events": 0,
+      "decision_count": 2,
+      "observed_actions": [
+        "teach"
+      ],
+      "evidence_decisions_checked": 2,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-036",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-036",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-037",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-037",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-038",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-038",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-039",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-039",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-040",
+      "group": "A",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 0,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 3,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    },
+    {
+      "case_id": "DSDEV-040",
+      "group": "B",
+      "status": "completed",
+      "trace_count": 3,
+      "turn_count": 3,
+      "model_calls_recorded": 3,
+      "model_calls_in_events": 3,
+      "persistent_learning_events": 0,
+      "decision_count": 6,
+      "observed_actions": [
+        "ask"
+      ],
+      "evidence_decisions_checked": 6,
+      "evidence_locator_failures": 0,
+      "attempt_count_values": [
+        0
+      ],
+      "checks": {
+        "cell_completed": true,
+        "turn_terminals_ok": true,
+        "model_call_count_matches": true,
+        "requested_provider_matches_session": true,
+        "evidence_locators_or_gap": true,
+        "mechanical_answer_guard": true,
+        "no_cross_case_learning_state": true,
+        "expected_action_family": true
+      }
+    }
+  ],
+  "privacy": {
+    "model_outputs_in_report": false,
+    "student_inputs_in_report": false,
+    "source_text_in_report": false,
+    "stored_in_source_data": "aggregate and trace metadata only"
+  }
+}

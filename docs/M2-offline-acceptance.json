@@ -1,0 +1,128 @@
+{
+  "acceptance_version": "ds-m2-offline-cases-v1",
+  "sample_type": "constructed_developer_fixture",
+  "human_subjects": false,
+  "requires_network": false,
+  "requires_paid_model": false,
+  "created_at": "2026-09-24T05:01:14.515991+00:00",
+  "status": "passed",
+  "command": [
+    "E:\\Github\\deepprof\\DeepProf\\.venv\\Scripts\\python.exe",
+    "-m",
+    "pytest",
+    "tests/models/test_bkt.py",
+    "tests/models/test_learner_store.py",
+    "tests/graph/test_education_routing.py",
+    "tests/api/test_ab_and_replay.py",
+    "tests/library/test_markitdown_converter.py",
+    "tests/test_question_bank.py",
+    "tests/test_contract_consistency.py",
+    "tests/test_architecture_boundaries.py"
+  ],
+  "elapsed_seconds": 16.141,
+  "summary": "82 passed, 1 warning in 14.02s",
+  "failure_cases": [],
+  "cases": [
+    {
+      "case_id": "M2-BKT-001",
+      "area": "algorithm",
+      "test": "tests/models/test_bkt.py",
+      "assertion": "Four-parameter observation posterior precedes the learning transition; first prediction is 0.34."
+    },
+    {
+      "case_id": "M2-BKT-002",
+      "area": "evidence",
+      "test": "tests/models/test_learner_store.py",
+      "assertion": "The first unhinted reliable answer updates once; retries, hints, manual pending grades, ambiguous concepts, and disabled groups record skip reasons."
+    },
+    {
+      "case_id": "M2-BKT-003",
+      "area": "persistence",
+      "test": "tests/models/test_learner_store.py",
+      "assertion": "Three eligible observations unlock an estimate; learner and course scopes stay isolated across reopen."
+    },
+    {
+      "case_id": "M2-BKT-004",
+      "area": "transactions",
+      "test": "tests/models/test_learner_store.py",
+      "assertion": "Concurrent first answers produce one update, and outbox failure rolls back Attempt and estimate writes."
+    },
+    {
+      "case_id": "M2-POLICY-001",
+      "area": "strategy",
+      "test": "tests/graph/test_education_routing.py",
+      "assertion": "C-group mastery thresholds, cold start, stop rules, and correction priority are preserved."
+    },
+    {
+      "case_id": "M2-API-001",
+      "area": "identity-and-replay",
+      "test": "tests/api/test_ab_and_replay.py",
+      "assertion": "Session identity is authoritative; manual-pending answers are not labeled incorrect or saved as answer text."
+    },
+    {
+      "case_id": "M2-API-002",
+      "area": "group-isolation",
+      "test": "tests/api/test_ab_and_replay.py",
+      "assertion": "C-group estimates persist across sessions; A/B paths do not read BKT; high mastery issues a real reviewed question."
+    },
+    {
+      "case_id": "M2-OCR-001",
+      "area": "conversion",
+      "test": "tests/library/test_markitdown_converter.py",
+      "assertion": "Text and scanned PDFs, images, Markdown, DOCX, and PPTX preserve page/slide anchors; OCR output requires review."
+    },
+    {
+      "case_id": "M2-CONTRACT-001",
+      "area": "architecture",
+      "test": "tests/test_contract_consistency.py",
+      "assertion": "Python, TypeScript-facing JSON, Runtime event and command contracts remain aligned."
+    }
+  ],
+  "bkt_parameters": {
+    "p_l0": 0.2,
+    "p_t": 0.1,
+    "p_g": 0.2,
+    "p_s": 0.1,
+    "source": "development_initial_values; not fitted; teacher review pending",
+    "model_version": "bkt-four-parameter-dev-v1",
+    "fitted": false,
+    "teacher_review": "pending"
+  },
+  "bkt_config_hash": "51340c493ab91337ea65b92535dc82237a6e1209ad23a985506e5090f4e8126f",
+  "engineering_acceptance": "passed",
+  "teacher_review": "pending",
+  "bkt_calibration": "pending_teacher_approved_parameters_and_fit",
+  "student_learning_effect": "not_measured",
+  "interpretation": "Engineering checks do not establish teacher approval, calibrated parameters, or student learning effects.",
+  "execution_environment": {
+    "python": "3.12.14 (main, Aug 25 2026, 14:01:42) [MSC v.1944 64 bit (AMD64)]",
+    "platform": "win32",
+    "working_directory": "E:\\Github\\deepprof\\DeepProf"
+  },
+  "dependencies": {
+    "markitdown": "0.1.8",
+    "rapidocr_onnxruntime": "1.4.4",
+    "pypdfium2": "5.13.0"
+  },
+  "code_fingerprint": {
+    "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+    "working_tree_dirty": true,
+    "working_tree_status_sha256": "10988f14b73e6aef85ad100c264249b60c691e8d39f6bb62124790261dea7cdd",
+    "working_tree_diff_sha256": "b20017ef71509022756b717d2458a9859b98f1d851375998148bf91e185b198c",
+    "fingerprint_excludes": [
+      "docs/M2-offline-acceptance.json",
+      "docs/M2-offline-acceptance.md",
+      "docs/experiments/figures/*",
+      "docs/experiments/m3-offline/*",
+      "docs/experiments/source-data/R-session-info.txt",
+      "docs/experiments/source-data/experiment-snapshot.json",
+      "docs/experiments/source-data/figure-data.csv",
+      "docs/experiments/source-data/figure-validation.json",
+      "docs/experiments/source-data/plot-runtime.txt",
+      "docs/experiments/图表库.docx",
+      "docs/experiments/图表库.md"
+    ]
+  },
+  "report_path": "E:\\Github\\deepprof\\DeepProf\\docs\\M2-offline-acceptance.json",
+  "pytest_output": "........................................................................ [ 87%]\n..........                                                               [100%]\n============================== warnings summary ===============================\n.venv\\Lib\\site-packages\\starlette\\testclient.py:53\n  E:\\Github\\deepprof\\DeepProf\\.venv\\Lib\\site-packages\\starlette\\testclient.py:53: DeprecationWarning: The anyio.abc.BlockingPortal alias is deprecated, use anyio.from_thread.BlockingPortal instead.\n    _PortalFactoryType = Callable[[], AbstractContextManager[anyio.abc.BlockingPortal]]\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n82 passed, 1 warning in 14.02s"
+}

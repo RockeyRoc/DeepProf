@@ -22,6 +22,7 @@ from ..contracts import PedagogicalDecision
 from ..policies import (
     ACTION_END,
     ACTION_REFLECT,
+    EVIDENCE_GAP_TEXT,
     EMOTION_BY_ACTION,
     MAX_TURNS_DEFAULT,
     REFLECT_STRATEGY_OPTIONS,
@@ -39,6 +40,14 @@ async def reflect(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
     max_turns = int(state.get("max_turns") or MAX_TURNS_DEFAULT)
     stopped = bool(state.get("student_stopped"))
     assessment = state.get("last_assessment") or {}
+    mode = (
+        "stopped"
+        if stopped
+        else "evidence_gap"
+        if assessment.get("evidence_sufficient") is False
+        and str(assessment.get("evidence_status") or "") != "skipped"
+        else "limit"
+    )
 
     await emit_entered(
         port,
@@ -67,7 +76,7 @@ async def reflect(state: PedagogyState, port: RuntimePort) -> dict[str, Any]:
             reveal_answer=False,
             require_student_reply=False,
             evidence_sufficient=bool(state.get("evidence_sufficient")),
-            params={"stopped": stopped, "turn_count": turn_count, "max_turns": max_turns},
+            params={"mode": mode, "stopped": stopped, "turn_count": turn_count, "max_turns": max_turns},
             reason=reason,
         ),
     )

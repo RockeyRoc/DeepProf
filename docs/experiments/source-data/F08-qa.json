@@ -1,0 +1,149 @@
+{
+  "figure_id": "F08",
+  "title": "M3 真实模型试点 Provider 终态",
+  "review_status": "passed_with_limitations",
+  "claim_scope": "36 个构造案例运行格的 Provider finish_reason、截断失败判定及每组格数；不表示模型质量、教学效果或学习增益",
+  "run_id": "m3-live-20260924-071515-indexed-8e41c6d2",
+  "data_source": {
+    "cells_csv": {
+      "file": "m3-live-pilot-live-cells.csv",
+      "sha256": "24afc1024f93323779988bda1e20070b546275cb0e2c3732a034e9aa5c264c08",
+      "rows": 36,
+      "unit": "one constructed case × one group",
+      "export_contains_raw_text": false
+    },
+    "aggregate_json": {
+      "file": "m3-live-pilot-live.json",
+      "sha256": "2aa5a5f5ee01b304baf5d9c7b8e95681bc7f73742a5257b9c764b3f6ecbebf2c",
+      "provider_requests": 29,
+      "configured_request_cap": 36,
+      "configured_max_tokens": 512,
+      "configured_retries": 0,
+      "finish_reason_length": 26,
+      "finish_reason_stop": 3,
+      "cells_without_provider_request": 7,
+      "usage_missing_calls": 0,
+      "reported_usage_over_token_limit_cells": 1,
+      "evaluation_run_status": "completed_with_failures",
+      "evaluation_outcomes": {
+        "completed": 3,
+        "failed_truncated": 26,
+        "failed_incomplete": 0,
+        "failed_provider": 0,
+        "application_failed": 0,
+        "not_applicable": 7,
+        "unknown": 0
+      }
+    }
+  },
+  "generator": {
+    "file": "../generate_m3_live_pilot_live.R",
+    "sha256": "84118e97722b3d6924a92954e6442e819f138e306417efed407da2c3c9d080c7",
+    "backend": "R / ggplot2",
+    "runtime": "R version 4.6.1 (2026-06-24 ucrt)",
+    "packages": {
+      "ggplot2": "4.0.3",
+      "svglite": "2.2.2",
+      "ragg": "1.5.2",
+      "jsonlite": "2.0.0"
+    },
+    "aggregate_exporter": {
+      "file": "../../scripts/export_m3_live_pilot_aggregate.py",
+      "sha256": "f8fba3e9e18d85b524fb6f7931e266ec5a7e294325f0d7b1de167e1e06a37bb8"
+    }
+  },
+  "checks": {
+    "source_invariants": {
+      "status": "passed",
+      "details": "36 cells; 12 per A/B/C; no more than one Provider request per cell; 29 requests total; 26 truncation failures, 3 complete generations, 7 not applicable; max_tokens=512; retries=0."
+    },
+    "privacy_export": {
+      "status": "passed",
+      "details": "The aggregate CSV/JSON omit response text, prompt text, retrieval text, session IDs, learner IDs, trace IDs, and credentials."
+    },
+    "r_parse": "passed",
+    "png_visual_review": {
+      "status": "passed",
+      "dimensions_px": [
+        2881,
+        1811
+      ],
+      "dpi": 400,
+      "details": "Inspected at full resolution after final render. Title, subtitle, all group segments, count labels, legend, and wrapped caption are visible with no clipping or apparent collisions."
+    },
+    "svg": {
+      "status": "passed",
+      "text_elements": 29,
+      "details": "Vector output retains editable text elements."
+    },
+    "pdf": {
+      "status": "passed",
+      "page_size_pt": [
+        518.0,
+        325.0
+      ],
+      "text_span_count": 29,
+      "text_size_range_pt": [
+        8.0,
+        15.0
+      ],
+      "text_spans_outside_page": 0,
+      "details": "PDF text bounds were checked with PyMuPDF; visual layout was reviewed against the PNG render."
+    },
+    "tiff": {
+      "status": "passed",
+      "dimensions_px": [
+        4322,
+        2716
+      ],
+      "dpi": 600,
+      "compression": "LZW"
+    },
+    "automated_collision_scanner": {
+      "status": "not_run",
+      "details": "The figure is a single panel; final PNG was visually reviewed instead."
+    },
+    "r_locale_warnings": "Four non-fatal Windows startup warnings reported that C.UTF-8 could not be set for LC_COLLATE, LC_CTYPE, LC_MONETARY, and LC_TIME. Rendering and R parsing succeeded.",
+    "evaluation_judgment": {
+      "status": "passed",
+      "details": "Every finish_reason=length cell is failed_truncated, including application-terminal-completed cells; app terminal status remains separately available."
+    }
+  },
+  "outputs": {
+    "png": {
+      "file": "../figures/F08-m3-live-pilot-results.png",
+      "sha256": "abda3212986ff860d46d0490e468b9761e42cefbef1502ef62de22315da0cbd6",
+      "bytes": 183726,
+      "dpi": 400
+    },
+    "svg": {
+      "file": "../figures/F08-m3-live-pilot-results.svg",
+      "sha256": "b591be680132e1115509e2f8761883812e9a5954a4a0a7b1c7f62f49006ccaf6",
+      "bytes": 9635,
+      "text_elements": 29
+    },
+    "pdf": {
+      "file": "../figures/F08-m3-live-pilot-results.pdf",
+      "sha256": "2e83ddaa23255aa2a185b00c4d3172fd74f5b58447d20748170b547671e3c887",
+      "bytes": 40390,
+      "physical_size_mm": [
+        183,
+        115
+      ]
+    },
+    "tiff": {
+      "file": "../figures/F08-m3-live-pilot-results.tiff",
+      "sha256": "e660d24b22bfe3133a44967ee5f9e7f0d05cb3640c84a83dc016d1bc7b7d7032",
+      "bytes": 455722,
+      "dpi": 600,
+      "compression": "LZW"
+    }
+  },
+  "limitations": [
+    "The sample contains constructed developer fixtures, not teacher labels or human subjects.",
+    "26/29 Provider requests ended with finish_reason=length and are judged failed; 16 B/C cells still had an application-level completed terminal event.",
+    "One provider-reported completion_tokens value was 513 although max_tokens=512 was configured; it was retained as reported and no retry was made.",
+    "Cost is an estimate using provider-reported cached/uncached input usage and official rates; no account invoice was read.",
+    "Citation locator counts do not assess semantic support; teacher review and student learning effects remain pending/not measured."
+  ]
+}

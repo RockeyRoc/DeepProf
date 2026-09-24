@@ -1,0 +1,18 @@
+{
+  "version": "ds-m2-offline-cases-v1",
+  "sample_type": "constructed_developer_fixture",
+  "human_subjects": false,
+  "requires_network": false,
+  "requires_paid_model": false,
+  "cases": [
+    {"case_id": "M2-BKT-001", "area": "algorithm", "test": "tests/models/test_bkt.py", "assertion": "Four-parameter observation posterior precedes the learning transition; first prediction is 0.34."},
+    {"case_id": "M2-BKT-002", "area": "evidence", "test": "tests/models/test_learner_store.py", "assertion": "The first unhinted reliable answer updates once; retries, hints, manual pending grades, ambiguous concepts, and disabled groups record skip reasons."},
+    {"case_id": "M2-BKT-003", "area": "persistence", "test": "tests/models/test_learner_store.py", "assertion": "Three eligible observations unlock an estimate; learner and course scopes stay isolated across reopen."},
+    {"case_id": "M2-BKT-004", "area": "transactions", "test": "tests/models/test_learner_store.py", "assertion": "Concurrent first answers produce one update, and outbox failure rolls back Attempt and estimate writes."},
+    {"case_id": "M2-POLICY-001", "area": "strategy", "test": "tests/graph/test_education_routing.py", "assertion": "C-group mastery thresholds, cold start, stop rules, and correction priority are preserved."},
+    {"case_id": "M2-API-001", "area": "identity-and-replay", "test": "tests/api/test_ab_and_replay.py", "assertion": "Session identity is authoritative; manual-pending answers are not labeled incorrect or saved as answer text."},
+    {"case_id": "M2-API-002", "area": "group-isolation", "test": "tests/api/test_ab_and_replay.py", "assertion": "C-group estimates persist across sessions; A/B paths do not read BKT; high mastery issues a real reviewed question."},
+    {"case_id": "M2-OCR-001", "area": "conversion", "test": "tests/library/test_markitdown_converter.py", "assertion": "Text and scanned PDFs, images, Markdown, DOCX, and PPTX preserve page/slide anchors; OCR output requires review."},
+    {"case_id": "M2-CONTRACT-001", "area": "architecture", "test": "tests/test_contract_consistency.py", "assertion": "Python, TypeScript-facing JSON, Runtime event and command contracts remain aligned."}
+  ]
+}

@@ -1,0 +1,268 @@
+{
+  "schema_version": "deepprof-m3-live-pilot-aggregate-v2",
+  "run_id": "m3-live-20260924-071515-indexed-8e41c6d2",
+  "status": "completed_with_failures",
+  "status_basis": "application runtime terminal summary; see evaluation_run_status for truncation-aware judgment",
+  "evaluation_run_status": "completed_with_failures",
+  "started_at": "2026-09-24T08:18:20.884356+00:00",
+  "finished_at": "2026-09-24T08:21:10.874418+00:00",
+  "provider": {
+    "profile_id": "deepseek",
+    "model": "deepseek-flash"
+  },
+  "sample": {
+    "case_count": 12,
+    "observed_cells": 36,
+    "groups": [
+      "A",
+      "B",
+      "C"
+    ],
+    "type": "constructed_developer_fixture",
+    "human_subjects": false,
+    "selected_case_ids": [
+      "DSDEV-001",
+      "DSDEV-006",
+      "DSDEV-011",
+      "DSDEV-016",
+      "DSDEV-021",
+      "DSDEV-026",
+      "DSDEV-031",
+      "DSDEV-036",
+      "DSDEV-002",
+      "DSDEV-007",
+      "DSDEV-012",
+      "DSDEV-017"
+    ]
+  },
+  "limits": {
+    "max_provider_requests": 36,
+    "actual_provider_requests": 29,
+    "max_requests_per_cell": 1,
+    "one_turn_per_cell": true,
+    "max_output_tokens_requested": 512,
+    "max_retries": 0,
+    "provider_probe_performed": false
+  },
+  "groups": {
+    "A": {
+      "planned_cells": 12,
+      "observed_cells": 12,
+      "terminal_completed": 2,
+      "terminal_failed": 10,
+      "evaluation_completed": 0,
+      "evaluation_truncated_failed": 10,
+      "evaluation_failed_other": 0,
+      "evaluation_application_failed": 0,
+      "evaluation_not_applicable": 2,
+      "evaluation_unknown": 0,
+      "cells_without_provider_call": 2,
+      "provider_requests": 10,
+      "provider_finish_length": 10,
+      "provider_completed_stop": 0,
+      "provider_failed_events": 10,
+      "prompt_tokens": 18266,
+      "completion_tokens": 5120,
+      "cache_hit_tokens": 16128,
+      "cache_miss_tokens": 2138,
+      "locatable_references": 0,
+      "references": 0,
+      "synthetic_attempt_seeds": 0
+    },
+    "B": {
+      "planned_cells": 12,
+      "observed_cells": 12,
+      "terminal_completed": 12,
+      "terminal_failed": 0,
+      "evaluation_completed": 2,
+      "evaluation_truncated_failed": 8,
+      "evaluation_failed_other": 0,
+      "evaluation_application_failed": 0,
+      "evaluation_not_applicable": 2,
+      "evaluation_unknown": 0,
+      "cells_without_provider_call": 2,
+      "provider_requests": 10,
+      "provider_finish_length": 8,
+      "provider_completed_stop": 2,
+      "provider_failed_events": 6,
+      "prompt_tokens": 5633,
+      "completion_tokens": 4989,
+      "cache_hit_tokens": 4096,
+      "cache_miss_tokens": 1537,
+      "locatable_references": 50,
+      "references": 50,
+      "synthetic_attempt_seeds": 0
+    },
+    "C": {
+      "planned_cells": 12,
+      "observed_cells": 12,
+      "terminal_completed": 12,
+      "terminal_failed": 0,
+      "evaluation_completed": 1,
+      "evaluation_truncated_failed": 8,
+      "evaluation_failed_other": 0,
+      "evaluation_application_failed": 0,
+      "evaluation_not_applicable": 3,
+      "evaluation_unknown": 0,
+      "cells_without_provider_call": 3,
+      "provider_requests": 9,
+      "provider_finish_length": 8,
+      "provider_completed_stop": 1,
+      "provider_failed_events": 8,
+      "prompt_tokens": 5481,
+      "completion_tokens": 4454,
+      "cache_hit_tokens": 4096,
+      "cache_miss_tokens": 1385,
+      "locatable_references": 50,
+      "references": 50,
+      "synthetic_attempt_seeds": 36
+    }
+  },
+  "evaluation_judgment": {
+    "cell_outcomes": {
+      "completed": 3,
+      "failed_truncated": 26,
+      "failed_incomplete": 0,
+      "failed_provider": 0,
+      "application_failed": 0,
+      "not_applicable": 7,
+      "unknown": 0
+    },
+    "truncation_is_failure": true,
+    "rule": "A Provider finish_reason=length is a failed_truncated cell even if the application terminal_status is completed."
+  },
+  "provider_output": {
+    "finish_reason_counts": {
+      "length": 26,
+      "stop": 3
+    },
+    "model_failed_events": 24,
+    "usage_missing_calls": 0,
+    "maximum_reported_completion_tokens_in_one_cell": 513,
+    "cells_where_reported_completion_exceeded_requested_limit": 1
+  },
+  "token_usage": {
+    "prompt_tokens": 29380,
+    "completion_tokens": 14563,
+    "total_tokens": 43943,
+    "prompt_cache_hit_tokens": 24320,
+    "prompt_cache_miss_tokens": 5060
+  },
+  "price_estimate": {
+    "configured_in_product": false,
+    "peak_rate_usd": 0.01913952,
+    "offpeak_rate_usd": 0.00956976,
+    "basis": "provider-reported cache-hit/miss and completion tokens × official DeepSeek Flash rates; not a provider invoice",
+    "rates_usd_per_million": {
+      "input_cache_hit_peak": 0.006,
+      "input_cache_miss_peak": 0.3,
+      "output_peak": 1.2,
+      "input_cache_hit_offpeak": 0.003,
+      "input_cache_miss_offpeak": 0.15,
+      "output_offpeak": 0.6
+    },
+    "source": "https://api-docs.deepseek.com/quick_start/pricing/"
+  },
+  "metrics": {
+    "application_terminal_completion": {
+      "numerator": 26,
+      "denominator": 36,
+      "status": "application terminal state; not a generation-success measure"
+    },
+    "provider_generation_completed": {
+      "numerator": 3,
+      "denominator": 29,
+      "status": "only model.completed with finish_reason=stop counts as completed"
+    },
+    "provider_finish_stop": {
+      "numerator": 3,
+      "denominator": 29,
+      "status": "model.completed responses with finish_reason=stop"
+    },
+    "provider_finish_length": {
+      "numerator": 26,
+      "denominator": 29,
+      "status": "failed truncated generations; excluded from completion"
+    },
+    "developer_fixture_action_match": {
+      "numerator": 22,
+      "denominator": 26,
+      "status": "constructed developer fixture only; not teacher-rated or a model quality estimate"
+    },
+    "locatable_reference_rate": {
+      "numerator": 100,
+      "denominator": 100,
+      "status": "locator completeness only; does not assess semantic support"
+    }
+  },
+  "retrieval_preflight": {
+    "A": {
+      "cases_with_locatable_results": 10,
+      "cases_without_locatable_results": 2,
+      "result_references": 50
+    },
+    "B": {
+      "cases_with_locatable_results": 10,
+      "cases_without_locatable_results": 2,
+      "result_references": 50
+    },
+    "C": {
+      "cases_with_locatable_results": 10,
+      "cases_without_locatable_results": 2,
+      "result_references": 50
+    }
+  },
+  "isolation": {
+    "unique_sessions": 36,
+    "unique_learners": 36,
+    "group_C_synthetic_attempt_seeds": 36,
+    "group_A_synthetic_attempt_seeds": 0,
+    "group_B_synthetic_attempt_seeds": 0
+  },
+  "frozen_configuration": {
+    "course_id": "ds.c_language.v1",
+    "case_version": "ds-m3-live-pilot-v1",
+    "source_case_version": "ds-dev-cases-v1",
+    "source_case_sha256": "b833e457533e1e517a89d017ac42f7a27351bc44f0e6162aae82b32da130abc6",
+    "selected_cases_sha256": "07870412227479f36defd3c87182ad91900487c3bcd64ca3cdd730faa654df2e",
+    "prompt_version": "education-prompts-source-fingerprint-v1",
+    "prompt_sha256": "46899fda4d52edb21825a743c004c4af938daf91aa32325920ed231b102e2276",
+    "policy_version": "ds-v0.6.2-m2.1",
+    "bkt_config_sha256": "51340c493ab91337ea65b92535dc82237a6e1209ad23a985506e5090f4e8126f",
+    "question_bank": {
+      "version": "ds-c-dev-v1",
+      "sha256": "f3b1f6565e3ad5c23b5bdd369c4b20314415a654b0f57c8c08699b00033f8354"
+    },
+    "temperature": 0.3,
+    "retrieval_index_sha256": "4712bd0cec0e3a687b815d4b8c935236cc49a6c153ee8fc2068835474fab9bff",
+    "retrieval_corpus_sha256": "ea94e85a08455f76eb70832f9ce6fae043031a581d80f96684901545e0ebe8a3",
+    "indexed_chunk_count": 685,
+    "active_course_textbook_count": 1,
+    "source_fingerprint": {
+      "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+      "working_tree_dirty": true,
+      "working_tree_status_sha256": "a66f04a50ec8593af0808a24966d746b0c8063fd6129d981180f8403c9b46b49",
+      "working_tree_diff_sha256": "e2221ad01875cd985c06d09a3c7298d9c92aaa230bdfd85f4e7cef43b24e862e",
+      "fingerprint_excludes": [
+        "docs/M2-offline-acceptance.json",
+        "docs/M2-offline-acceptance.md",
+        "docs/experiments/figures/*",
+        "docs/experiments/m3-offline/*",
+        "docs/experiments/source-data/R-session-info.txt",
+        "docs/experiments/source-data/experiment-snapshot.json",
+        "docs/experiments/source-data/figure-data.csv",
+        "docs/experiments/source-data/figure-validation.json",
+        "docs/experiments/source-data/plot-runtime.txt",
+        "docs/experiments/图表库.docx",
+        "docs/experiments/图表库.md"
+      ]
+    }
+  },
+  "review_status": {
+    "teacher_review": "pending",
+    "human_ratings": "not_collected",
+    "student_learning_effect": "not_measured",
+    "m3_research_acceptance": "not_complete"
+  },
+  "raw_data_policy": "responses and full event evidence remain only in the local .deepprof run directory; this repository export contains no prompt, retrieval text, response text, session ID, learner ID, trace ID, or credential"
+}

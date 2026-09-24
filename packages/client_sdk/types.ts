@@ -1,4 +1,4 @@
-export type Surface = "desktop" | "cli" | "pet";
+export type Surface = "cli";
 
 export interface ClientCommand {
   command_id: string;
@@ -15,6 +15,7 @@ export interface CommandAccepted {
   command_id: string;
   session_id: string | null;
   status: string;
+  trace_id?: string | null;
   result?: Record<string, unknown> | null;
 }
 
@@ -28,7 +29,7 @@ export interface ResourceRecord {
   type: ResourceType;
   title: string;
   tags: string[];
-  source_type: "import" | "upload" | "crawl";
+  source_type: "import" | "upload";
   source_url: string;
   license: string;
   hash: string;
@@ -64,6 +65,11 @@ export interface SessionSummary {
   updated_at: string;
   last_sequence: number;
   message_count: number;
+  session_mode?: "chat" | "study";
+  experiment_group?: ExperimentGroup | "legacy";
+  course_id?: string;
+  provider_profile?: string;
+  model?: string;
 }
 
 export interface SessionMessage {
@@ -71,6 +77,67 @@ export interface SessionMessage {
   role: string;
   content: string;
   name?: string | null;
+  metadata?: Record<string, unknown>;
+}
+
+export type ExperimentGroup = "A" | "B" | "C";
+
+export interface AttemptRecord {
+  attempt_id: string;
+  learner_id: string;
+  session_id: string;
+  trace_id: string;
+  course_id: string;
+  item_id: string;
+  scored_concept_id: string;
+  concept_ids: string[];
+  question_bank_version: string;
+  correct: boolean | null;
+  timestamp: string;
+  hint_count: number;
+  grading_source: string;
+  confidence: number;
+}
+
+export interface LearnerEstimate {
+  status: "available" | "insufficient_data" | "group_disabled";
+  learner_id?: string;
+  course_id?: string;
+  concept_id?: string;
+  model_type?: "bkt";
+  model_version?: string;
+  config_hash?: string;
+  mastery: number | null;
+  evidence_count: number;
+  uncertainty: number | null;
+  uncertainty_kind?: "binary_entropy_bits; not a confidence interval" | null;
+  updated_at?: string;
+  parameter_status?: string;
+}
+
+export interface DocumentConversionResult {
+  status: "ok" | "error";
+  source_sha256?: string;
+  page_count?: number;
+  ocr_used?: boolean;
+  review_required?: boolean;
+  markdown_path?: string;
+  metadata_path?: string;
+  format?: string;
+  markitdown_version?: string;
+  error_code?: string;
+}
+
+export interface CourseSummary {
+  course_id: string;
+  title: string;
+  concept_count: number;
+  configured: boolean;
+  imported: boolean;
+  resource_id: string | null;
+  content_hash: string | null;
+  concepts: Array<Record<string, unknown>>;
+  source: Record<string, unknown>;
 }
 
 export interface ProviderSelection {

@@ -1,0 +1,124 @@
+{
+  "record_id": "m3-offline-v0.6.2-release-validation",
+  "run_id": "m3-offline-v0.6.2-release-20260924",
+  "generated_at_utc": "2026-09-24T13:27:09.978290Z",
+  "provider": "explicit local Fake Provider",
+  "status": "framework_passed_local_offline",
+  "sample_type": "constructed_developer_fixture",
+  "human_subjects": false,
+  "paid_model_requests": 0,
+  "main_matrix": {
+    "planned": 120,
+    "observed": 120,
+    "completed": 120,
+    "groups": {
+      "A": 40,
+      "B": 40,
+      "C": 40
+    },
+    "unique_sessions": 120
+  },
+  "replay_matrix": {
+    "planned": 120,
+    "observed": 120,
+    "completed": 120
+  },
+  "ablation_matrix": {
+    "planned": 160,
+    "observed": 160,
+    "completed": 160,
+    "factors": [
+      "retrieval_enabled",
+      "evidence_constraint"
+    ]
+  },
+  "case_manifest_count": 40,
+  "all_cells_completed": true,
+  "metrics": {
+    "expected_action_family_match": {
+      "numerator": 196,
+      "denominator": 280,
+      "value": 0.7,
+      "status": "computed"
+    },
+    "locatable_citation_rate": {
+      "numerator": 189,
+      "denominator": 189,
+      "value": 1.0,
+      "status": "computed"
+    },
+    "decision_completeness": {
+      "numerator": 520,
+      "denominator": 520,
+      "value": 1.0,
+      "status": "computed"
+    },
+    "replay_decision_agreement": {
+      "numerator": 120,
+      "denominator": 120,
+      "value": 1.0,
+      "status": "computed"
+    },
+    "bkt_prediction": {
+      "n": 120,
+      "auc": {
+        "value": 0.29642857142857143,
+        "status": "computed"
+      },
+      "brier": {
+        "numerator": 43.870681480029,
+        "denominator": 120,
+        "value": 0.365589012333575,
+        "status": "computed"
+      },
+      "log_loss": {
+        "numerator": 112.33446610832502,
+        "denominator": 120,
+        "value": 0.9361205509027085,
+        "status": "computed"
+      },
+      "ece_10_bins": {
+        "numerator": 0.5298766778278061,
+        "denominator": 120,
+        "value": 0.5298766778278061,
+        "status": "computed"
+      },
+      "positive_count": 70,
+      "negative_count": 50
+    },
+    "evidence_gap_behavior": {
+      "retrieval_absent_constraint_on_blocks": 40,
+      "retrieval_absent_constraint_off_generated": 26
+    }
+  },
+  "source_fingerprint": {
+    "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
+    "working_tree_dirty": true,
+    "working_tree_status_sha256": "d95bf8a1a5a36bd700f982eb72f7c95174836fd051e205112f5e9b3102356742",
+    "working_tree_diff_sha256": "4e27cdcb43463103bbc7713c8490e57aeb120990cae84fab432090792045178a",
+    "fingerprint_excludes": [
+      "docs/M2-offline-acceptance.json",
+      "docs/M2-offline-acceptance.md",
+      "docs/experiments/M1-M3-experimental-report.pdf",
+      "docs/experiments/M1-M3-实验报告.md",
+      "docs/experiments/figures/*",
+      "docs/experiments/m3-offline/*",
+      "docs/experiments/releases/M1-M3-SHA256SUMS.txt",
+      "docs/experiments/releases/M1-M3-evidence.zip",
+      "docs/experiments/source-data/F06-collision-audit.json",
+      "docs/experiments/source-data/F06-qa.json",
+      "docs/experiments/source-data/F09-collision-audit.json",
+      "docs/experiments/source-data/F09-qa.json",
+      "docs/experiments/source-data/M1-M3-evidence-manifest.json",
+      "docs/experiments/source-data/R-session-info.txt",
+      "docs/experiments/source-data/experiment-snapshot.json",
+      "docs/experiments/source-data/figure-data.csv",
+      "docs/experiments/source-data/figure-validation.json",
+      "docs/experiments/source-data/plot-runtime.txt",
+      "docs/experiments/source-data/v0.6.2-release-validation.json",
+      "docs/experiments/图表库.docx",
+      "docs/experiments/图表库.md"
+    ]
+  },
+  "source_summary_sha256": "e3030f23920c88295318e64e401ddf6844cfaf0f6abc96ac47dd63119dc8001f"
+}

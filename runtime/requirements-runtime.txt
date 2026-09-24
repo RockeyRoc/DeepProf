@@ -1,0 +1,10 @@
+# Direct runtime dependencies tested with Python 3.12.14 on 2026-09-24.
+fastapi==0.141.1
+uvicorn==0.53.0
+httpx==0.28.1
+pydantic==2.13.5
+python-dotenv==1.2.3
+pypdf==6.19.0
+python-docx==1.2.0
+markitdown[docx,pptx]==0.1.8
+langgraph==1.2.12

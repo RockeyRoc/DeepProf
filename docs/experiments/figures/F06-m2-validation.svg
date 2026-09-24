@@ -1,0 +1,58 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='590.40pt' height='259.20pt' viewBox='0 0 590.40 259.20'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1OTAuNDB8MC4wMHwyNTkuMjA='>
+    <rect x='0.00' y='0.00' width='590.40' height='259.20' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1OTAuNDB8MC4wMHwyNTkuMjA=)'>
+<rect x='-0.000000000000064' y='0.00' width='590.40' height='259.20' style='stroke-width: 0.97; stroke: none; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpODMuNDV8NTQ4LjU2fDQ5LjI3fDIyNS42MA=='>
+    <rect x='83.45' y='49.27' width='465.11' height='176.34' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpODMuNDV8NTQ4LjU2fDQ5LjI3fDIyNS42MA==)'>
+<rect x='83.45' y='66.90' width='324.30' height='30.86' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #315D78;' />
+<rect x='83.45' y='122.01' width='86.06' height='30.86' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #315D78;' />
+<rect x='83.45' y='177.11' width='5.25' height='30.86' style='stroke-width: 0.75; stroke: #FFFFFF; stroke-linecap: butt; stroke-linejoin: miter; fill: #477A66;' />
+<text x='415.62' y='85.48' style='font-size: 8.82px;fill: #253746; font-family: "Arial";' textLength='98.42px' lengthAdjust='spacingAndGlyphs'>309/309 passed | 0 failed</text>
+<text x='176.59' y='140.59' style='font-size: 8.82px;fill: #253746; font-family: "Arial";' textLength='88.61px' lengthAdjust='spacingAndGlyphs'>82/82 passed | 0 failed</text>
+<text x='95.00' y='195.69' style='font-size: 8.82px;fill: #253746; font-family: "Arial";' textLength='78.80px' lengthAdjust='spacingAndGlyphs'>5/5 passed | 0 failed</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1OTAuNDB8MC4wMHwyNTkuMjA=)'>
+<text x='78.96' y='195.76' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='52.50px' lengthAdjust='spacingAndGlyphs'>CLI 单元测试</text>
+<text x='78.96' y='140.66' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='69.00px' lengthAdjust='spacingAndGlyphs'>M2 离线定向验收</text>
+<text x='78.96' y='85.55' text-anchor='end' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='66.50px' lengthAdjust='spacingAndGlyphs'>Python 全量回归</text>
+<text x='83.45' y='236.53' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='5.00px' lengthAdjust='spacingAndGlyphs'>0</text>
+<text x='188.40' y='236.53' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>100</text>
+<text x='293.35' y='236.53' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>200</text>
+<text x='398.30' y='236.53' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>300</text>
+<text x='503.25' y='236.53' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='15.00px' lengthAdjust='spacingAndGlyphs'>400</text>
+<text x='316.00' y='247.35' text-anchor='middle' style='font-size: 9.00px;fill: #34424A; font-family: "Arial";' textLength='63.00px' lengthAdjust='spacingAndGlyphs'>通过的测试项数</text>
+<text x='83.45' y='35.43' style='font-size: 9.00px;fill: #5D6870; font-family: "Arial";' textLength='435.00px' lengthAdjust='spacingAndGlyphs'>柱长为通过的固定测试项数；M2 定向集包含在 Python 全量回归中，两者不可相加，也不代表学生学习效果。</text>
+<text x='83.45' y='21.26' style='font-size: 13.00px; font-weight: bold;fill: #243746; font-family: "Arial";' textLength='112.67px' lengthAdjust='spacingAndGlyphs'>M2 自动化验收结果</text>
+</g>
+</g>
+</svg>

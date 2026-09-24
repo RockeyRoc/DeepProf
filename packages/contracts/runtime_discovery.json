@@ -4,7 +4,7 @@
     "protocol_version": "1",
     "base_url": "loopback http URL",
     "pid": "integer",
-    "owner": "desktop | cli",
+    "owner": "cli",
     "started_at": "ISO-8601 UTC string",
     "owner_token": "opaque random string"
   },

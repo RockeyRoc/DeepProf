@@ -1,0 +1,22 @@
+name: Feature request
+description: Propose a product or research workflow improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful behavior and its success criteria.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Research or teaching constraints
+      description: Note required evidence, privacy, reproducibility, or teacher-review boundaries.

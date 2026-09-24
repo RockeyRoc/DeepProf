@@ -27,8 +27,6 @@ from graph.education.builder import run_teaching_turn
 from graph.education.nodes import EVENT_DECISION
 from runtime.core.events import EventType, InMemoryEventStore
 from runtime.core.session import InMemorySessionStore
-from runtime.memory.service import MemoryService
-from runtime.memory.sqlite_memory import SqliteMemoryStore
 from runtime.providers.profiles import ProviderProfile
 from runtime.providers.registry import ProviderRegistry
 from runtime.providers.secrets import InMemorySecretStore
@@ -51,6 +49,8 @@ BASE_STATE = {
     "current_concept": "梯度下降",
     "learning_goal": "理解梯度下降的迭代条件",
     "user_input": "请讲讲什么是梯度下降",
+    "course_id": "provider-switch-test",
+    "freeze_model": False,  # Explicit test provider resolution; production sessions freeze a profile snapshot.
 }
 
 PROFILE_A = ("profile-a", "https://api-a.example/v1", "model-a")
@@ -111,7 +111,6 @@ def make_service(profile: tuple[str, str, str], recorded: list[dict[str, Any]]) 
         settings=Settings(),
         event_store=InMemoryEventStore(),
         session_store=InMemorySessionStore(),
-        memory=MemoryService(SqliteMemoryStore(path=":memory:")),
         bindings=ACTION_BINDINGS,
     )
     register_default_skills(service.skills)

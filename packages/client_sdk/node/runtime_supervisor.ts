@@ -21,7 +21,7 @@ async function freePort(): Promise<number> {
 }
 
 export interface RuntimeSupervisorOptions {
-  owner: "desktop" | "cli";
+  owner: "cli";
   runtimeRoot?: string;
   python?: string;
   apiUrl?: string;

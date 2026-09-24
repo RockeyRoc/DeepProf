@@ -1,45 +1,37 @@
-"""证据纪律与学情写入测试（DESIGNv0.6 §7.3 / §12 / §5.5 / §13.2）。
-
-覆盖两条硬性验收：
-- 证据不足时 Teach / Correct **不编造引用**：不调用模型、citations 为空、
-  状态里没有证据引用、正文明确写出"证据不足"；
-- UpdateProfile 写入的记忆必须带 source / confidence / revocable，
-  且缺少 learner_id 时宁可不写，避免跨学习者污染。
-"""
 from __future__ import annotations
 
 import asyncio
 
 from graph.education.bindings import ACTION_BINDINGS
 from graph.education.builder import run_teaching_turn
-from graph.education.policies import HINT_MAX_LEVEL, RULE_MODEL_VERSION, TAG_MISCONCEPTION
+from graph.education.contracts import POLICY_VERSION
 from runtime.testing import FakeRuntime
 
-#: 与 test_education_routing.py 保持同一套样例；此处独立定义，
-#: 避免两个测试模块之间产生导入依赖。
 BASE_STATE = {
     "session_id": "sess_1",
     "learner_id": "learner_1",
     "trace_id": "trace_1",
-    "current_concept": "梯度下降",
-    "learning_goal": "理解梯度下降的迭代条件",
+    "course_id": "ds.c_language.v1",
+    "current_concept": "线性表",
+    "learning_goal": "理解线性表",
 }
 EVIDENCE = {
-    "evidence_id": "doc1#c1@12",
     "document_id": "doc1",
-    "chunk_id": "c1",
-    "page": 12,
-    "text": "梯度下降沿负梯度方向迭代更新参数。",
-    "source": "教材A",
+    "chunk_id": "doc1:p21:c4",
+    "page": 42,
+    "printed_page": 21,
+    "chapter": "线性表",
+    "section": "线性表",
+    "source": "local://course/data-structures-c-programming.pdf",
+    "text": "线性表是具有相同特性数据元素的有限序列。",
 }
-MODEL_REPLY = "（模型回复）这一步的依据是教材第 12 页。"
 
 
-def make_port(skill_results: dict | None = None) -> FakeRuntime:
-    """绑定表必须显式注入（Runtime 侧不内置教学动作映射，§4.4）。"""
+def make_port(evidence: list[dict] | None = None) -> FakeRuntime:
+    rag = {"status": "ok", "skill": "rag", "count": len(evidence or []), "evidence": evidence or []}
     return FakeRuntime(
-        replies=[MODEL_REPLY] * 10,
-        skill_results=skill_results or {},
+        replies=["基于教材片段的讲解。"],
+        skill_results={"rag": rag, "socratic": {"status": "ok", "question": "这个序列的元素之间有什么关系？"}},
         action_bindings=ACTION_BINDINGS,
     )
 
@@ -48,200 +40,58 @@ def run_turn(port: FakeRuntime, **overrides):
     return asyncio.run(run_teaching_turn(port, {**BASE_STATE, **overrides}))
 
 
-def assess_decision(port: FakeRuntime) -> dict:
-    """取出 Assess 的决策事件负载（复盘字段）。"""
-    return next(
-        event["payload"]
-        for event in port.events
-        if event.get("type") == "pedagogy.decision"
-        and event["payload"].get("node") == "assess"
-    )
+def test_evidence_gap_stops_before_generation():
+    port = make_port()
+    result = run_turn(port, user_input="请讲讲线性表")
+    assert result["action"] == "reflect"
+    assert "足够且可定位" in result["response_text"]
+    assert result["citations"] == []
+    assert port.calls_of("generate") == []
 
 
-def rag_result(status: str, evidence: list[dict] | None = None, note: str = "") -> dict:
-    return {
-        "status": status,
-        "skill": "rag",
-        "count": len(evidence or []),
-        "evidence": evidence or [],
-        "note": note,
-    }
+def test_explicit_syllabus_gap_stops_generation_even_with_locatable_hit():
+    port = make_port([dict(EVIDENCE)])
+    result = run_turn(port, user_input="教材中未出现的新图算法接口是什么？")
 
-
-# ======================================================================
-# 一、证据不足不编造引用
-# ======================================================================
-def test_teach_without_evidence_gives_no_source_and_no_model_call():
-    """RAG 未注册/无命中 → Teach 不调用模型、不给任何来源，并明确说明证据不足。"""
-    port = make_port()  # FakeRuntime 默认没有 rag 结果
-    result = run_turn(port, user_input="请讲讲什么是梯度下降")
-    assert result["action"] == "teach"
-    assert "证据不足" in result["response_text"]
+    assert result["action"] == "reflect"
     assert result["citations"] == []
     assert result["retrieved_evidence_refs"] == []
-    assert result["evidence_sufficient"] is False
-    assert port.calls_of("generate") == [], "证据不足时不得调用模型，避免生成不可验证来源"
-
-
-def test_teach_with_insufficient_evidence_status_gives_no_source():
-    """RAG 明确返回 insufficient_evidence 时同样不给来源。"""
-    port = make_port({"rag": rag_result("insufficient_evidence", note="无命中")})
-    result = run_turn(port, user_input="请讲讲什么是梯度下降")
-    assert "证据不足" in result["response_text"]
-    assert result["citations"] == []
     assert port.calls_of("generate") == []
+    decision = next(event["payload"] for event in port.events
+                    if event["type"] == "pedagogy.decision" and event["payload"]["node"] == "assess")
+    assert decision["evidence_sufficient"] is False
+    assert decision["evidence_refs"] == []
 
 
-def test_correct_without_evidence_gives_no_source():
-    """Correct 在证据不足时同样不调用模型、不给出任何引用。"""
-    port = make_port()
-    result = run_turn(
-        port,
-        user_input="我觉得方向应该取正的",
-        attempt_count=3,
-        wrong_streak=3,
-        hint_level=HINT_MAX_LEVEL,  # 提示阶梯已用尽，才会转入纠错
-        misconceptions=["把下降方向当成正梯度方向"],
-    )
-    assert result["action"] == "correct"
-    assert "证据不足" in result["response_text"]
-    assert result["citations"] == []
-    assert "把下降方向当成正梯度方向" in result["response_text"]
-    assert port.calls_of("generate") == []
+def test_teach_returns_only_reliable_locator_fields():
+    port = make_port([dict(EVIDENCE)])
+    result = run_turn(port, user_input="请讲讲线性表")
+    assert result["action"] == "teach"
+    assert result["response_text"] == "基于教材片段的讲解。"
+    assert result["citations"] == [{key: value for key, value in EVIDENCE.items() if key != "text"}]
+    assert "text" not in result["retrieved_evidence_refs"][0]
+    decision = next(event["payload"] for event in port.events
+                    if event["type"] == "pedagogy.decision" and event["payload"]["node"] == "assess")
+    assert decision["policy_version"] == POLICY_VERSION
+    assert decision["reason_codes"]
+    assert decision["evidence_refs"][0]["printed_page"] == 21
 
 
-def test_teach_with_evidence_returns_locatable_citations_only():
-    """有证据时：引用只含定位字段（不含原文），且模型确实被调用。"""
-    port = make_port({"rag": rag_result("ok", [dict(EVIDENCE)])})
-    result = run_turn(port, user_input="请讲讲什么是梯度下降")
-    assert result["response_text"] == MODEL_REPLY
-    assert len(result["citations"]) == 1
-    citation = result["citations"][0]
-    assert citation["document_id"] == "doc1"
-    assert citation["chunk_id"] == "c1"
-    assert citation["page"] == 12
-    assert citation["source"] == "教材A"
-    assert "text" not in citation, "状态/引用里不得复制教材原文（§6.4）"
-    assert result["retrieved_evidence_refs"] == result["citations"]
-    assert port.calls_of("generate")
-
-
-def test_evidence_missing_locators_is_treated_as_insufficient():
-    """RAG 命中缺少 document_id/chunk_id/page 时不可作为引用。"""
-    port = make_port(
-        {"rag": rag_result("ok", [{"text": "没有定位标识的片段"}])}
-    )
-    result = run_turn(port, user_input="请讲讲什么是梯度下降")
-    assert result["evidence_sufficient"] is False
-    assert result["citations"] == []
-
-
-def test_ask_without_evidence_declares_no_citation():
-    """Ask 不引用原文，但证据不足时必须说明"不含引用"。"""
-    port = make_port()
-    result = run_turn(port, user_input="我觉得可以先求偏导")
+def test_ask_does_not_receive_legacy_cross_question_context():
+    port = make_port([dict(EVIDENCE)])
+    secret = "legacy learner memory must not reach the prompt"
+    result = run_turn(port, user_input="我觉得线性表里的顺序很重要", memory_note=secret)
     assert result["action"] == "ask"
-    assert result["citations"] == []
-    assert "不含引用" in result["response_text"]
+    assert secret not in repr(port.calls)
+    assert "memory_note" not in result
+    assert all(event["type"] not in {"memory.read", "memory.write"} for event in port.events)
 
 
-# ======================================================================
-# 二、UpdateProfile 的写入纪律（§5.5）
-# ======================================================================
-def test_update_profile_writes_audited_memory_records():
-    """每条学情记录都要带 source / confidence / revocable / model_version。"""
-    port = make_port({"rag": rag_result("ok", [dict(EVIDENCE)])})
-    run_turn(port, user_input="请讲讲什么是梯度下降")
-    assert port.written_memories, "UpdateProfile 必须写入学情增量"
+def test_socratic_output_guard_rejects_answers_and_multi_sentence_output():
+    from skills.socratic import validate_socratic_question
 
-    for record in port.written_memories:
-        assert record["learner_id"] == "learner_1"
-        assert record["scope"] in ("long_term", "episodic")
-        assert str(record["content"]).strip()
-        assert str(record["source"]).startswith("graph:update_profile")
-        assert "sess_1" in record["source"] and "trace_1" in record["source"]
-        assert isinstance(record["confidence"], float)
-        assert 0.0 <= record["confidence"] <= 1.0
-        assert record["revocable"] is True, "长期记忆必须可撤回（§13.2）"
-        assert record["expires_at"] is None, "无过期策略时显式留空，由用户撤回"
-        assert record["metadata"]["model_version"] == RULE_MODEL_VERSION
-        assert record["metadata"]["graph_source"] == "deepprof.graph.education"
-
-    scopes = {record["scope"] for record in port.written_memories}
-    assert scopes == {"long_term", "episodic"}
-    assert len(port.calls_of("write_memory")) == 1, "本轮只写一次，避免碎片化写入"
-
-
-def test_update_profile_records_misconceptions_separately():
-    """疑似错误概念要单独成条，并标明未经学情模型确认。"""
-    port = make_port({"rag": rag_result("ok", [dict(EVIDENCE)])})
-    run_turn(
-        port,
-        user_input="我认为方向取正是对的",
-        attempt_count=3,
-        wrong_streak=3,
-        misconceptions=["把下降方向当成正梯度方向"],
-    )
-    misconception_records = [
-        record for record in port.written_memories if TAG_MISCONCEPTION in (record.get("tags") or [])
-    ]
-    assert len(misconception_records) == 1
-    record = misconception_records[0]
-    assert record["metadata"]["misconception"] == "把下降方向当成正梯度方向"
-    assert "未经学情模型确认" in record["content"]
-    assert record["confidence"] <= 0.4
-
-
-def test_update_profile_skips_write_without_learner_id():
-    """缺 learner_id 时宁可不写，也不制造无法归属的学情结论（§13.2）。"""
-    port = make_port({"rag": rag_result("ok", [dict(EVIDENCE)])})
-    result = asyncio.run(
-        run_teaching_turn(port, {**BASE_STATE, "learner_id": "", "user_input": "请讲讲什么是梯度下降"})
-    )
-    assert port.written_memories == []
-    assert result["next_action"] == "end"
-    reasons = [
-        event["payload"].get("reason", "")
-        for event in port.events
-        if event.get("type") == "pedagogy.decision"
-    ]
-    assert any("learner_id" in str(reason) for reason in reasons)
-
-
-def test_update_profile_reads_misconceptions_from_memory():
-    """Assess 要把记忆里的历史错误模式合并进状态，供 Correct 判断概念混淆。"""
-    port = FakeRuntime(
-        replies=["（模型回复）"],
-        action_bindings=ACTION_BINDINGS,
-        memories=[
-            {
-                "record_id": "mem_1",
-                "learner_id": "learner_1",
-                "scope": "long_term",
-                "tags": [TAG_MISCONCEPTION],
-                "concept_ids": ["梯度下降"],
-                "content": "疑似错误概念：忽略学习率",
-                "source": "graph:update_profile",
-                "confidence": 0.4,
-                "revocable": True,
-                "metadata": {"misconception": "忽略学习率"},
-            },
-            {
-                "record_id": "mem_2",
-                "learner_id": "learner_1",
-                "scope": "long_term",
-                "tags": [TAG_MISCONCEPTION],
-                "concept_ids": ["梯度下降"],
-                "content": "疑似错误概念：把偏导当全微分",
-                "source": "graph:update_profile",
-                "confidence": 0.4,
-                "revocable": True,
-                "metadata": {"misconception": "把偏导当全微分"},
-            },
-        ],
-    )
-    result = run_turn(port, user_input="我这样理解对吗")
-    assert sorted(result["misconceptions"]) == ["忽略学习率", "把偏导当全微分"]
-    assert result["action"] == "correct", "两条历史误解应触发概念混淆分支"
-    assert result["learner_state_ref"] == "mem_1"
-    assert assess_decision(port)["memory_refs"] == ["mem_1", "mem_2"]
+    valid = "这个序列的元素之间有什么关系？"
+    assert validate_socratic_question(valid) == valid
+    assert validate_socratic_question("答案是线性表。你明白了吗？") == ""
+    assert validate_socratic_question("先记住线性表的定义。你觉得它有什么特点？") == ""
+    assert validate_socratic_question("请考虑线性表的顺序关系。") == ""

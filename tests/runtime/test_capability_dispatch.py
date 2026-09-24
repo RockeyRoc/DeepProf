@@ -305,33 +305,6 @@ async def test_fallback_is_deterministic_and_marks_degradation():
     assert result["metadata"]["degraded_from"] == "invoke_skill"
 
 
-async def test_write_memory_passes_records_and_never_memoizes():
-    host = RecordingHost()
-    dispatcher, _ = make_dispatcher(
-        {
-            "update_profile": {
-                "capability": "write_memory",
-                "params": {"records": [{"content": "${note}", "scope": "long_term"}]},
-            }
-        },
-        host,
-    )
-    ctx = {"trace_id": "trc-1"}
-    await dispatcher.execute({"action": "update_profile", "note": "a"}, ctx)
-    await dispatcher.execute({"action": "update_profile", "note": "b"}, ctx)
-    assert len(host.called("write_memory")) == 2, "有副作用的能力绝不能缓存"
-
-
-async def test_read_memory_returns_records():
-    host = RecordingHost(memory_records=[{"record_id": "m1", "content": "掌握度 0.6"}])
-    dispatcher, _ = make_dispatcher(
-        {"recall": {"capability": "read_memory", "params": {"query": {"scope": "long_term"}}}}, host
-    )
-    result = await dispatcher.execute({"action": "recall"}, {})
-    assert result["records"][0]["record_id"] == "m1"
-    assert host.called("read_memory")[0]["scope"] == "long_term"
-
-
 async def test_generate_error_is_wrapped_and_degraded_by_fallback():
     class FailingHost(RecordingHost):
         async def generate(self, request, ctx):

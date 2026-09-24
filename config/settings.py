@@ -64,27 +64,26 @@ class Settings:
     # 存储路径（留空 => 解析到用户数据根）
     sqlite_path: str = ""
     vector_db_path: str = ""
-    plugin_dir: str = ""
     library_dir: str = ""
 
     # Resource library / offline retrieval
     library_chunk_size: int = 800
     library_chunk_overlap: int = 120
     library_max_import_bytes: int = 50_000_000
-    library_crawl_delay_seconds: float = 1.0
-    library_allowlist: list[str] = field(default_factory=list)
-    library_tos_confirmed_domains: list[str] = field(default_factory=list)
+    data_structures_pdf_path: str = ""
 
     # 沙箱
     sandbox_allowlist: list[str] = field(default_factory=lambda: ["~/.deepprof"])
-
-    # 功能开关
-    screenshot_enabled: bool = False
 
     log_level: str = "INFO"
 
     @classmethod
     def from_env(cls) -> "Settings":
+        try:
+            from dotenv import load_dotenv
+            load_dotenv()
+        except ImportError:  # pragma: no cover - dependency is declared by the project
+            pass
         return cls(
             llm_max_tokens=_env_int("DEEPPROF_LLM_MAX_TOKENS", 4096),
             llm_timeout_seconds=_env_float("DEEPPROF_LLM_TIMEOUT_SECONDS", 120.0),
@@ -95,16 +94,12 @@ class Settings:
             api_port=_env_int("DEEPPROF_API_PORT", 0),
             sqlite_path=_env_str("DEEPPROF_SQLITE_PATH", ""),
             vector_db_path=_env_str("DEEPPROF_VECTOR_DB_PATH", ""),
-            plugin_dir=_env_str("DEEPPROF_PLUGIN_DIR", ""),
             library_dir=_env_str("DEEPPROF_LIBRARY_DIR", ""),
             library_chunk_size=_env_int("DEEPPROF_LIBRARY_CHUNK_SIZE", 800),
             library_chunk_overlap=_env_int("DEEPPROF_LIBRARY_CHUNK_OVERLAP", 120),
             library_max_import_bytes=_env_int("DEEPPROF_LIBRARY_MAX_IMPORT_BYTES", 50_000_000),
-            library_crawl_delay_seconds=_env_float("DEEPPROF_LIBRARY_CRAWL_DELAY_SECONDS", 1.0),
-            library_allowlist=_env_list("DEEPPROF_LIBRARY_ALLOWLIST", []),
-            library_tos_confirmed_domains=_env_list("DEEPPROF_LIBRARY_TOS_CONFIRMED_DOMAINS", []),
+            data_structures_pdf_path=_env_str("DEEPPROF_DATA_STRUCTURES_PDF", ""),
             sandbox_allowlist=_env_list("DEEPPROF_SANDBOX_ALLOWLIST", ["~/.deepprof"]),
-            screenshot_enabled=_env_bool("DEEPPROF_SCREENSHOT_ENABLED", False),
             log_level=_env_str("DEEPPROF_LOG_LEVEL", "INFO"),
         )
 
@@ -119,9 +114,9 @@ class Settings:
         return paths.expand(self.vector_db_path) if self.vector_db_path else paths.vector_db_dir()
 
     @property
-    def resolved_plugin_dir(self) -> Path:
-        return paths.expand(self.plugin_dir) if self.plugin_dir else paths.plugins_dir()
-
-    @property
     def resolved_library_dir(self) -> Path:
         return paths.expand(self.library_dir) if self.library_dir else paths.library_dir()
+
+    @property
+    def resolved_data_structures_pdf_path(self) -> Path | None:
+        return paths.expand(self.data_structures_pdf_path) if self.data_structures_pdf_path else None

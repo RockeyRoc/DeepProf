@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from library.crawler import CrawlPolicy
 from library.embeddings import HashingEmbedder
 from library.errors import LibraryError
 from library.parsers import parse_bytes
@@ -125,12 +124,6 @@ def test_pdf_parser_preserves_page_locator() -> None:
     assert parsed.media_type == "application/pdf"
     assert parsed.pages[0].page == 1
     assert "PDF page one" in parsed.pages[0].text
-
-
-def test_crawl_policy_defaults_to_deny_without_explicit_consent() -> None:
-    with pytest.raises(LibraryError) as excinfo:
-        CrawlPolicy().check("https://example.com/course.pdf")
-    assert excinfo.value.details["kind"] == "domain_denied"
 
 
 def _zip_bytes(files: dict[str, bytes]) -> bytes:

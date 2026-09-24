@@ -8,9 +8,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 from library.chunking import chunk_pages
-from library.crawler import CrawlPolicy, SingleUrlCrawler
 from library.embeddings import Embedder, HashingEmbedder
 from library.errors import LibraryError
+from library.evidence_relevance import supports_claim_specific_evidence
 from library.models import ImportResult, ResourceRecord
 from library.parsers import parse_bytes
 from runtime.core.events import new_id, utc_now
@@ -30,10 +30,6 @@ class ResourceLibrary:
         chunk_overlap: int = 120,
         max_import_bytes: int = 50_000_000,
         path_allowed: Callable[[str | Path], bool] | None = None,
-        crawler: SingleUrlCrawler | None = None,
-        allowlist: list[str] | None = None,
-        tos_confirmed_domains: list[str] | None = None,
-        crawl_delay_seconds: float = 1.0,
     ) -> None:
         self.store = store
         self.library_root = Path(library_root)
@@ -44,14 +40,6 @@ class ResourceLibrary:
         self.chunk_overlap = chunk_overlap
         self.max_import_bytes = max_import_bytes
         self.path_allowed = path_allowed
-        self.crawler = crawler or SingleUrlCrawler(
-            CrawlPolicy(
-                allowlist=list(allowlist or []),
-                tos_confirmed_domains=list(tos_confirmed_domains or []),
-                delay_seconds=crawl_delay_seconds,
-                max_bytes=max_import_bytes,
-            )
-        )
 
     def import_path(
         self,
@@ -83,7 +71,7 @@ class ResourceLibrary:
         result = self._ingest_bytes(
             data,
             filename=candidate.name,
-            source_url=str(candidate),
+            source_url=str((metadata or {}).get("source_url") or candidate.name),
             source_type=source_type,
             metadata=metadata,
             actor_id=actor_id,
@@ -92,40 +80,6 @@ class ResourceLibrary:
         )
         if size > 10_000_000:
             result.warnings.append("文件较大，后续 OCR 或重新索引可能需要更长时间")
-        return result
-
-    async def crawl(
-        self,
-        url: str,
-        *,
-        metadata: dict[str, Any] | None = None,
-        actor_id: str = "local",
-        as_new_version: bool = False,
-        activate: bool = False,
-    ) -> ImportResult:
-        fetched = await self.crawler.fetch(url)
-        if not fetched.extension:
-            raise LibraryError(
-                "无法根据 URL 或 Content-Type 判断资源格式",
-                kind="unsupported_format",
-                url=fetched.url,
-            )
-        result = self._ingest_bytes(
-            fetched.content,
-            filename=Path(fetched.url.split("?", 1)[0]).name or f"download{fetched.extension}",
-            source_url=fetched.url,
-            source_type="crawl",
-            metadata=metadata,
-            actor_id=actor_id,
-            as_new_version=as_new_version,
-            activate=activate,
-            extra_events=[
-                {
-                    "type": "library.crawled",
-                    "payload": {"source_url": fetched.url},
-                }
-            ],
-        )
         return result
 
     def search(
@@ -160,6 +114,8 @@ class ResourceLibrary:
                 "document_id": hit["document_id"],
                 "chunk_id": hit["chunk_id"],
                 "page": hit["page"],
+                "printed_page": hit.get("printed_page"),
+                "chapter": hit.get("chapter") or hit.get("section") or "",
                 "source": hit["source"],
                 "text": hit["text"],
                 "score": round(float(hit["score"]), 6),
@@ -168,6 +124,12 @@ class ResourceLibrary:
             for hit in raw_hits
             if hit.get("document_id") and hit.get("chunk_id") and hit.get("page") is not None and hit.get("source")
         ]
+        if evidence and not supports_claim_specific_evidence(query, evidence):
+            return {
+                "status": "insufficient_evidence",
+                "evidence": [],
+                "missing": ["claim_specific_source_support"],
+            }
         if not evidence:
             return {
                 "status": "insufficient_evidence",
@@ -225,9 +187,8 @@ class ResourceLibrary:
         actor_id: str,
         as_new_version: bool,
         activate: bool,
-        extra_events: list[dict[str, Any]] | None = None,
     ) -> ImportResult:
-        if source_type not in {"import", "upload", "crawl"}:
+        if source_type not in {"import", "upload"}:
             raise LibraryError("未知资源来源类型", kind="invalid_request", source_type=source_type)
         if len(data) > self.max_import_bytes:
             raise LibraryError("资源文件超过大小限制", kind="size_limit", max_bytes=self.max_import_bytes)
@@ -246,12 +207,6 @@ class ResourceLibrary:
                 }
             )
             events = []
-            for event in extra_events or []:
-                copied = {"type": event["type"], "payload": dict(event.get("payload") or {})}
-                copied["payload"]["resource_id"] = record.resource_id
-                if copied["type"] == "library.crawled":
-                    copied["payload"]["hash"] = digest
-                events.append(copied)
             events.append(
                 {
                     "type": "library.imported",
@@ -274,9 +229,30 @@ class ResourceLibrary:
         parsed = parse_bytes(data, Path(filename).suffix.lower(), filename)
         if not any(page.text.strip() for page in parsed.pages):
             raise LibraryError("资源不包含可解析文本", kind="empty_document", filename=filename)
+        metadata = dict(metadata or {})
+        ranges = metadata.get("chapter_ranges") if isinstance(metadata.get("chapter_ranges"), list) else []
+        for page in parsed.pages:
+            if page.printed_page is None:
+                continue
+            for page_range in ranges:
+                if not isinstance(page_range, dict):
+                    continue
+                if int(page_range.get("printed_page_start", 0)) <= page.printed_page <= int(page_range.get("printed_page_end", 0)):
+                    page.chapter = str(page_range.get("chapter") or page.chapter)
+                    page.section = page.chapter
+                    break
+        warnings: list[str] = []
+        empty_pages = sum(not page.text.strip() for page in parsed.pages)
+        unreliable_pages = sum(not page.reliable for page in parsed.pages)
+        missing_printed_pages = sum(page.printed_page is None for page in parsed.pages)
+        if empty_pages:
+            warnings.append(f"{empty_pages} 页没有可提取文本，未建立为检索证据")
+        if unreliable_pages:
+            warnings.append(f"{unreliable_pages} 页提取文本含疑似乱码，未建立为检索证据")
+        if missing_printed_pages:
+            warnings.append(f"{missing_printed_pages} 页未能从页脚可靠识别书内页码；引用仍保留 PDF 页序")
         resource_id = new_id("res")
         document_id = "doc_" + hashlib.sha256(f"{digest}:{resource_id}".encode()).hexdigest()[:24]
-        metadata = dict(metadata or {})
         now = utc_now()
         parent = existing[-1]["resource_id"] if existing and as_new_version else None
         record = ResourceRecord(
@@ -312,6 +288,9 @@ class ResourceLibrary:
                 "document_id": chunk.document_id,
                 "resource_id": chunk.resource_id,
                 "page": chunk.page,
+                "printed_page": chunk.printed_page,
+                "chapter": chunk.chapter,
+                "reliable": chunk.reliable,
                 "ordinal": chunk.ordinal,
                 "section": chunk.section,
                 "text": chunk.text,
@@ -347,12 +326,6 @@ class ResourceLibrary:
             shutil.rmtree(stored_path.parent, ignore_errors=True)
             raise
         events = []
-        for event in extra_events or []:
-            copied = {"type": event["type"], "payload": dict(event.get("payload") or {})}
-            copied["payload"]["resource_id"] = resource_id
-            if copied["type"] == "library.crawled":
-                copied["payload"]["hash"] = digest
-            events.append(copied)
         events.append(
             {
                 "type": "library.imported",
@@ -365,7 +338,7 @@ class ResourceLibrary:
                 "payload": {"resource_id": resource_id, "chunks": len(chunk_rows)},
             }
         )
-        return ImportResult(resource=record, chunk_count=len(chunk_rows), events=events)
+        return ImportResult(resource=record, chunk_count=len(chunk_rows), events=events, warnings=warnings)
 
 
 def _record(data: dict[str, Any]) -> ResourceRecord:

@@ -203,6 +203,27 @@ async def test_stream_reports_http_error_as_error_frame():
     assert frames[0]["error"]["details"]["retryable"] is True
 
 
+@pytest.mark.parametrize(
+    ("failure", "expected_kind"),
+    [
+        ("http_503", KIND_UPSTREAM_ERROR),
+        ("read_timeout", KIND_TIMEOUT),
+    ],
+)
+async def test_stream_records_injected_upstream_failure_kind(failure: str, expected_kind: str):
+    """故障注入验证 Provider 适配器将 HTTP 错误和超时归一为结构化帧。"""
+    def handler(request: httpx.Request) -> httpx.Response:
+        if failure == "http_503":
+            return httpx.Response(503, json={"error": {"message": "injected upstream failure"}})
+        raise httpx.ReadTimeout("injected timeout", request=request)
+
+    provider = make_provider(handler)
+    frames = [frame async for frame in provider.stream({"messages": [{"role": "user", "content": "test"}]}, {})]
+    assert frames[-1]["type"] == "error"
+    assert frames[-1]["error"]["details"]["kind"] == expected_kind
+    assert frames[-1]["error"]["details"]["retryable"] is True
+
+
 # ---- 凭据 ----
 
 async def test_missing_credential_is_structured_error():

@@ -23,16 +23,12 @@ FIELD_TO_ENV = {
     "api_port": "DEEPPROF_API_PORT",
     "sqlite_path": "DEEPPROF_SQLITE_PATH",
     "vector_db_path": "DEEPPROF_VECTOR_DB_PATH",
-    "plugin_dir": "DEEPPROF_PLUGIN_DIR",
     "library_dir": "DEEPPROF_LIBRARY_DIR",
     "library_chunk_size": "DEEPPROF_LIBRARY_CHUNK_SIZE",
     "library_chunk_overlap": "DEEPPROF_LIBRARY_CHUNK_OVERLAP",
     "library_max_import_bytes": "DEEPPROF_LIBRARY_MAX_IMPORT_BYTES",
-    "library_crawl_delay_seconds": "DEEPPROF_LIBRARY_CRAWL_DELAY_SECONDS",
-    "library_allowlist": "DEEPPROF_LIBRARY_ALLOWLIST",
-    "library_tos_confirmed_domains": "DEEPPROF_LIBRARY_TOS_CONFIRMED_DOMAINS",
+    "data_structures_pdf_path": "DEEPPROF_DATA_STRUCTURES_PDF",
     "sandbox_allowlist": "DEEPPROF_SANDBOX_ALLOWLIST",
-    "screenshot_enabled": "DEEPPROF_SCREENSHOT_ENABLED",
     "log_level": "DEEPPROF_LOG_LEVEL",
 }
 
@@ -96,5 +92,4 @@ def test_defaults_are_sane():
     settings = Settings()
     assert settings.api_host == "127.0.0.1", "工作台只允许监听环回地址"
     assert settings.llm_max_tokens >= 4096, "过小的 max_tokens 会导致推理模型空正文截断"
-    assert settings.screenshot_enabled is False, "截图默认必须关闭"
     assert settings.probe_max_tokens >= 256, "过小的探测预算会让推理模型假阴性"

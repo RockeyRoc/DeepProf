@@ -17,6 +17,7 @@ DEFAULT_ALLOWED_DOMAINS: tuple[str, ...] = ()
 @dataclass(slots=True)
 class SandboxPolicy:
     allowed_dirs: list[Path] = field(default_factory=list)
+    allowed_files: list[Path] = field(default_factory=list)
     allowed_domains: list[str] = field(default_factory=list)
     allow_process: bool = False
     allow_network: bool = True
@@ -29,10 +30,13 @@ class SandboxPolicy:
         home = paths.expand(paths.deepprof_home())
         if home not in dirs:
             dirs.append(home)
-        return cls(allowed_dirs=dirs, allowed_domains=list(DEFAULT_ALLOWED_DOMAINS))
+        exact_files = [settings.resolved_data_structures_pdf_path] if settings.resolved_data_structures_pdf_path else []
+        return cls(allowed_dirs=dirs, allowed_files=exact_files, allowed_domains=list(DEFAULT_ALLOWED_DOMAINS))
 
     def is_path_allowed(self, target: str | Path) -> bool:
         candidate = paths.expand(target)
+        if candidate in self.allowed_files:
+            return True
         for directory in self.allowed_dirs:
             try:
                 candidate.relative_to(directory)
