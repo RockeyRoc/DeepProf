@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="media/logo.svg" alt="DeepProf 标志" width="116">
+<img src="media/logo.svg" alt="DeepProf 标志" width="132">
 
 # DeepProf
 
@@ -16,7 +16,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)
 
-<img src="media/hero.png" alt="" width="100%">
+<img src="media/banner-zh.png" alt="DeepProf —— 让每一条教学建议都有出处。右侧深色面板里是 CLI 真实的启动横幅与新建教学会话命令；左侧状态清单列出：本机链路 WORKING、M2 82/82、M3 离线矩阵 400/400、BKT 学情模型 UNCALIBRATED、教师审核未开始。" width="100%">
 
 </div>
 

@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="media/logo.svg" alt="DeepProf" width="116">
+<img src="media/logo.svg" alt="DeepProf" width="132">
 
 # DeepProf
 
@@ -16,7 +16,7 @@
 ![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933)
 ![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB)
 
-<img src="media/hero.png" alt="" width="100%">
+<img src="media/banner-en.png" alt="DeepProf — every teaching suggestion, sourced. A panel of real CLI output (startup banner and the command line for opening a study session) sits beside a status list: local chain working, M2 82/82, M3 offline matrix 400/400, BKT learner model uncalibrated, teacher review not started." width="100%">
 
 </div>
 

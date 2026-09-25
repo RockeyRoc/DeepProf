@@ -9,7 +9,6 @@
 <link rel="icon" href="media/logo-512.png" type="image/png">
 <link rel="apple-touch-icon" href="media/logo-512.png">
 
-<!-- Open Graph / 社交分享 -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="DeepProf — 让每一条教学建议都有出处">
 <meta property="og:description" content="本机优先的自适应教学原型。证据可查、决策可审、失败可追。M1–M3 工程实验证据与不利结果一并公开。">
@@ -69,16 +68,12 @@ body{
   -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
 }
 
-/* 语言切换：默认显示中文，切到英文时互换 */
 html[data-lang="zh"] .en{display:none !important}
 html[data-lang="en"] .zh{display:none !important}
 
-a{color:var(--brand);text-decoration:none;border-bottom:1px solid rgba(7,101,252,.32)}
+a{color:var(--brand);text-decoration:none;border-bottom:1px solid rgba(7,101,252,.30)}
 a:hover{border-bottom-color:currentColor}
 a:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:2px}
-
-.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
-@media (max-width:640px){.wrap{padding:0 20px}}
 
 .skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:10px 16px;z-index:99}
 .skip:focus{left:12px;top:12px}
@@ -93,7 +88,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offs
   display:flex;align-items:center;gap:28px}
 @media (max-width:640px){.nav-in{padding:0 20px;gap:14px}}
 .nav-brand{display:flex;align-items:center;gap:10px;border:0;flex:0 0 auto}
-.nav-brand img{width:28px;height:28px;display:block}
+.nav-brand img{height:25px;width:auto;display:block}
 .nav-brand b{font-family:var(--serif);font-weight:600;font-size:20px;letter-spacing:-.01em;color:var(--ink)}
 .nav-links{display:flex;gap:22px;margin-left:auto;list-style:none;padding:0;margin-block:0}
 .nav-links a{font-size:14.5px;color:var(--ink-2);border:0;white-space:nowrap}
@@ -118,7 +113,7 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offs
 .hero-in{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:104px 32px 78px}
 @media (max-width:640px){.hero-in{padding:68px 20px 54px}}
 
-.hero-mark{width:60px;height:60px;display:block;margin-bottom:26px}
+.hero-mark{height:64px;width:auto;display:block;margin-bottom:26px}
 .hero-kicker{
   font-family:var(--sans);font-size:14px;letter-spacing:.02em;color:#8FB6FF;
   margin:0 0 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
@@ -185,7 +180,6 @@ p{margin:0 0 20px}
 strong{font-weight:700;color:var(--ink)}
 code{font-family:var(--mono);font-size:.875em;background:#E9EFF9;padding:1px 6px;border-radius:4px;color:var(--ink)}
 
-/* 三种失败：用编号真序列，不用通用卡片 */
 .fails{list-style:none;padding:0;margin:32px 0 0;border-top:1px solid var(--rule)}
 .fails li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:18px;
   padding:22px 0;border-bottom:1px solid var(--rule-soft)}
@@ -215,7 +209,6 @@ code{font-family:var(--mono);font-size:.875em;background:#E9EFF9;padding:1px 6px
 .stats dd.flag{color:var(--neg)}
 .stats dd.ok{color:var(--pos)}
 
-/* ============================================================ 代码 */
 /* ============================================================ 命令行 */
 pre{margin:24px 0;background:var(--navy);color:#DDE8FA;border-radius:10px;
   padding:20px 22px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.9;
@@ -242,7 +235,6 @@ pre .str{color:#8FD3A8}
 .steps{list-style:none;padding:0;margin:30px 0 0;counter-reset:s}
 .steps>li{counter-increment:s;display:grid;grid-template-columns:40px minmax(0,1fr);gap:16px;
   padding:20px 0;border-top:1px solid var(--rule-soft)}
-/* 步骤正文守 68ch；外层 .body.wide 只为让代码块拿到整宽 */
 .steps>li>div{max-width:var(--measure)}
 .steps>li::before{content:counter(s);font-family:var(--mono);font-size:13px;color:#fff;
   background:var(--ink);width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
@@ -265,7 +257,6 @@ pre .str{color:#8FD3A8}
 .callout .k{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent);
   display:block;margin-bottom:8px}
 
-/* 表格 */
 .tbl{width:100%;border-collapse:collapse;margin:26px 0;font-size:15.5px}
 .tbl th,.tbl td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
 .tbl thead th{border-bottom:1.5px solid var(--ink);font-size:13px;color:var(--muted);
@@ -285,7 +276,7 @@ pre .str{color:#8FD3A8}
 .foot a{color:#DCE8FF;border:0}
 .foot a:hover{color:#fff;text-decoration:underline}
 .foot-brand{display:flex;align-items:center;gap:11px;margin-bottom:16px}
-.foot-brand img{width:26px;height:26px}
+.foot-brand img{height:23px;width:auto}
 .foot-brand b{font-family:var(--serif);font-size:19px;font-weight:600;color:#fff}
 .foot p{font-size:14.5px;line-height:1.75;margin:0;max-width:38ch}
 .foot-bot{max-width:1180px;margin:46px auto 0;padding:22px 32px 0;border-top:1px solid rgba(255,255,255,.1);
@@ -299,17 +290,16 @@ pre .str{color:#8FD3A8}
   .hero-kicker{animation-delay:.06s}.hero h1{animation-delay:.12s}
   .hero-lede{animation-delay:.2s}.hero-cta{animation-delay:.28s}
 }
-@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 </style>
 </head>
 <body>
 <a class="skip" href="#main"><span class="zh">跳到主要内容</span><span class="en">Skip to content</span></a>
 
-<!-- ======================================================= 顶栏 -->
 <nav class="nav" aria-label="主导航">
   <div class="nav-in">
     <a class="nav-brand" href="#top">
-      <img src="media/logo-512.png" alt="DeepProf">
+      <img src="media/logo.svg" alt="DeepProf">
       <b>DeepProf</b>
     </a>
     <ul class="nav-links">
@@ -328,13 +318,12 @@ pre .str{color:#8FD3A8}
   </div>
 </nav>
 
-<!-- ======================================================= 主视觉 -->
 <header class="hero" id="top">
   <div class="hero-bg" role="img"
        data-aria-zh="深海蓝渐变背景，右侧有一枚低对比的 DeepProf 鲸鱼标识水印"
        data-aria-en="Deep-sea blue gradient background with a low-contrast DeepProf whale watermark on the right"></div>
   <div class="hero-in">
-    <img class="hero-mark" src="media/logo-white-512.png" alt="">
+    <img class="hero-mark" src="media/logo-white.svg" alt="">
     <p class="hero-kicker">
       <i></i>
       <span class="zh">本机优先 · 证据可追溯 · 试点课程：C 语言版数据结构</span>
@@ -360,26 +349,26 @@ pre .str{color:#8FD3A8}
 
   <div class="ledger">
   <dl class="ledger-in">
-    <div>
-      <dt><span class="zh">版本</span><span class="en">Version</span></dt>
-      <dd>v0.6.2</dd>
-    </div>
-    <div>
-      <dt><span class="zh">发布</span><span class="en">Released</span></dt>
-      <dd>2026-09-24</dd>
-    </div>
-    <div>
-      <dt><span class="zh">main 分支 CI</span><span class="en">main branch CI</span></dt>
-      <dd>487d4ca</dd>
-    </div>
-    <div>
-      <dt><span class="zh">M3 离线矩阵</span><span class="en">M3 offline matrix</span></dt>
-      <dd>400 / 400 <span class="zh">格</span><span class="en">cells</span></dd>
-    </div>
-    <div>
-      <dt><span class="zh">BKT 构造预测</span><span class="en">BKT on constructed history</span></dt>
-      <dd class="flag">AUC 0.296</dd>
-    </div>
+      <div>
+        <dt><span class="zh">版本</span><span class="en">Version</span></dt>
+        <dd>v0.6.2</dd>
+      </div>
+      <div>
+        <dt><span class="zh">发布</span><span class="en">Released</span></dt>
+        <dd>2026-09-24</dd>
+      </div>
+      <div>
+        <dt><span class="zh">main 分支 CI</span><span class="en">main branch CI</span></dt>
+        <dd>487d4ca</dd>
+      </div>
+      <div>
+        <dt><span class="zh">M3 离线矩阵</span><span class="en">M3 offline matrix</span></dt>
+        <dd>400 / 400 <span class="zh">格</span><span class="en">cells</span></dd>
+      </div>
+      <div>
+        <dt><span class="zh">BKT 构造预测</span><span class="en">BKT on constructed history</span></dt>
+        <dd class="flag">AUC 0.296</dd>
+      </div>
   </dl>
   </div>
 </header>
@@ -430,7 +419,7 @@ pre .str{color:#8FD3A8}
         </li>
       </ol>
 
-      <p style="margin-top:30px">
+      <p style="margin-top:32px">
         <span class="zh">DeepProf 的设计目标不是把回答写得更漂亮，而是把上面三件事变成系统里可检查的属性：<strong>证据可定位、决策可审计、过程可回放。</strong></span>
         <span class="en">DeepProf is not designed to write prettier answers. It is designed to turn those three failures into checkable system properties: <strong>locatable evidence, auditable decisions, replayable process.</strong></span>
       </p>
@@ -474,8 +463,8 @@ pre .str{color:#8FD3A8}
       </figure>
 
       <table class="tbl">
-        <caption class="zh" style="text-align:left;font-size:14px;color:var(--muted);padding-bottom:10px">本机边界上的几处硬约束</caption>
-        <caption class="en" style="text-align:left;font-size:14px;color:var(--muted);padding-bottom:10px">Hard constraints at the machine boundary</caption>
+        <caption class="zh" style="text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-bottom:12px">本机边界上的几处硬约束</caption>
+        <caption class="en" style="text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding-bottom:12px">Hard constraints at the machine boundary</caption>
         <tbody>
           <tr>
             <td><span class="zh">监听地址</span><span class="en">Listen address</span></td>
@@ -494,7 +483,7 @@ pre .str{color:#8FD3A8}
           </tr>
           <tr>
             <td><span class="zh">失败处理</span><span class="en">Failure handling</span></td>
-            <td class="zh">空模型响应、Provider 截断、证据缺失、评估被拒、取消与超时是各自独立的终态，不合并成"成功"；答案泄露检查不通过时返回确定性的安全问题。</td>
+            <td class="zh">空模型响应、Provider 截断、证据缺失、评估被拒、取消与超时是各自独立的终态，不合并成“成功”；答案泄露检查不通过时返回确定性的安全问题。</td>
             <td class="en">Empty model responses, provider truncation, missing evidence, rejected evaluation, cancellation and timeouts are distinct terminal states rather than being folded into "success"; a failed leakage check returns a deterministic safety result.</td>
           </tr>
         </tbody>
@@ -627,7 +616,7 @@ pre .str{color:#8FD3A8}
 
       <h3><span class="zh">保留不利结果</span><span class="en">Adverse results retained</span></h3>
       <p>
-        <span class="zh">BKT 用四参数二元知识状态模型，按"观测后验，再学习转移"的顺序计算。当前开发初值 <code>P(L₀)=0.20</code>、<code>P(T)=0.10</code>、<code>P(G)=0.20</code>、<code>P(S)=0.10</code> <strong>没有用学生数据拟合或校准过</strong>。它在构造历史上的预测表现因此低于随机，我们把这个数字原样留在页面上。</span>
+        <span class="zh">BKT 用四参数二元知识状态模型，按“观测后验，再学习转移”的顺序计算。当前开发初值 <code>P(L₀)=0.20</code>、<code>P(T)=0.10</code>、<code>P(G)=0.20</code>、<code>P(S)=0.10</code> <strong>没有用学生数据拟合或校准过</strong>。它在构造历史上的预测表现因此低于随机，我们把这个数字原样留在页面上。</span>
         <span class="en">BKT uses a four-parameter binary knowledge model, computed as posterior-after-observation and then learning transition. Its current development values <code>P(L₀)=0.20</code>, <code>P(T)=0.10</code>, <code>P(G)=0.20</code>, <code>P(S)=0.10</code> were <strong>never fitted or calibrated on student data</strong>. Prediction on constructed history is therefore worse than chance, and that number stays on this page as measured.</span>
       </p>
 
@@ -671,8 +660,8 @@ pre .str{color:#8FD3A8}
           <tr>
             <td>M3 <span class="zh">离线</span><span class="en">offline</span></td>
             <td class="m">m3-offline-20260924-final6</td>
-            <td><span class="zh">主矩阵 120/120、回放 120/120、消融 160/160；决策字段 520/520；回放决策一致 120/120；策略动作族匹配 196/280（70%）</span>
-                <span class="en">120 of 120 main, 120 of 120 replay, 160 of 160 ablation; 520 of 520 decision fields; 120 of 120 replay agreement; 196 of 280 (70%) policy action-family match</span></td>
+            <td><span class="zh">主矩阵 120/120、回放 120/120、消融 160/160；决策字段 520/520；引用字段可定位 189/189；回放决策一致 120/120；策略动作族匹配 196/280（70%）</span>
+                <span class="en">120 of 120 main, 120 of 120 replay, 160 of 160 ablation; 520 of 520 decision fields; 189 of 189 citation fields locatable; 120 of 120 replay agreement; 196 of 280 (70%) policy action-family match</span></td>
           </tr>
           <tr>
             <td>M3 <span class="zh">真实试点</span><span class="en">live pilot</span></td>
@@ -705,10 +694,10 @@ pre .str{color:#8FD3A8}
         <span class="en">One command to run it</span>
       </h2>
       <div class="col">
-      <p class="lede">
-        <span class="zh">需要 Node.js 22+ 与 Python 3.12+。首次安装需要能访问 Python 包索引（这一步要联网），之后会在 <code>~/.deepprof</code> 下准备按版本隔离的 Python 环境、安装运行依赖，再启动仅监听 127.0.0.1 的 Gateway。安装过程本身不会发起任何模型调用。</span>
-        <span class="en">You need Node.js 22+ and Python 3.12+. First-time setup needs access to a Python package index (this step goes online); it then prepares a version-isolated Python environment under <code>~/.deepprof</code>, installs the runtime dependencies and starts a Gateway bound to 127.0.0.1. The setup process itself makes no model call.</span>
-      </p>
+        <p class="lede">
+          <span class="zh">需要 Node.js 22+ 与 Python 3.12+。首次安装需要能访问 Python 包索引（这一步要联网），之后会在 <code>~/.deepprof</code> 下准备按版本隔离的 Python 环境、安装运行依赖，再启动仅监听 127.0.0.1 的 Gateway。安装过程本身不会发起任何模型调用。</span>
+          <span class="en">You need Node.js 22+ and Python 3.12+. First-time setup needs access to a Python package index (this step goes online); it then prepares a version-isolated Python environment under <code>~/.deepprof</code>, installs the runtime dependencies and starts a Gateway bound to 127.0.0.1. The setup process itself makes no model call.</span>
+        </p>
       </div>
 
       <div class="term">
@@ -758,7 +747,7 @@ pre .str{color:#8FD3A8}
         </li>
       </ol>
 
-      <p style="margin-top:26px">
+      <p style="margin-top:28px;max-width:var(--measure)">
         <span class="zh">要从源码跑，见仓库的 Development 一节：<code>python -m venv</code> → <code>pip install -r requirements.txt</code> → <code>npm ci --prefix apps/cli</code>，然后分别启动 <code>uvicorn</code> 与 CLI。</span>
         <span class="en">To run from source, see the Development section of the repository: <code>python -m venv</code> → <code>pip install -r requirements.txt</code> → <code>npm ci --prefix apps/cli</code>, then start <code>uvicorn</code> and the CLI separately.</span>
       </p>
@@ -856,12 +845,11 @@ run_20260923T235151Z_ed03930c</code></pre>
 
 </main>
 
-<!-- ======================================================= 页脚 -->
 <footer class="foot">
   <div class="foot-in">
     <div>
       <div class="foot-brand">
-        <img src="media/logo-white-512.png" alt="">
+        <img src="media/logo-white.svg" alt="">
         <b>DeepProf</b>
       </div>
       <p>
