@@ -140,12 +140,22 @@ a:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offs
 .ledger{
   position:relative;z-index:2;border-top:1px solid rgba(255,255,255,.15);
   background:rgba(3,16,43,.55);backdrop-filter:blur(6px)}
-.ledger-in{max-width:1180px;margin:0 auto;padding:0 32px;display:flex;flex-wrap:wrap}
-@media (max-width:640px){.ledger-in{padding:0 20px}}
-.ledger div{padding:17px 34px 17px 0;margin-right:34px;border-right:1px solid rgba(255,255,255,.12)}
-.ledger div:last-child{border-right:0;margin-right:0}
-@media (max-width:640px){.ledger div{padding:13px 18px 13px 0;margin-right:18px}}
-.ledger dt{font-family:var(--sans);font-size:12.5px;color:#7FA3DC;margin:0 0 3px}
+.ledger-in{
+  max-width:1180px;margin:0 auto;padding:16px 32px 18px;
+  display:grid;grid-template-columns:repeat(5,minmax(0,1fr));
+  column-gap:0;row-gap:14px}
+/* 分隔线只加在"行内非首项"上；每个断点单独指明哪几项是行首，换行后不会留下悬空竖线 */
+.ledger-in>div{padding:3px 22px 3px 0;min-width:0}
+.ledger-in>div+div{border-left:1px solid rgba(255,255,255,.13);padding-left:22px}
+@media (max-width:900px){
+  .ledger-in{grid-template-columns:repeat(3,minmax(0,1fr));padding:16px 32px 18px}
+  .ledger-in>div:nth-child(3n+1){border-left:0;padding-left:0}
+}
+@media (max-width:600px){
+  .ledger-in{grid-template-columns:repeat(2,minmax(0,1fr));padding:15px 20px 17px}
+  .ledger-in>div:nth-child(2n+1){border-left:0;padding-left:0}
+}
+.ledger dt{font-family:var(--sans);font-size:12.5px;color:#7FA3DC;margin:0 0 3px;line-height:1.4}
 .ledger dd{margin:0;font-family:var(--mono);font-size:15px;color:#EAF2FF;letter-spacing:-.01em}
 .ledger dd.flag{color:#FFB59E}
 
@@ -206,15 +216,34 @@ code{font-family:var(--mono);font-size:.875em;background:#E9EFF9;padding:1px 6px
 .stats dd.ok{color:var(--pos)}
 
 /* ============================================================ 代码 */
+/* ============================================================ 命令行 */
 pre{margin:24px 0;background:var(--navy);color:#DDE8FA;border-radius:10px;
-  padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;
-  border:1px solid #0B2450}
+  padding:20px 22px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.9;
+  border:1px solid #0B2450;tab-size:2}
+/* 行内 code 的底纹绝不能漏进 pre>code —— 否则命令块里会出现浅色色块 */
+pre code{background:none;padding:0;border-radius:0;color:inherit;
+  font-size:inherit;font-family:inherit;white-space:inherit}
 pre .c{color:#7FA3DC}
-pre .k{color:#7FB2FF}
-pre .ok{color:#7BD8A8}
+pre .k{color:#FFFFFF;font-weight:500}
+pre .str{color:#8FD3A8}
+
+/* 带复制按钮的命令块 */
+.term{position:relative;margin:24px 0}
+.term pre{margin:0;padding-right:104px}
+.copy{position:absolute;top:11px;right:11px;font-family:var(--mono);font-size:11.5px;
+  letter-spacing:.03em;padding:5px 11px;border-radius:6px;cursor:pointer;
+  border:1px solid rgba(220,232,255,.26);background:rgba(255,255,255,.05);
+  color:#C3D5F2;transition:background .15s,border-color .15s,color .15s}
+.copy:hover{background:rgba(255,255,255,.13);border-color:rgba(220,232,255,.46);color:#fff}
+.copy.done{background:#12A150;border-color:#12A150;color:#fff}
+/* 代码块拿满宽，正文仍守 68ch */
+.col{max-width:var(--measure)}
+
 .steps{list-style:none;padding:0;margin:30px 0 0;counter-reset:s}
 .steps>li{counter-increment:s;display:grid;grid-template-columns:40px minmax(0,1fr);gap:16px;
   padding:20px 0;border-top:1px solid var(--rule-soft)}
+/* 步骤正文守 68ch；外层 .body.wide 只为让代码块拿到整宽 */
+.steps>li>div{max-width:var(--measure)}
 .steps>li::before{content:counter(s);font-family:var(--mono);font-size:13px;color:#fff;
   background:var(--ink);width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
   margin-top:3px}
@@ -329,7 +358,8 @@ pre .ok{color:#7BD8A8}
     </div>
   </div>
 
-  <dl class="ledger">
+  <div class="ledger">
+  <dl class="ledger-in">
     <div>
       <dt><span class="zh">版本</span><span class="en">Version</span></dt>
       <dd>v0.6.2</dd>
@@ -351,6 +381,7 @@ pre .ok{color:#7BD8A8}
       <dd class="flag">AUC 0.296</dd>
     </div>
   </dl>
+  </div>
 </header>
 
 <main id="main">
@@ -668,27 +699,34 @@ pre .ok{color:#7BD8A8}
       <b>06</b>
       <span class="zh">快速开始</span><span class="en">Get started</span>
     </div>
-    <div class="body">
+    <div class="body wide">
       <h2>
         <span class="zh">一条命令跑起来</span>
         <span class="en">One command to run it</span>
       </h2>
+      <div class="col">
       <p class="lede">
         <span class="zh">需要 Node.js 22+ 与 Python 3.12+。首次安装需要能访问 Python 包索引（这一步要联网），之后会在 <code>~/.deepprof</code> 下准备按版本隔离的 Python 环境、安装运行依赖，再启动仅监听 127.0.0.1 的 Gateway。安装过程本身不会发起任何模型调用。</span>
         <span class="en">You need Node.js 22+ and Python 3.12+. First-time setup needs access to a Python package index (this step goes online); it then prepares a version-isolated Python environment under <code>~/.deepprof</code>, installs the runtime dependencies and starts a Gateway bound to 127.0.0.1. The setup process itself makes no model call.</span>
       </p>
+      </div>
 
-      <pre><code><span class="c"># <span class="zh">免克隆安装并启动</span><span class="en">install and run without cloning</span></span>
-npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+      <div class="term">
+        <pre><code><span class="c"># <span class="zh">免克隆安装并启动</span><span class="en">install and run, without cloning</span></span>
+<span class="k">npx</span> --yes \
+  --package=<span class="str">https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz</span> \
+  <span class="k">deepprof</span>
 
 <span class="c"># <span class="zh">配置一个 OpenAI 兼容的 Provider</span><span class="en">configure an OpenAI-compatible provider</span></span>
-/login
+<span class="k">/login</span>
 
 <span class="c"># <span class="zh">检查环境</span><span class="en">check the environment</span></span>
-deepprof doctor
+<span class="k">deepprof doctor</span>
 
 <span class="c"># <span class="zh">可选：扫描件 OCR 支持</span><span class="en">optional: scanned-page OCR support</span></span>
-deepprof setup --ocr</code></pre>
+<span class="k">deepprof setup --ocr</span></code></pre>
+        <button type="button" class="copy" data-copy="npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof"><span class="zh">复制命令</span><span class="en">Copy command</span></button>
+      </div>
 
       <ol class="steps">
         <li>
@@ -696,7 +734,7 @@ deepprof setup --ocr</code></pre>
             <h4><span class="zh">开一个教学会话</span><span class="en">Open a study session</span></h4>
             <p><span class="zh">普通新会话默认走常规聊天；显式指定组别才进入教学路径。实验运行固定教学路径。</span>
                 <span class="en">A plain new session is ordinary chat; the teaching path opens only when you name a group. Experiment runs pin the teaching path.</span></p>
-            <pre><code><span class="k">/new</span> --mode study --group C --title "线性表"</code></pre>
+            <pre><code><span class="k">/new</span> --mode study --group C --title "<span class="zh">线性表</span><span class="en">Linked list</span>"</code></pre>
           </div>
         </li>
         <li>
@@ -888,6 +926,36 @@ run_20260923T235151Z_ed03930c</code></pre>
 
   document.querySelectorAll('[data-set-lang]').forEach(function(b){
     b.addEventListener('click', function(){ applyLang(b.dataset.setLang); });
+  });
+
+  /* 复制命令：file:// 下 navigator.clipboard 不可用，回退到 execCommand */
+  function flash(btn){
+    btn.classList.add('done');
+    setTimeout(function(){ btn.classList.remove('done'); }, 1300);
+  }
+  function legacyCopy(text, btn){
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'fixed';
+    ta.style.top = '-1000px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); flash(btn); } catch(e){}
+    document.body.removeChild(ta);
+  }
+  document.querySelectorAll('.copy').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var text = btn.getAttribute('data-copy') || '';
+      if (navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(
+          function(){ flash(btn); },
+          function(){ legacyCopy(text, btn); });
+      } else {
+        legacyCopy(text, btn);
+      }
+    });
   });
 
   var saved = null;
