@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DeepProf — 让每一条教学建议都有出处</title>
+<meta name="description" content="DeepProf 是一套本机优先的自适应教学原型：把课程材料的可定位证据、合格作答事实、教学策略与 BKT 学情估计连到同一条可回放的教学链路上。">
+<meta name="theme-color" content="#03102B">
+<link rel="icon" href="media/logo-512.png" type="image/png">
+<link rel="apple-touch-icon" href="media/logo-512.png">
+
+<!-- Open Graph / 社交分享 -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="DeepProf — 让每一条教学建议都有出处">
+<meta property="og:description" content="本机优先的自适应教学原型。证据可查、决策可审、失败可追。M1–M3 工程实验证据与不利结果一并公开。">
+<meta property="og:image" content="media/og-card.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DeepProf — 让每一条教学建议都有出处">
+<meta name="twitter:description" content="本机优先的自适应教学原型。证据可查、决策可审、失败可追。">
+<meta name="twitter:image" content="media/og-card.png">
+
+<!--
+  字体策略：只从 Google Fonts 取三支拉丁字族（Source Serif 4 / Source Sans 3 / IBM Plex Mono）。
+  中文交给系统字族（PingFang SC / 微软雅黑 / 思源），因为站点主要面向国内读者，
+  Google Fonts 在国内不可达时不会拖垮首屏。Source Serif 4 与 Noto Serif CJK 同属
+  Adobe 开源超家族，拉丁与中文放在一起像同一套字。
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,300..700&family=Source+Sans+3:wght@300..700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+/* ============================================================ 设计令牌 */
+:root{
+  --paper:#F4F7FC;         /* 页面纸面：冷调微蓝，不用暖米色 */
+  --plate:#FFFFFF;         /* 证据板 */
+  --ink:#0A1A33;
+  --ink-2:#3D4F6B;
+  --muted:#6B7C96;
+  --rule:#DCE3EE;
+  --rule-soft:#EBF0F8;
+  --brand:#0765FC;
+  --brand-deep:#062A63;
+  --navy:#03102B;
+  --navy-2:#062A63;
+  --accent:#FF6B4A;        /* 全页仅用于编辑性焦点 */
+  --pos:#12A150;
+  --neg:#E5484D;
+  --warn:#F2A33C;
+
+  --serif:"Source Serif 4","Noto Serif SC","Source Han Serif SC","Songti SC","SimSun",Georgia,serif;
+  --sans:"Source Sans 3","Noto Sans SC","PingFang SC","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+  --mono:"IBM Plex Mono","SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace;
+
+  --measure:68ch;
+  --rail:128px;
+  --gap:44px;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:17px;line-height:1.78;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+
+/* 语言切换：默认显示中文，切到英文时互换 */
+html[data-lang="zh"] .en{display:none !important}
+html[data-lang="en"] .zh{display:none !important}
+
+a{color:var(--brand);text-decoration:none;border-bottom:1px solid rgba(7,101,252,.32)}
+a:hover{border-bottom-color:currentColor}
+a:focus-visible,button:focus-visible{outline:2px solid var(--brand);outline-offset:3px;border-radius:2px}
+
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+@media (max-width:640px){.wrap{padding:0 20px}}
+
+.skip{position:absolute;left:-9999px;top:0;background:var(--ink);color:#fff;padding:10px 16px;z-index:99}
+.skip:focus{left:12px;top:12px}
+
+/* ============================================================ 顶栏 */
+.nav{
+  position:sticky;top:0;z-index:50;
+  background:rgba(244,247,252,.86);backdrop-filter:blur(14px) saturate(1.2);
+  border-bottom:1px solid var(--rule);
+}
+.nav-in{max-width:1180px;margin:0 auto;padding:0 32px;height:62px;
+  display:flex;align-items:center;gap:28px}
+@media (max-width:640px){.nav-in{padding:0 20px;gap:14px}}
+.nav-brand{display:flex;align-items:center;gap:10px;border:0;flex:0 0 auto}
+.nav-brand img{width:28px;height:28px;display:block}
+.nav-brand b{font-family:var(--serif);font-weight:600;font-size:20px;letter-spacing:-.01em;color:var(--ink)}
+.nav-links{display:flex;gap:22px;margin-left:auto;list-style:none;padding:0;margin-block:0}
+.nav-links a{font-size:14.5px;color:var(--ink-2);border:0;white-space:nowrap}
+.nav-links a:hover{color:var(--brand)}
+@media (max-width:900px){.nav-links{display:none}}
+.lang{display:flex;margin-left:auto;border:1px solid var(--rule);border-radius:7px;overflow:hidden;flex:0 0 auto}
+@media (min-width:901px){.lang{margin-left:0}}
+.lang button{
+  font:inherit;font-family:var(--mono);font-size:12px;letter-spacing:.04em;
+  padding:5px 11px;background:transparent;border:0;color:var(--muted);cursor:pointer}
+.lang button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+/* ============================================================ 主视觉 */
+.hero{
+  position:relative;background:var(--navy);color:#fff;overflow:hidden;
+  border-bottom:1px solid var(--rule);
+}
+.hero-bg{position:absolute;inset:0;
+  background-image:url("media/hero.png");background-size:cover;background-position:52% 34%}
+.hero::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(103deg,rgba(3,16,43,.94) 0%,rgba(3,16,43,.74) 42%,rgba(3,16,43,.30) 100%)}
+.hero-in{position:relative;z-index:2;max-width:1180px;margin:0 auto;padding:104px 32px 78px}
+@media (max-width:640px){.hero-in{padding:68px 20px 54px}}
+
+.hero-mark{width:60px;height:60px;display:block;margin-bottom:26px}
+.hero-kicker{
+  font-family:var(--sans);font-size:14px;letter-spacing:.02em;color:#8FB6FF;
+  margin:0 0 22px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.hero-kicker i{display:inline-block;width:26px;height:1px;background:#3E6FD0;font-style:normal}
+.hero h1{
+  font-family:var(--serif);font-weight:600;font-size:clamp(2.15rem,5.1vw,3.65rem);
+  line-height:1.16;letter-spacing:-.022em;margin:0 0 24px;max-width:19ch;color:#fff}
+.hero-lede{font-size:17.5px;line-height:1.85;color:#C3D5F2;max-width:56ch;margin:0 0 34px}
+.hero-cta{display:flex;gap:12px;flex-wrap:wrap}
+
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 24px;border-radius:8px;
+  font-size:15px;font-weight:600;border:1px solid transparent;transition:background .15s,border-color .15s}
+.btn-solid{background:#fff;color:var(--navy);border-color:#fff}
+.btn-solid:hover{background:#DCE8FF;border-color:#DCE8FF}
+.btn-ghost{background:transparent;color:#DCE8FF;border-color:rgba(220,232,255,.34)}
+.btn-ghost:hover{border-color:rgba(220,232,255,.72);background:rgba(255,255,255,.05)}
+
+/* 事实台账：每一条都是可核对的锚点 */
+.ledger{
+  position:relative;z-index:2;border-top:1px solid rgba(255,255,255,.15);
+  background:rgba(3,16,43,.55);backdrop-filter:blur(6px)}
+.ledger-in{max-width:1180px;margin:0 auto;padding:0 32px;display:flex;flex-wrap:wrap}
+@media (max-width:640px){.ledger-in{padding:0 20px}}
+.ledger div{padding:17px 34px 17px 0;margin-right:34px;border-right:1px solid rgba(255,255,255,.12)}
+.ledger div:last-child{border-right:0;margin-right:0}
+@media (max-width:640px){.ledger div{padding:13px 18px 13px 0;margin-right:18px}}
+.ledger dt{font-family:var(--sans);font-size:12.5px;color:#7FA3DC;margin:0 0 3px}
+.ledger dd{margin:0;font-family:var(--mono);font-size:15px;color:#EAF2FF;letter-spacing:-.01em}
+.ledger dd.flag{color:#FFB59E}
+
+/* ============================================================ 条目骨架 */
+.entry{padding:88px 0;border-top:1px solid var(--rule)}
+.entry:first-of-type{border-top:0}
+@media (max-width:640px){.entry{padding:56px 0}}
+.entry-in{max-width:1180px;margin:0 auto;padding:0 32px;
+  display:grid;grid-template-columns:var(--rail) minmax(0,1fr);gap:var(--gap)}
+@media (max-width:820px){.entry-in{grid-template-columns:1fr;gap:22px;padding:0 20px}}
+
+.rail{position:sticky;top:96px;align-self:start}
+@media (max-width:820px){.rail{position:static}}
+.rail b{display:block;font-family:var(--mono);font-size:13px;font-weight:500;
+  color:var(--brand);letter-spacing:.06em;margin-bottom:9px}
+.rail span{display:block;font-size:13.5px;line-height:1.5;color:var(--muted)}
+.rail::after{content:"";display:block;width:34px;height:2px;background:var(--ink);margin-top:16px}
+
+.body{max-width:var(--measure)}
+.body.wide{max-width:100%}
+
+h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.6rem,3.1vw,2.15rem);
+  line-height:1.28;letter-spacing:-.018em;margin:0 0 22px;color:var(--ink)}
+h3{font-family:var(--sans);font-weight:700;font-size:17px;margin:40px 0 10px;color:var(--ink)}
+p{margin:0 0 20px}
+.lede{font-size:18.5px;line-height:1.8;color:var(--ink-2);margin-bottom:26px}
+strong{font-weight:700;color:var(--ink)}
+code{font-family:var(--mono);font-size:.875em;background:#E9EFF9;padding:1px 6px;border-radius:4px;color:var(--ink)}
+
+/* 三种失败：用编号真序列，不用通用卡片 */
+.fails{list-style:none;padding:0;margin:32px 0 0;border-top:1px solid var(--rule)}
+.fails li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:18px;
+  padding:22px 0;border-bottom:1px solid var(--rule-soft)}
+.fails .n{font-family:var(--mono);font-size:13px;color:var(--accent);padding-top:4px}
+.fails h4{margin:0 0 5px;font-family:var(--sans);font-size:16.5px;font-weight:700;color:var(--ink)}
+.fails p{margin:0;font-size:16px;color:var(--ink-2)}
+
+/* ============================================================ 证据板 */
+.plate{margin:34px 0;background:var(--plate);border:1px solid var(--rule);border-radius:10px;
+  padding:14px 14px 0;overflow:hidden}
+.plate img{display:block;width:100%;height:auto;border-radius:4px}
+.plate figcaption{display:flex;gap:16px;align-items:baseline;flex-wrap:wrap;
+  padding:13px 6px 15px;margin-top:12px;border-top:1px solid var(--rule-soft)}
+.plate .tag{font-family:var(--mono);font-size:12px;color:var(--brand);letter-spacing:.05em;flex:0 0 auto}
+.plate .src{font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.6}
+
+/* ============================================================ 数据条 */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;
+  overflow:hidden;margin:32px 0}
+.stats>div{background:var(--plate);padding:20px 22px}
+.stats dt{font-size:13.5px;color:var(--muted);margin:0 0 7px;line-height:1.45}
+.stats dd{margin:0;font-family:var(--serif);font-size:29px;font-weight:600;
+  letter-spacing:-.02em;color:var(--ink);line-height:1.1}
+.stats dd small{font-family:var(--mono);font-size:12.5px;font-weight:400;color:var(--muted);
+  display:block;margin-top:6px;letter-spacing:0}
+.stats dd.flag{color:var(--neg)}
+.stats dd.ok{color:var(--pos)}
+
+/* ============================================================ 代码 */
+pre{margin:24px 0;background:var(--navy);color:#DDE8FA;border-radius:10px;
+  padding:22px 24px;overflow-x:auto;font-family:var(--mono);font-size:13.5px;line-height:1.75;
+  border:1px solid #0B2450}
+pre .c{color:#7FA3DC}
+pre .k{color:#7FB2FF}
+pre .ok{color:#7BD8A8}
+.steps{list-style:none;padding:0;margin:30px 0 0;counter-reset:s}
+.steps>li{counter-increment:s;display:grid;grid-template-columns:40px minmax(0,1fr);gap:16px;
+  padding:20px 0;border-top:1px solid var(--rule-soft)}
+.steps>li::before{content:counter(s);font-family:var(--mono);font-size:13px;color:#fff;
+  background:var(--ink);width:26px;height:26px;border-radius:7px;display:grid;place-items:center;
+  margin-top:3px}
+.steps h4{margin:0 0 4px;font-family:var(--sans);font-size:16.5px;font-weight:700}
+.steps p{margin:0 0 4px;font-size:15.5px;color:var(--ink-2)}
+.steps pre{margin:12px 0 0}
+
+/* ============================================================ 边界 */
+.bounds{list-style:none;padding:0;margin:30px 0 0}
+.bounds li{padding:18px 0 18px 30px;border-top:1px solid var(--rule-soft);position:relative;
+  font-size:16px;color:var(--ink-2)}
+.bounds li::before{content:"";position:absolute;left:2px;top:26px;width:11px;height:11px;
+  border:2px solid var(--accent);border-radius:50%}
+.bounds strong{display:block;color:var(--ink)}
+
+.callout{margin:30px 0;padding:22px 26px;border-left:3px solid var(--accent);
+  background:#FFF6F2;border-radius:0 8px 8px 0}
+.callout p:last-child{margin-bottom:0}
+.callout .k{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent);
+  display:block;margin-bottom:8px}
+
+/* 表格 */
+.tbl{width:100%;border-collapse:collapse;margin:26px 0;font-size:15.5px}
+.tbl th,.tbl td{text-align:left;padding:13px 16px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.tbl thead th{border-bottom:1.5px solid var(--ink);font-size:13px;color:var(--muted);
+  font-weight:600;padding-bottom:11px}
+.tbl td:first-child{font-weight:600;color:var(--ink)}
+.tbl .m{font-family:var(--mono);font-size:14px;white-space:nowrap}
+.tbl tbody tr:last-child td{border-bottom:0}
+
+/* ============================================================ 页脚 */
+.foot{background:var(--navy);color:#A9C1E6;padding:64px 0 40px;border-top:1px solid #0B2450}
+.foot-in{max-width:1180px;margin:0 auto;padding:0 32px;
+  display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:44px}
+@media (max-width:820px){.foot-in{grid-template-columns:1fr;gap:32px;padding:0 20px}}
+.foot h4{font-family:var(--sans);font-size:13px;color:#6F92CB;margin:0 0 14px;font-weight:600}
+.foot ul{list-style:none;padding:0;margin:0}
+.foot li{margin-bottom:9px;font-size:14.5px}
+.foot a{color:#DCE8FF;border:0}
+.foot a:hover{color:#fff;text-decoration:underline}
+.foot-brand{display:flex;align-items:center;gap:11px;margin-bottom:16px}
+.foot-brand img{width:26px;height:26px}
+.foot-brand b{font-family:var(--serif);font-size:19px;font-weight:600;color:#fff}
+.foot p{font-size:14.5px;line-height:1.75;margin:0;max-width:38ch}
+.foot-bot{max-width:1180px;margin:46px auto 0;padding:22px 32px 0;border-top:1px solid rgba(255,255,255,.1);
+  font-family:var(--mono);font-size:12px;color:#6F92CB;display:flex;justify-content:space-between;
+  gap:14px;flex-wrap:wrap}
+@media (max-width:640px){.foot-bot{padding:22px 20px 0}}
+
+/* 首屏一次性编排，不做逐段淡入 */
+@media (prefers-reduced-motion:no-preference){
+  .hero-mark,.hero-kicker,.hero h1,.hero-lede,.hero-cta{opacity:0;animation:rise .72s cubic-bezier(.22,.7,.3,1) forwards}
+  .hero-kicker{animation-delay:.06s}.hero h1{animation-delay:.12s}
+  .hero-lede{animation-delay:.2s}.hero-cta{animation-delay:.28s}
+}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<a class="skip" href="#main"><span class="zh">跳到主要内容</span><span class="en">Skip to content</span></a>
+
+<!-- ======================================================= 顶栏 -->
+<nav class="nav" aria-label="主导航">
+  <div class="nav-in">
+    <a class="nav-brand" href="#top">
+      <img src="media/logo-512.png" alt="DeepProf">
+      <b>DeepProf</b>
+    </a>
+    <ul class="nav-links">
+      <li><a href="#problem"><span class="zh">问题</span><span class="en">Problem</span></a></li>
+      <li><a href="#system"><span class="zh">系统</span><span class="en">System</span></a></li>
+      <li><a href="#loop"><span class="zh">闭环</span><span class="en">Loop</span></a></li>
+      <li><a href="#design"><span class="zh">对照设计</span><span class="en">Design</span></a></li>
+      <li><a href="#evidence"><span class="zh">证据</span><span class="en">Evidence</span></a></li>
+      <li><a href="#start"><span class="zh">快速开始</span><span class="en">Get started</span></a></li>
+      <li><a href="#bounds"><span class="zh">边界</span><span class="en">Limits</span></a></li>
+    </ul>
+    <div class="lang" role="group" aria-label="语言 / Language">
+      <button type="button" data-set-lang="zh" aria-pressed="true">中文</button>
+      <button type="button" data-set-lang="en" aria-pressed="false">EN</button>
+    </div>
+  </div>
+</nav>
+
+<!-- ======================================================= 主视觉 -->
+<header class="hero" id="top">
+  <div class="hero-bg" role="img"
+       data-aria-zh="深海蓝渐变背景，右侧有一枚低对比的 DeepProf 鲸鱼标识水印"
+       data-aria-en="Deep-sea blue gradient background with a low-contrast DeepProf whale watermark on the right"></div>
+  <div class="hero-in">
+    <img class="hero-mark" src="media/logo-white-512.png" alt="">
+    <p class="hero-kicker">
+      <i></i>
+      <span class="zh">本机优先 · 证据可追溯 · 试点课程：C 语言版数据结构</span>
+      <span class="en">Local-first · Evidence-traceable · Pilot course: Data Structures in C</span>
+    </p>
+    <h1>
+      <span class="zh">让每一条教学建议都有出处</span>
+      <span class="en">Every teaching suggestion, traceable to its source</span>
+    </h1>
+    <p class="hero-lede">
+      <span class="zh">DeepProf 是一套本机优先的自适应教学原型。它把课程材料中的可定位证据、学习者的合格作答事实、明确的教学策略与 BKT 掌握估计，连到同一条可回放的教学链路上——让学习建议有出处、教学决策可审查、失败过程可追溯。</span>
+      <span class="en">DeepProf is a local-first adaptive teaching prototype. It links locatable evidence from course materials, reliable learner-answer facts, an explicit teaching policy and a BKT mastery estimate onto one replayable teaching chain — so that suggestions have sources, decisions are reviewable, and failures stay traceable.</span>
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-solid" href="https://github.com/RockeyRoc/DeepProf">
+        <span class="zh">查看代码仓库</span><span class="en">View the repository</span>
+      </a>
+      <a class="btn btn-ghost" href="#start">
+        <span class="zh">快速开始</span><span class="en">Get started</span>
+      </a>
+    </div>
+  </div>
+
+  <dl class="ledger">
+    <div>
+      <dt><span class="zh">版本</span><span class="en">Version</span></dt>
+      <dd>v0.6.2</dd>
+    </div>
+    <div>
+      <dt><span class="zh">发布</span><span class="en">Released</span></dt>
+      <dd>2026-09-24</dd>
+    </div>
+    <div>
+      <dt><span class="zh">main 分支 CI</span><span class="en">main branch CI</span></dt>
+      <dd>487d4ca</dd>
+    </div>
+    <div>
+      <dt><span class="zh">M3 离线矩阵</span><span class="en">M3 offline matrix</span></dt>
+      <dd>400 / 400 <span class="zh">格</span><span class="en">cells</span></dd>
+    </div>
+    <div>
+      <dt><span class="zh">BKT 构造预测</span><span class="en">BKT on constructed history</span></dt>
+      <dd class="flag">AUC 0.296</dd>
+    </div>
+  </dl>
+</header>
+
+<main id="main">
+
+<!-- ======================================================= 01 问题 -->
+<section class="entry" id="problem">
+  <div class="entry-in">
+    <div class="rail">
+      <b>01</b>
+      <span class="zh">问题</span><span class="en">Problem</span>
+    </div>
+    <div class="body">
+      <h2>
+        <span class="zh">大模型能答疑，但它的回答通常不能拿来教学</span>
+        <span class="en">A model can answer questions; its answers are rarely usable as teaching</span>
+      </h2>
+      <p class="lede">
+        <span class="zh">把学科问题丢给通用助手，得到的东西在正确性上往往够用，在教学上却常常不成立。我们把这个落差拆成三种反复出现的失败。</span>
+        <span class="en">Hand a subject question to a general assistant and the answer is often correct enough — yet still not usable for teaching. We break that gap into three recurring failures.</span>
+      </p>
+
+      <ol class="fails">
+        <li>
+          <span class="n">01</span>
+          <div>
+            <h4><span class="zh">答案泄露</span><span class="en">Answer leakage</span></h4>
+            <p><span class="zh">直接给出结论，跳过了学生本该自己完成的那一步。一次答疑很顺，但学习没有发生。</span>
+               <span class="en">It hands over the conclusion and skips the step the student was meant to take. The exchange feels smooth; the learning does not happen.</span></p>
+          </div>
+        </li>
+        <li>
+          <span class="n">02</span>
+          <div>
+            <h4><span class="zh">建议无出处</span><span class="en">No source</span></h4>
+            <p><span class="zh">回答听起来合理，却指不到教材的哪一页、哪一条知识点。学生没法回查，教师没法核对。</span>
+               <span class="en">The reply sounds plausible but points at no page or knowledge point. Students cannot check it back; teachers cannot verify it.</span></p>
+          </div>
+        </li>
+        <li>
+          <span class="n">03</span>
+          <div>
+            <h4><span class="zh">过程不可复现</span><span class="en">No reproducible trail</span></h4>
+            <p><span class="zh">同一道题两次问得到不同的教学动作，事后也回看不出当时为什么这么决定。</span>
+               <span class="en">The same question gets different teaching actions on two attempts, and there is no way to look back at why the system chose what it chose.</span></p>
+          </div>
+        </li>
+      </ol>
+
+      <p style="margin-top:30px">
+        <span class="zh">DeepProf 的设计目标不是把回答写得更漂亮，而是把上面三件事变成系统里可检查的属性：<strong>证据可定位、决策可审计、过程可回放。</strong></span>
+        <span class="en">DeepProf is not designed to write prettier answers. It is designed to turn those three failures into checkable system properties: <strong>locatable evidence, auditable decisions, replayable process.</strong></span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 02 系统 -->
+<section class="entry" id="system">
+  <div class="entry-in">
+    <div class="rail">
+      <b>02</b>
+      <span class="zh">系统</span><span class="en">System</span>
+    </div>
+    <div class="body wide">
+      <h2>
+        <span class="zh">决策与记录留在本机，模型调用由你指定</span>
+        <span class="en">Decisions and records stay local; the model call is yours to configure</span>
+      </h2>
+      <p class="lede" style="max-width:var(--measure)">
+        <span class="zh">CLI 只与本机 Gateway 通信，Gateway 只监听环回地址；会话、事件与课程索引都落在用户数据目录。教学策略图读到的是<strong>带版本的证据与状态</strong>，返回结构化决策，Runtime 再按显式绑定去调用课程检索或模型，并写下审计事件。</span>
+        <span class="en">The CLI talks only to a local Gateway, which listens on loopback only; sessions, events and the course index live in the user data directory. The policy graph receives <strong>versioned evidence and state</strong> and returns a structured decision, and the Runtime then calls course retrieval or the model through explicit bindings and writes audit events.</span>
+      </p>
+
+      <div class="callout">
+        <span class="k"><span class="zh">本机到哪儿为止</span><span class="en">Where "local" stops</span></span>
+        <p>
+          <span class="zh">模型调用本身不在本机：一旦你配置了远端 Provider，教材检索片段与提示会发送给该 Provider。项目里可复现的离线批次改用本地 Fake Provider，不产生网络调用与费用；真实模型试点的这一前提在实验报告里单独记录。</span>
+          <span class="en">The model call itself is not local: once you configure a remote provider, retrieved textbook fragments and prompts are sent to that provider. The reproducible offline batches instead use a local fake provider, with no network calls and no cost; the experiment report records that precondition separately for the live pilot.</span>
+        </p>
+      </div>
+
+      <figure class="plate">
+        <img data-zh="media/fig-architecture-zh.png" data-en="media/fig-architecture-en.png"
+             src="media/fig-architecture-zh.png"
+             alt="系统架构图：TypeScript CLI 经本机 HTTP 连接 Gateway 命令校验，再进入教学策略图与 Runtime 能力绑定，分别调用课程检索与 Provider 适配器；会话与事件写入本机 SQLite，脱敏后经字段白名单供只读回放。">
+        <figcaption>
+          <span class="tag"><span class="zh">图 1 · 系统架构</span><span class="en">Fig 1 · Architecture</span></span>
+          <span class="src">DESIGN v0.6.2 §4–§5 · <span class="zh">节点为逻辑角色，非部署拓扑</span><span class="en">logical roles, not a deployment topology</span></span>
+        </figcaption>
+      </figure>
+
+      <table class="tbl">
+        <caption class="zh" style="text-align:left;font-size:14px;color:var(--muted);padding-bottom:10px">本机边界上的几处硬约束</caption>
+        <caption class="en" style="text-align:left;font-size:14px;color:var(--muted);padding-bottom:10px">Hard constraints at the machine boundary</caption>
+        <tbody>
+          <tr>
+            <td><span class="zh">监听地址</span><span class="en">Listen address</span></td>
+            <td class="zh">Gateway 在 127.0.0.1 上以动态端口启动，只接受环回连接；健康检查通过后才接受命令。</td>
+            <td class="en">The Gateway starts on 127.0.0.1 at a dynamic port and accepts loopback connections only; commands are accepted after a health check passes.</td>
+          </tr>
+          <tr>
+            <td><span class="zh">数据落点</span><span class="en">Where data lives</span></td>
+            <td class="zh">会话、事件、课程索引与密钥保存在用户数据目录 <code>~/.deepprof</code>；安装与普通启动不访问 Provider、不上传会话。</td>
+            <td class="en">Sessions, events, the course index and secrets live in the user data directory <code>~/.deepprof</code>. Installing and starting normally contacts no provider and uploads no session.</td>
+          </tr>
+          <tr>
+            <td><span class="zh">回放可见性</span><span class="en">Replay visibility</span></td>
+            <td class="zh">浏览器回放是只读的字段白名单，不返回学生答案内容与凭据。</td>
+            <td class="en">The browser replay is a read-only field allowlist; it returns neither student answers nor credentials.</td>
+          </tr>
+          <tr>
+            <td><span class="zh">失败处理</span><span class="en">Failure handling</span></td>
+            <td class="zh">空模型响应、Provider 截断、证据缺失、评估被拒、取消与超时是各自独立的终态，不合并成"成功"；答案泄露检查不通过时返回确定性的安全问题。</td>
+            <td class="en">Empty model responses, provider truncation, missing evidence, rejected evaluation, cancellation and timeouts are distinct terminal states rather than being folded into "success"; a failed leakage check returns a deterministic safety result.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 03 闭环 -->
+<section class="entry" id="loop">
+  <div class="entry-in">
+    <div class="rail">
+      <b>03</b>
+      <span class="zh">教学闭环</span><span class="en">Teaching loop</span>
+    </div>
+    <div class="body wide">
+      <h2>
+        <span class="zh">学情不是一次性判断，而是每轮都追加的状态</span>
+        <span class="en">Learner state is not a one-off judgement — it accumulates each turn</span>
+      </h2>
+      <p class="lede" style="max-width:var(--measure)">
+        <span class="zh">作答先过<strong>合格判定门槛</strong>：提示后重试、待人工评分、模糊知识点与不可靠判分都不进入学情更新。只有过了门槛的证据才写入 Attempt，也只有 C 组会读取并更新跨题 BKT 估计。</span>
+        <span class="en">Answers pass a <strong>reliability gate</strong> first: hinted retries, pending human grades, ambiguous knowledge points and unreliable scores never enter the learner model. Only evidence that clears the gate is written as an Attempt, and only group C reads and updates the cross-question BKT estimate.</span>
+      </p>
+
+      <figure class="plate">
+        <img data-zh="media/fig-loop-zh.png" data-en="media/fig-loop-en.png"
+             src="media/fig-loop-zh.png"
+             alt="教学闭环示意图：六个环节依次为学生作答、检索课程证据、合格判定门槛、读取与更新 BKT、策略图产出决策、执行并记录，虚线表示把状态写回中枢的学情状态与证据链。">
+        <figcaption>
+          <span class="tag"><span class="zh">图 2 · 教学闭环</span><span class="en">Fig 2 · Teaching loop</span></span>
+          <span class="src">DESIGN v0.6.2 §1、§3 · <span class="zh">闭环描述的是系统设计的链路</span><span class="en">the loop describes the designed chain</span></span>
+        </figcaption>
+      </figure>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 04 对照设计 -->
+<section class="entry" id="design">
+  <div class="entry-in">
+    <div class="rail">
+      <b>04</b>
+      <span class="zh">对照设计</span><span class="en">Controlled design</span>
+    </div>
+    <div class="body wide">
+      <h2>
+        <span class="zh">A / B / C 三组，只改变声明的教学策略状态</span>
+        <span class="en">Groups A / B / C: only the declared policy state changes</span>
+      </h2>
+      <p class="lede" style="max-width:var(--measure)">
+        <span class="zh">课程、题目、证据检索、模型版本、采样参数、停止规则与会话时长在组间固定。每个会话都会保存组别、课程、Provider、模型、语料版本、策略版本、题库版本、检索配置与 BKT 配置快照，用于事后复核。</span>
+        <span class="en">Course, question bank, evidence retrieval, model version, sampling parameters, stop rules and session length are held fixed across groups. Every session stores its group, course, provider, model, corpus version, policy version, question-bank version, retrieval configuration and BKT configuration snapshot for later review.</span>
+      </p>
+
+      <figure class="plate">
+        <img data-zh="media/fig-conditions-zh.png" data-en="media/fig-conditions-en.png"
+             src="media/fig-conditions-zh.png"
+             alt="A/B/C 三组条件矩阵：教学策略图在 A 组关闭、B 与 C 组开启；跨题 BKT 状态只在 C 组对合格证据读取和更新，A 与 B 组均不读取不更新。课程、题库、检索、模型与采样、停止规则和会话时长在组间固定。">
+        <figcaption>
+          <span class="tag"><span class="zh">图 3 · 条件矩阵</span><span class="en">Fig 3 · Condition matrix</span></span>
+          <span class="src">DESIGN v0.6.2 §3 · <span class="zh">A 组为基线苏格拉底策略</span><span class="en">group A is the baseline Socratic strategy</span></span>
+        </figcaption>
+      </figure>
+
+      <div class="callout">
+        <span class="k"><span class="zh">口径提醒</span><span class="en">Caveat</span></span>
+        <p>
+          <span class="zh">真实模型试跑<strong>不得视为公平的效果比较</strong>：现有批次中 A 组截断比例明显更高。三组之间的差异目前只能读作工程链路上的差异，不能读作教学效果的差异。</span>
+          <span class="en">The live-model pilot <strong>must not be read as a fair effectiveness comparison</strong>: in the recorded batch, group A truncated noticeably more often. Differences between groups currently say something about the engineering chain, not about learning outcomes.</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 05 证据 -->
+<section class="entry" id="evidence">
+  <div class="entry-in">
+    <div class="rail">
+      <b>05</b>
+      <span class="zh">实验证据</span><span class="en">Evidence</span>
+    </div>
+    <div class="body wide">
+      <h2>
+        <span class="zh">完成的与没完成的，一并列出</span>
+        <span class="en">What completed and what did not, listed together</span>
+      </h2>
+      <p class="lede" style="max-width:var(--measure)">
+        <span class="zh">M1 与 M3 的每一次运行都留下了 run ID、分子分母与失败原因；M2 走的是冻结离线验收集，记为固定的 82 项定向测试，没有 run ID。M1 与 M3 的分母是<strong>计划格数</strong>，失败与未触发的格子照原样保留在图上；M2 的分子分母是测试项数，单位不是格。</span>
+        <span class="en">Every M1 and M3 run left behind a run ID, a numerator and denominator, and the reason for each failure; M2 uses a frozen offline acceptance set recorded as 82 fixed focused checks, with no run ID. M1 and M3 denominators are <strong>planned cell counts</strong>, and failed or unrequested cells stay visible in the figure; M2 counts test items, not cells.</span>
+      </p>
+
+      <figure class="plate">
+        <img data-zh="media/fig-evidence-zh.png" data-en="media/fig-evidence-en.png"
+             src="media/fig-evidence-zh.png"
+             alt="三个批次的完成构成堆叠条：M1 A/B 真实 Provider 完成 76 格、失败 4 格，共 80 格；M3 离线 Fake Provider 完成 400 格；M3 真实模型试点 36 格中完整生成 3 格、长度截断 26 格、未触发 7 格。">
+        <figcaption>
+          <span class="tag"><span class="zh">图 4 · 批次完成构成</span><span class="en">Fig 4 · Batch composition</span></span>
+          <span class="src">DESIGN v0.6.2 §6 · M1–M3 <span class="zh">工程实验报告</span><span class="en">experiment report</span></span>
+        </figcaption>
+      </figure>
+
+      <div class="stats">
+        <div>
+          <dt><span class="zh">M1 A/B 完成格数</span><span class="en">M1 A/B cells completed</span></dt>
+          <dd>76<small>/ 80 <span class="zh">计划格</span><span class="en">planned</span></small></dd>
+        </div>
+        <div>
+          <dt><span class="zh">M2 离线验收</span><span class="en">M2 offline acceptance</span></dt>
+          <dd class="ok">82<small>/ 82 <span class="zh">定向项</span><span class="en">focused checks</span></small></dd>
+        </div>
+        <div>
+          <dt><span class="zh">M3 离线矩阵</span><span class="en">M3 offline matrix</span></dt>
+          <dd class="ok">400<small>/ 400 <span class="zh">格</span><span class="en">cells</span></small></dd>
+        </div>
+        <div>
+          <dt><span class="zh">M3 引用字段可定位</span><span class="en">M3 citation fields locatable</span></dt>
+          <dd class="ok">189<small>/ 189 <span class="zh">项</span><span class="en">fields</span></small></dd>
+        </div>
+        <div>
+          <dt><span class="zh">M3 真实试点应用终态</span><span class="en">M3 live pilot, application final state</span></dt>
+          <dd>26<small>/ 36 <span class="zh">格（与生成成功分开算）</span><span class="en">cells, counted separately</span></small></dd>
+        </div>
+        <div>
+          <dt><span class="zh">M3 真实试点完整生成</span><span class="en">M3 live pilot, complete generations</span></dt>
+          <dd class="flag">3<small>/ 29 <span class="zh">次请求</span><span class="en">requests</span></small></dd>
+        </div>
+      </div>
+
+      <h3><span class="zh">保留不利结果</span><span class="en">Adverse results retained</span></h3>
+      <p>
+        <span class="zh">BKT 用四参数二元知识状态模型，按"观测后验，再学习转移"的顺序计算。当前开发初值 <code>P(L₀)=0.20</code>、<code>P(T)=0.10</code>、<code>P(G)=0.20</code>、<code>P(S)=0.10</code> <strong>没有用学生数据拟合或校准过</strong>。它在构造历史上的预测表现因此低于随机，我们把这个数字原样留在页面上。</span>
+        <span class="en">BKT uses a four-parameter binary knowledge model, computed as posterior-after-observation and then learning transition. Its current development values <code>P(L₀)=0.20</code>, <code>P(T)=0.10</code>, <code>P(G)=0.20</code>, <code>P(S)=0.10</code> were <strong>never fitted or calibrated on student data</strong>. Prediction on constructed history is therefore worse than chance, and that number stays on this page as measured.</span>
+      </p>
+
+      <figure class="plate">
+        <img data-zh="media/fig-bkt-zh.png" data-en="media/fig-bkt-en.png"
+             src="media/fig-bkt-zh.png"
+             alt="BKT 预测表现点图：AUC 为 0.296，低于 0.5 的随机基线；Brier 0.366、Log loss 0.936、ECE 0.530。同时列出仍然成立的策略动作族匹配 196/280（70%）与回放决策一致 120/120。">
+        <figcaption>
+          <span class="tag"><span class="zh">图 5 · BKT 与动作族</span><span class="en">Fig 5 · BKT and action families</span></span>
+          <span class="src">M3 <span class="zh">离线批次</span><span class="en">offline batch</span> m3-offline-20260924-final6</span>
+        </figcaption>
+      </figure>
+
+      <h3><span class="zh">可以自己复核的部分</span><span class="en">What you can check yourself</span></h3>
+      <p>
+        <span class="zh">离线批次全部用本地 Fake Provider 跑完，不产生网络调用与费用，因此可以在本机按报告里记录的步骤重跑并核对图表。真实模型试点需要另行配置有效的 Provider，并独立设置调用预算。</span>
+        <span class="en">The offline batches ran end to end against a local fake provider, with no network calls and no cost, so you can re-run them locally following the steps recorded in the report and check the figures yourself. The live pilot needs a configured provider and its own call budget.</span>
+      </p>
+
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th><span class="zh">批次</span><span class="en">Batch</span></th>
+            <th><span class="zh">运行标识</span><span class="en">Run identifier</span></th>
+            <th><span class="zh">读数</span><span class="en">Reading</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>M1 A/B</td>
+            <td class="m">run_20260923T235151Z_ed03930c</td>
+            <td><span class="zh">76/80 格完成；4 格 <code>empty_model_response</code> 全部落在 B 组，未改写</span>
+                <span class="en">76 of 80 cells completed; the 4 <code>empty_model_response</code> cells all fall in group B and were left unrevised</span></td>
+          </tr>
+          <tr>
+            <td>M2</td>
+            <td class="m"><span class="zh">冻结离线集</span><span class="en">frozen offline set</span></td>
+            <td><span class="zh">定向 82/82、Python 全量 309/309、CLI 5/5，类型检查通过；82 项包含在 309 项内，不可相加</span>
+                <span class="en">82 of 82 focused, 309 of 309 Python, 5 of 5 CLI, typecheck passed; the 82 are included in the 309 and must not be added</span></td>
+          </tr>
+          <tr>
+            <td>M3 <span class="zh">离线</span><span class="en">offline</span></td>
+            <td class="m">m3-offline-20260924-final6</td>
+            <td><span class="zh">主矩阵 120/120、回放 120/120、消融 160/160；决策字段 520/520；回放决策一致 120/120；策略动作族匹配 196/280（70%）</span>
+                <span class="en">120 of 120 main, 120 of 120 replay, 160 of 160 ablation; 520 of 520 decision fields; 120 of 120 replay agreement; 196 of 280 (70%) policy action-family match</span></td>
+          </tr>
+          <tr>
+            <td>M3 <span class="zh">真实试点</span><span class="en">live pilot</span></td>
+            <td class="m">m3-live-20260924-071515-indexed-8e41c6d2</td>
+            <td><span class="zh">36 格、29 次请求；3 次完整生成、26 次长度截断、7 格未触发。应用终态完成 26/36 与完整生成 3/29 分开计算</span>
+                <span class="en">36 cells, 29 requests; 3 complete generations, 26 length truncations, 7 cells without a request. Application final state (26 of 36) is counted separately from complete generation (3 of 29)</span></td>
+          </tr>
+          <tr>
+            <td><span class="zh">v0.6.2 发布核验</span><span class="en">v0.6.2 release validation</span></td>
+            <td class="m"><span class="zh">独立批次</span><span class="en">separate run</span></td>
+            <td><span class="zh">Python 回归 318/318、M2 定向 82/82、CLI 7/7，类型检查通过；与冻结的 M2 记录是两次独立运行</span>
+                <span class="en">318 of 318 Python regression, 82 of 82 focused M2, 7 of 7 CLI, typecheck passed; a separate run from the frozen M2 record</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 06 快速开始 -->
+<section class="entry" id="start">
+  <div class="entry-in">
+    <div class="rail">
+      <b>06</b>
+      <span class="zh">快速开始</span><span class="en">Get started</span>
+    </div>
+    <div class="body">
+      <h2>
+        <span class="zh">一条命令跑起来</span>
+        <span class="en">One command to run it</span>
+      </h2>
+      <p class="lede">
+        <span class="zh">需要 Node.js 22+ 与 Python 3.12+。首次安装需要能访问 Python 包索引（这一步要联网），之后会在 <code>~/.deepprof</code> 下准备按版本隔离的 Python 环境、安装运行依赖，再启动仅监听 127.0.0.1 的 Gateway。安装过程本身不会发起任何模型调用。</span>
+        <span class="en">You need Node.js 22+ and Python 3.12+. First-time setup needs access to a Python package index (this step goes online); it then prepares a version-isolated Python environment under <code>~/.deepprof</code>, installs the runtime dependencies and starts a Gateway bound to 127.0.0.1. The setup process itself makes no model call.</span>
+      </p>
+
+      <pre><code><span class="c"># <span class="zh">免克隆安装并启动</span><span class="en">install and run without cloning</span></span>
+npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+
+<span class="c"># <span class="zh">配置一个 OpenAI 兼容的 Provider</span><span class="en">configure an OpenAI-compatible provider</span></span>
+/login
+
+<span class="c"># <span class="zh">检查环境</span><span class="en">check the environment</span></span>
+deepprof doctor
+
+<span class="c"># <span class="zh">可选：扫描件 OCR 支持</span><span class="en">optional: scanned-page OCR support</span></span>
+deepprof setup --ocr</code></pre>
+
+      <ol class="steps">
+        <li>
+          <div>
+            <h4><span class="zh">开一个教学会话</span><span class="en">Open a study session</span></h4>
+            <p><span class="zh">普通新会话默认走常规聊天；显式指定组别才进入教学路径。实验运行固定教学路径。</span>
+                <span class="en">A plain new session is ordinary chat; the teaching path opens only when you name a group. Experiment runs pin the teaching path.</span></p>
+            <pre><code><span class="k">/new</span> --mode study --group C --title "线性表"</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h4><span class="zh">作答并查看学情</span><span class="en">Answer and inspect learner state</span></h4>
+            <p><span class="zh"><code>/learner</code> 只读取 C 组的本地估计，且至少要有 3 条合格作答证据才显示掌握度；A、B 组会明确显示未启用学情模型。判分回执会说明本次是否更新了 BKT，或者因为什么跳过。</span>
+                <span class="en"><code>/learner</code> reads only group C's local estimate, and shows mastery only after at least three reliable answer records; groups A and B explicitly report that the learner model is off. Each grading receipt says whether BKT was updated, or why it was skipped.</span></p>
+            <pre><code>/ask <span class="c"><span class="zh">什么是循环队列的假溢出</span><span class="en">what is the false overflow of a circular queue</span></span>
+/hint
+/learner</code></pre>
+          </div>
+        </li>
+        <li>
+          <div>
+            <h4><span class="zh">回看这一轮是怎么决定的</span><span class="en">Replay how the turn was decided</span></h4>
+            <p><span class="zh">会话与事件存在本机，浏览器回放页按字段白名单只读展示，不会返回学生答案内容与凭据。</span>
+                <span class="en">Sessions and events stay local. The browser replay page renders a read-only field allowlist and returns neither student answers nor credentials.</span></p>
+            <pre><code><span class="k">/resume</span>   <span class="c"># <span class="zh">续接会话</span><span class="en">resume a session</span></span>
+<span class="k">/tree</span>     <span class="c"># <span class="zh">查看会话分叉</span><span class="en">view session branches</span></span></code></pre>
+          </div>
+        </li>
+      </ol>
+
+      <p style="margin-top:26px">
+        <span class="zh">要从源码跑，见仓库的 Development 一节：<code>python -m venv</code> → <code>pip install -r requirements.txt</code> → <code>npm ci --prefix apps/cli</code>，然后分别启动 <code>uvicorn</code> 与 CLI。</span>
+        <span class="en">To run from source, see the Development section of the repository: <code>python -m venv</code> → <code>pip install -r requirements.txt</code> → <code>npm ci --prefix apps/cli</code>, then start <code>uvicorn</code> and the CLI separately.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 07 边界 -->
+<section class="entry" id="bounds">
+  <div class="entry-in">
+    <div class="rail">
+      <b>07</b>
+      <span class="zh">边界</span><span class="en">Limits</span>
+    </div>
+    <div class="body">
+      <h2>
+        <span class="zh">还没有做到的事</span>
+        <span class="en">What is not done yet</span>
+      </h2>
+      <p class="lede">
+        <span class="zh">工程能跑通，不等于教学有效。下面这些边界是项目当前的真实状态，写在页面上的原因和写实验数据的原因一样：它们决定了这些数字能说明什么。</span>
+        <span class="en">An engineering chain that runs is not evidence that teaching works. These limits are the project's actual state, and they are here for the same reason the experiment numbers are: they determine what those numbers can mean.</span>
+      </p>
+
+      <ul class="bounds">
+        <li>
+          <strong><span class="zh">全部批次没有真人参与者</span><span class="en">No human participants in any batch</span></strong>
+          <span class="zh">M1–M3 的所有批次都使用构造开发案例与合成 Attempt，没有招募、同意、教师批准或机构审批，也没有真实学生的学习数据。这不是待补充的细节，而是这些结果的适用边界。</span>
+          <span class="en">Every M1–M3 batch uses constructed development cases and synthetic attempts. There was no recruitment, consent, teacher approval or institutional review, and no real student learning data. This is not a detail waiting to be filled in; it bounds what the results apply to.</span>
+        </li>
+        <li>
+          <strong><span class="zh">教师审核与 BKT 校准仍未完成</span><span class="en">Teacher review and BKT calibration remain open</span></strong>
+          <span class="zh">题库、教材页码与教学策略需要教师独立审核；BKT 参数需要审核后的作答数据来拟合。在校准完成之前，个体成绩与产品测量只用于本机开发与教师监督下的教学。</span>
+          <span class="en">The question bank, textbook page locators and teaching policy still need independent teacher review; the BKT parameters need reviewed response data to fit. Until calibration is done, individual scores and product measurements are for local development and teacher-supervised use only.</span>
+        </li>
+        <li>
+          <strong><span class="zh">工程验收不等于学习效果</span><span class="en">Engineering acceptance is not learning gain</span></strong>
+          <span class="zh">M2 的通过率、M3 的逐格完成度说明的是系统按预期执行，不说明学生学得更好。团队此后做过的内部试用与功能走查，同样属于工程自检，不构成教学效果证据。</span>
+          <span class="en">M2 pass rates and M3 per-cell completion show the system executed as intended; they say nothing about whether students learn better. The internal trial and feature walkthrough the team ran afterwards are engineering self-checks and equally do not constitute evidence of learning effect.</span>
+        </li>
+        <li>
+          <strong><span class="zh">真实模型接入仍受截断制约</span><span class="en">Live model use is still constrained by truncation</span></strong>
+          <span class="zh">真实试点批次里 29 次请求中有 26 次因为输出长度上限被截断。这不是可以忽略的噪声：它直接限制了策略图在真实模型上的可用范围，也是下一步要处理的问题。</span>
+          <span class="en">In the live pilot, 26 of 29 requests were truncated by the output-length limit. This is not ignorable noise: it directly limits where the policy graph is usable against a real model, and it is the next thing to address.</span>
+        </li>
+      </ul>
+
+      <div class="callout">
+        <span class="k"><span class="zh">下一步</span><span class="en">Next steps</span></span>
+        <p>
+          <span class="zh">教师审核与案例双人盲评 → BKT 参数校准 → 对照方案审查与真实学生伦理准入 → 预注册分析计划与前测/后测数据。在这些门槛完成之前，项目不会宣称教学有效。</span>
+          <span class="en">Teacher review and double-blind case rating → BKT parameter calibration → review of the comparison design and ethics clearance for real students → a pre-registered analysis plan with pre- and post-test data. Until those gates are cleared, the project will not claim teaching effectiveness.</span>
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ======================================================= 08 引用 -->
+<section class="entry" id="cite">
+  <div class="entry-in">
+    <div class="rail">
+      <b>08</b>
+      <span class="zh">引用与许可</span><span class="en">Citation and licence</span>
+    </div>
+    <div class="body">
+      <h2>
+        <span class="zh">引用锚点</span>
+        <span class="en">Citation anchors</span>
+      </h2>
+      <p>
+        <span class="zh">引用本项目的工程状态时，请带上版本、发布日期与提交，避免指向一个移动中的 <code>main</code>。</span>
+        <span class="en">When citing this project's engineering state, include the version, release date and commit rather than pointing at a moving <code>main</code>.</span>
+      </p>
+      <pre><code>DeepProf v0.6.2 · <span class="zh">发布于</span><span class="en">released</span> 2026-09-24
+main <span class="zh">分支 CI 通过提交</span><span class="en">branch CI passed at commit</span> 487d4ca
+<span class="c"><span class="zh">（487d4ca 是 main 的 CI 通过提交，不是 release tag 指向的提交）</span><span class="en">(487d4ca is the main branch commit CI passed at, not the commit the release tag points to)</span></span>
+https://github.com/RockeyRoc/DeepProf
+
+<span class="c"># <span class="zh">M3 离线批次</span><span class="en">M3 offline batch</span></span>
+m3-offline-20260924-final6
+<span class="c"># <span class="zh">M1 A/B 批次</span><span class="en">M1 A/B batch</span></span>
+run_20260923T235151Z_ed03930c</code></pre>
+      <p>
+        <span class="zh">仓库当前<strong>没有附加开源许可证</strong>。代码是公开可访问的，但这不等于授权任意再分发；在其他项目中使用之前，请先通过仓库的联系方式确认。</span>
+        <span class="en">The repository currently carries <strong>no open-source licence</strong>. The code is publicly accessible, which is not the same as permission to redistribute it; please check with the maintainers through the repository before using it elsewhere.</span>
+      </p>
+      <p>
+        <span class="zh">实验报告、图表库与可下载的证据附件都在仓库的 <code>docs/</code> 目录下。原始请求、模型回答、教材扫描页与会话标识不进入公开仓库。</span>
+        <span class="en">The experiment report, figure catalogue and downloadable evidence bundle live under <code>docs/</code> in the repository. Raw requests, model replies, scanned textbook pages and session identifiers are not published.</span>
+      </p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<!-- ======================================================= 页脚 -->
+<footer class="foot">
+  <div class="foot-in">
+    <div>
+      <div class="foot-brand">
+        <img src="media/logo-white-512.png" alt="">
+        <b>DeepProf</b>
+      </div>
+      <p>
+        <span class="zh">本机优先的自适应教学原型。把课程证据、作答事实、教学策略与学情估计连到同一条可回放的教学链路上。</span>
+        <span class="en">A local-first adaptive teaching prototype that links course evidence, answer facts, teaching policy and learner state onto one replayable teaching chain.</span>
+      </p>
+    </div>
+    <div>
+      <h4><span class="zh">项目</span><span class="en">Project</span></h4>
+      <ul>
+        <li><a href="https://github.com/RockeyRoc/DeepProf">GitHub <span class="zh">仓库</span><span class="en">repository</span></a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/releases">Releases</a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/DESIGNv0.6.2.md">DESIGN v0.6.2</a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/apps/cli/README.md">CLI <span class="zh">使用说明</span><span class="en">guide</span></a></li>
+      </ul>
+    </div>
+    <div>
+      <h4><span class="zh">证据</span><span class="en">Evidence</span></h4>
+      <ul>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/experiments/M1-M3-%E5%AE%9E%E9%AA%8C%E6%8A%A5%E5%91%8A.md"><span class="zh">M1–M3 实验报告</span><span class="en">M1–M3 experiment report</span></a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/M2-offline-acceptance.md">M2 <span class="zh">离线验收</span><span class="en">offline acceptance</span></a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/experiments/%E5%9B%BE%E8%A1%A8%E5%BA%93.md"><span class="zh">图表库</span><span class="en">Figure catalogue</span></a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/.github/CONTRIBUTING.md"><span class="zh">贡献指南</span><span class="en">Contributing</span></a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="foot-bot">
+    <span>DeepProf · 2026 · <span class="zh">代码公开可访问，未附开源许可证</span><span class="en">Code publicly accessible; no open-source licence attached</span></span>
+    <span>v0.6.2 · 2026-09-24</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var root = document.documentElement;
+
+  function applyLang(lang){
+    root.setAttribute('data-lang', lang);
+    root.setAttribute('lang', lang === 'zh' ? 'zh-CN' : 'en');
+    document.querySelectorAll('[data-set-lang]').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b.dataset.setLang === lang));
+    });
+    /* 图与主视觉：按语言换图，其余属性不动 */
+    document.querySelectorAll('img[data-zh]').forEach(function(im){
+      var next = im.getAttribute(lang === 'zh' ? 'data-zh' : 'data-en');
+      if (next && im.getAttribute('src') !== next) im.setAttribute('src', next);
+    });
+    /* 无障碍标签与页面描述也跟随语言 */
+    document.querySelectorAll('[data-aria-zh]').forEach(function(el){
+      var next = el.getAttribute(lang === 'zh' ? 'data-aria-zh' : 'data-aria-en');
+      if (next) el.setAttribute('aria-label', next);
+    });
+    var md = document.querySelector('meta[name="description"]');
+    if (md) md.setAttribute('content', lang === 'zh'
+      ? 'DeepProf 是一套本机优先的自适应教学原型：把课程材料的可定位证据、合格作答事实、教学策略与 BKT 学情估计连到同一条可回放的教学链路上。'
+      : 'DeepProf is a local-first adaptive teaching prototype that links locatable course evidence, reliable answer facts, teaching policy and a BKT mastery estimate onto one replayable teaching chain.');
+    document.title = lang === 'zh'
+      ? 'DeepProf — 让每一条教学建议都有出处'
+      : 'DeepProf — every teaching suggestion, traceable to its source';
+    try { localStorage.setItem('deepprof-lang', lang); } catch(e){}
+  }
+
+  document.querySelectorAll('[data-set-lang]').forEach(function(b){
+    b.addEventListener('click', function(){ applyLang(b.dataset.setLang); });
+  });
+
+  var saved = null;
+  try { saved = localStorage.getItem('deepprof-lang'); } catch(e){}
+  if (!saved){
+    saved = (navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+  }
+  applyLang(saved === 'en' ? 'en' : 'zh');
+})();
+</script>
+</body>
+</html>
