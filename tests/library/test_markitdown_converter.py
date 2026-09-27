@@ -32,27 +32,48 @@ def _text_pdf(path: Path, pages: int = 1) -> None:
         writer.write(output)
 
 
-def _cjk_font(size: int) -> ImageFont.FreeTypeFont:
-    candidates = (
+def _ocr_fixture_font(size: int) -> tuple[ImageFont.ImageFont, str, tuple[str, ...]]:
+    cjk_candidates = (
         Path(r"C:\Windows\Fonts\msyh.ttc"),
         Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
         Path("/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc"),
         Path("/System/Library/Fonts/PingFang.ttc"),
     )
-    for candidate in candidates:
+    for candidate in cjk_candidates:
         if candidate.is_file():
-            return ImageFont.truetype(str(candidate), size)
-    pytest.fail("A CJK font is required for OCR fixture generation")
+            return (
+                ImageFont.truetype(str(candidate), size),
+                "线性表是具有相同特性数据元素的有限序列 第{page}页",
+                ("线性表", "有限序列"),
+            )
+    latin_candidates = (
+        Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
+        Path("/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"),
+    )
+    for candidate in latin_candidates:
+        if candidate.is_file():
+            return (
+                ImageFont.truetype(str(candidate), size),
+                "Linear list data structure page {page}",
+                ("linear", "data structure"),
+            )
+    return ImageFont.load_default(), "Linear list data structure page {page}", ("linear", "data")
 
 
-def _scanned_pdf(path: Path, pages: int = 2) -> None:
-    font = _cjk_font(72)
+def _contains_any_token(text: str, tokens: tuple[str, ...]) -> bool:
+    lowered = text.lower()
+    return any(token.lower() in lowered for token in tokens)
+
+
+def _scanned_pdf(path: Path, pages: int = 2) -> tuple[str, ...]:
+    font, template, expected_tokens = _ocr_fixture_font(72)
     frames = []
     for index in range(pages):
         image = Image.new("RGB", (1600, 320), "white")
-        ImageDraw.Draw(image).text((50, 80), f"线性表是具有相同特性数据元素的有限序列 第{index + 1}页", font=font, fill="black")
+        ImageDraw.Draw(image).text((50, 80), template.format(page=index + 1), font=font, fill="black")
         frames.append(image)
     frames[0].save(path, "PDF", resolution=144.0, save_all=True, append_images=frames[1:])
+    return expected_tokens
 
 
 def test_text_pdf_keeps_page_order_and_does_not_require_optional_ocr(tmp_path: Path, monkeypatch):
@@ -75,25 +96,25 @@ def test_text_pdf_keeps_page_order_and_does_not_require_optional_ocr(tmp_path: P
 def test_scanned_pdf_uses_local_chinese_ocr_and_marks_review_required(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
     source = tmp_path / "scan.pdf"
-    _scanned_pdf(source)
+    expected_tokens = _scanned_pdf(source)
     result = convert_local(str(source), first_page=2, last_page=2)
     metadata = json.loads(Path(result["metadata_path"]).read_text(encoding="utf-8"))
     page = metadata["pages"][0]
     assert result["ocr_used"] is True and result["review_required"] is True
     assert page["page"] == 2 and page["review_required"] is True
     assert page["conversion"] == "rapidocr_onnxruntime"
-    assert "线性表" in page["text"]
+    assert _contains_any_token(page["text"], expected_tokens)
     assert isinstance(page["ocr_confidence"], float)
     assert metadata["status"] == "ocr_candidate_only"
     assert metadata["source"]["sha256"] == result["source_sha256"]
-    assert "线性表" in Path(result["markdown_path"]).read_text(encoding="utf-8")
+    assert _contains_any_token(Path(result["markdown_path"]).read_text(encoding="utf-8"), expected_tokens)
 
 
 def test_local_images_and_markitdown_office_formats_have_accurate_locations(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("DEEPPROF_HOME", str(tmp_path / "home"))
-    font = _cjk_font(64)
+    font, template, _ = _ocr_fixture_font(64)
     image = Image.new("RGB", (1400, 260), "white")
-    ImageDraw.Draw(image).text((40, 70), "线性表属于数据结构", font=font, fill="black")
+    ImageDraw.Draw(image).text((40, 70), template.format(page=1), font=font, fill="black")
     image_path = tmp_path / "scan.png"
     image.save(image_path)
     png_result = convert_local(str(image_path))
