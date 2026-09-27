@@ -15,7 +15,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import asyncio
 
-from api import courses, events, health, library as library_api, providers, replay, sessions
+from api import courses, events, health, library as library_api, providers, replay, sessions, web
 from config.settings import Settings
 from graph.education.bindings import ACTION_BINDINGS
 from library.service import ResourceLibrary
@@ -136,6 +136,7 @@ def create_app(
     app.include_router(library_api.router)
     app.include_router(courses.router)
     app.include_router(replay.router)
+    app.include_router(web.router)
     return app
 
 

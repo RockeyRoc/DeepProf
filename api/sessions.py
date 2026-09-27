@@ -24,7 +24,12 @@ from runtime.service import RuntimeService
 
 router = APIRouter(tags=["sessions"])
 COURSE_MANIFEST = Path(__file__).resolve().parents[1] / "data" / "courses" / "data_structures_c" / "manifest.json"
-CHAT_SYSTEM_PROMPT = "你是一个友好、准确的常规对话助手。直接回应用户的问题；不假定用户正在学习数据结构，也不声称引用了教材。"
+CHAT_SYSTEM_PROMPT = (
+    "你是 DeepProf（深度学习伴学助手），是 DeepProf 产品内的模型助手。"
+    "直接、友好、准确地回答用户；先理解用户当前意图，再选择合适的说明深度。"
+    "普通 chat 模式不假定用户正在学习数据结构，不主动切换到教学模式，也不声称引用了未提供的教材。"
+    "如被问及身份，说明你是由用户当前配置的模型驱动的 DeepProf 助手；不要谎称自己是 pi 或其他产品。"
+)
 CHAT_ROUTING_VERSION = "chat-router-rules-v1"
 SMALLTALK_PATTERNS = (
     "你好", "您好", "早上好", "晚上好", "谢谢", "感谢", "再见", "你是谁",
@@ -97,7 +102,7 @@ async def session_learner_estimates(session_id: str, request: Request, concept_i
 @router.post("/commands", response_model=CommandAccepted)
 async def post_command(command: ClientCommand, request: Request) -> CommandAccepted:
     service = _service(request)
-    if command.type in {"message.send", "session.resume", "session.fork", "session.compact", "turn.cancel"} and not command.session_id:
+    if command.type in {"message.send", "session.resume", "session.fork", "session.compact", "turn.cancel", "session.model.set"} and not command.session_id:
         raise HTTPException(status_code=400, detail="session_id is required for this command")
     receipts = request.app.state.command_store
     prior = receipts.get(command.command_id)
@@ -261,6 +266,24 @@ async def post_command(command: ClientCommand, request: Request) -> CommandAccep
                 task.cancel()
                 status = "cancellation_requested"
                 result_data = {"code": "cancellation_requested"}
+        elif command.type == "session.model.set":
+            session = service.get_session(str(command.session_id))
+            if str(session.metadata.get("session_mode") or "study") != "chat":
+                raise HTTPException(status_code=409, detail={"code": "chat_session_required", "message": "模型切换仅适用于 chat 会话"})
+            if session.session_id in request.app.state.active_turns:
+                raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": "请等待当前回合结束后再切换模型"})
+            profile_id = str(command.payload.get("profile_id") or "")
+            model = str(command.payload.get("model") or "")
+            try:
+                profile = service.router.profile(profile_id)
+            except ValueError as exc:
+                raise HTTPException(status_code=404, detail={"code": "provider_not_found", "message": str(exc)}) from exc
+            if not profile.enabled:
+                raise HTTPException(status_code=409, detail={"code": "provider_disabled", "message": "Provider 已停用"})
+            session.metadata["provider_profile"] = profile_id
+            session.metadata["model"] = model or profile.default_model
+            service.save_session(session)
+            result_data = {"provider_profile": profile_id, "model": session.metadata["model"]}
         elif command.type in {"session.resume", "session.fork", "session.compact", "message.send"}:
             session = service.get_session(str(command.session_id))
             if command.type == "session.resume":
@@ -647,6 +670,6 @@ def _summary(service: RuntimeService, session: Session) -> SessionSummary:
         session_mode=str(session.metadata.get("session_mode") or "study"),
         experiment_group=str(experiment.get("group") or ""),
         course_id=str(experiment.get("course_id") or ""),
-        provider_profile=str(experiment.get("provider_profile") or ""),
-        model=str(experiment.get("model") or ""),
+        provider_profile=str(experiment.get("provider_profile") or session.metadata.get("provider_profile") or ""),
+        model=str(experiment.get("model") or session.metadata.get("model") or ""),
     )

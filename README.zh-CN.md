@@ -61,12 +61,17 @@
 安装 **Node.js 22+** 与 **Python 3.12+**，然后：
 
 ```sh
-npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz
+deepprof
 ```
 
-首次运行需要能访问 Python 包索引：它会在 `~/.deepprof` 下建立按版本隔离的环境、安装 Runtime 依赖，并启动只监听 `127.0.0.1` 的 Gateway。安装过程本身不会发起任何模型调用。在 CLI 中运行 `/login` 配置 OpenAI 兼容 Provider；运行 `deepprof doctor` 检查安装；运行 `deepprof setup --ocr` 安装可选的扫描件 OCR。
+首次运行需要能访问 Python 包索引：它会在 `~/.deepprof` 下建立按版本隔离的环境、安装 Runtime 依赖，并启动只监听 `127.0.0.1` 的 Gateway。安装过程本身不会发起任何模型调用。在 CLI 中用 `/login` 配置 Provider——`--provider local` 注册 `127.0.0.1:11434` 上的 Ollama 式端点，`--provider glm` 注册智谱端点；运行 `deepprof doctor` 检查安装；运行 `deepprof setup --ocr` 安装可选的扫描件 OCR。
 
-npm 包已包含编译后的 CLI、SDK、Gateway 源码、课程清单与本地回放页面，不用先装 Git 或下载完整仓库。Windows PowerShell 可用 `npx.cmd` 执行相同地址。
+npm 包已包含编译后的 CLI、SDK、Gateway 源码、课程清单、只读回放页和网页聊天，不用先装 Git 或下载完整仓库。若要临时试用，可用 `npx --yes --package=<发布包地址> deepprof`；npx 不会把命令持久安装，之后直接输入 `deepprof` 请使用上面的全局安装。
+
+`deepprof web` 打开网页聊天：会话列表、Provider 与模型选择、流式回复和取消按钮。它**只走普通聊天路径**——教学策略、证据检索与 BKT 更新都不会从浏览器进入，所以它产生的任何内容都不是教学回合。要开教学会话请用 CLI。
+
+`deepprof check-update` 检查稳定版更新（`update` 是别名）。`deepprof uninstall` 卸载 CLI 与运行环境、保留个人数据；`deepprof uninstall --purge` 在确认后清除个人数据，加 `--yes` 可跳过确认。
 
 <details>
 <summary><b>CLI 实际会打印什么</b>（照抄自 <code>apps/cli/src/index.ts</code>）</summary>
@@ -79,8 +84,13 @@ npm 包已包含编译后的 CLI、SDK、Gateway 源码、课程清单与本地�
 DeepProf CLI v0.6.2
 
 快速开始：deepprof （首次运行时自动准备本机环境）
+  npm install --global "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz" 持久安装，之后可直接运行 deepprof
   deepprof setup [--ocr]    安装 DeepProf Runtime（可选安装扫描件 OCR）
   deepprof doctor            检查 Node.js、Python 与本地安装状态
+  deepprof web               打开本机网页聊天
+  deepprof check-update      检查稳定版更新（update 是别名）
+  deepprof uninstall         卸载 CLI 和运行环境，保留用户数据
+  deepprof uninstall --purge 清理用户数据（需确认，或加 --yes）
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
@@ -102,7 +112,7 @@ ds.c_language.v1 · group B · 模型未配置 · 使用 /login 配置 Provider
 
 | 命令 | 用途 |
 |---|---|
-| `/login [--show-api-key\|--hidden-api-key]` | 配置 Provider Profile。密钥不写入历史、事件、回放或命令行参数。 |
+| `/login [--provider local\|glm] [--profile <id>] [--base-url <url>] [--model <m>] [--show-api-key\|--hidden-api-key]` | 注册 Provider Profile。`local` 使用 Ollama 式协议。密钥不写入历史、事件、回放或命令行参数。 |
 | `/new [--mode chat\|study] [--group A\|B\|C] [--course <id>] [--title <t>]` | 新建会话。默认走常规聊天；指定组别才进入教学路径。 |
 | `/chat <内容>` · `/study <内容>` | 强制当前回合走某一条路径。 |
 | `/ask` · `/hint` · `/quiz` · `/answer` | 按声明的动作族执行一次教学回合。 |
@@ -128,8 +138,11 @@ flowchart LR
   Decision --> Evidence[版本化本地课程索引]
   Decision --> Provider[用户配置的模型]
   API --> Events[(本机会话和审计事件)]
+  Chat[网页聊天] -->|只走聊天路径| API
   Replay[只读回放页] --> Events
 ```
+
+上图走的是教学链路；网页聊天接在同一个 Gateway 上，但只到普通聊天路径为止，详见[快速开始](#快速开始)。
 
 教学策略图返回结构化决策，且不直接调用 Provider、数据库或文件系统。Runtime 按显式绑定执行能力、调用已配置的 Provider，并记录可回放的事件轨迹。公开实验包不含学生答案正文或 Provider 密钥。
 
@@ -163,6 +176,7 @@ BKT 的开发参数（`P(L₀)=0.20`、`P(T)=0.10`、`P(G)=0.20`、`P(S)=0.10`�
 | | 状态 |
 |---|---|
 | 本机 CLI → Gateway → 策略图 → Provider → 回放 | 可用；M2 离线验收通过 |
+| 网页聊天前端 | 可用；只走普通聊天路径——不产生教学回合，不接证据链 |
 | 版本化课程索引、页码可定位证据、审计轨迹 | 可用 |
 | M1 A/B 真实 Provider 运行 | 已有记录；4 格失败，未改写 |
 | M3 离线框架 | 本地 Fake Provider 下 400/400 格完成 |
@@ -177,7 +191,9 @@ BKT 的开发参数（`P(L₀)=0.20`、`P(T)=0.10`、`P(G)=0.20`、`P(S)=0.10`�
 
 ```
 apps/cli/            TypeScript CLI —— 键盘优先入口、REPL 与会话处理
-api/                 环回 FastAPI Gateway —— 命令校验、会话、回放 API
+apps/web/            网页聊天前端，由 Gateway 在 /web 提供
+apps/replay/         审计轨迹的只读回放页
+api/                 环回 FastAPI Gateway —— 命令、会话、Provider、回放与网页
 graph/education/     教学策略图（LangGraph），返回 PedagogicalDecision
 runtime/             Runtime：能力绑定、Provider 适配器、记忆、错误模型
 models/learner/      BKT 估计与更新规则
@@ -186,7 +202,7 @@ packages/            契约 schema 与 TypeScript 客户端 SDK
 data/                课程清单与试点题库
 evaluation/          离线评测入口与指标
 docs/                设计文档、实验报告、图表库与验收记录
-docs/site/           index.html 所用配图与品牌资产的生成脚本
+docs/site/           README 展示图的生成脚本
 index.html           项目网站（可直接打开，也可从仓库根提供服务）
 ```
 

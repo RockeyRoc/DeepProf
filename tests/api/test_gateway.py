@@ -31,7 +31,7 @@ def client():
 def test_health_reports_assembly_state(client):
     payload = client.get("/health").json()
     assert payload["status"] == "ok"
-    assert payload["contract_version"] == "1.4.0"
+    assert payload["contract_version"] == "1.6.0"
     assert payload["action_bindings"] == {"hint": "render_template", "teach": "render_template"}
     assert payload["providers"][0]["profile_id"] == "fake"
 
@@ -61,6 +61,44 @@ def test_new_session_command(client):
     summary = client.get(f"/sessions/{session_id}").json()
     assert summary["title"] == "线性代数"
     assert summary["learner_id"] == "L1"
+
+
+def test_web_chat_page_is_served_by_gateway(client):
+    response = client.get("/web")
+    assert response.status_code == 200
+    assert 'title>DeepProf</title>' in response.text
+    assert 'surface:\'web\'' in response.text
+
+
+def test_chat_session_can_pin_provider_and_model(client):
+    session_id = client.post(
+        "/commands",
+        json={
+            "command_id": "chat-new",
+            "client_id": "web",
+            "surface": "web",
+            "learner_id": "L1",
+            "type": "session.new",
+            "payload": {"session_mode": "chat"},
+        },
+    ).json()["session_id"]
+
+    response = client.post(
+        "/commands",
+        json={
+            "command_id": "chat-model",
+            "client_id": "web",
+            "surface": "web",
+            "session_id": session_id,
+            "learner_id": "L1",
+            "type": "session.model.set",
+            "payload": {"profile_id": "fake", "model": "fake-v2"},
+        },
+    )
+    assert response.status_code == 200
+    summary = client.get(f"/sessions/{session_id}").json()
+    assert summary["provider_profile"] == "fake"
+    assert summary["model"] == "fake-v2"
 
 
 def test_unknown_command_type_is_rejected(client):

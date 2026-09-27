@@ -248,6 +248,20 @@ async def test_local_provider_does_not_require_key():
     assert (await provider.generate({"messages": []}, {}))["content"] == "ok"
 
 
+def test_glm_and_ollama_requests_use_only_supported_openai_fields():
+    glm = make_provider(lambda _: httpx.Response(200, json={}), api_mode="chat_completions")
+    glm.profile.base_url = "https://open.bigmodel.cn/api/paas/v4"
+    glm_body = glm._body({"messages": [{"role": "user", "content": "hi"}]}, stream=True)
+    assert glm._url("/chat/completions") == "https://open.bigmodel.cn/api/paas/v4/chat/completions"
+    assert "api_mode" not in glm_body
+    assert glm_body["stream_options"] == {"include_usage": True}
+
+    ollama = make_provider(lambda _: httpx.Response(200, json={}), api_key=None, protocol="local")
+    ollama_body = ollama._body({"messages": [{"role": "user", "content": "hi"}]}, stream=True)
+    assert "api_mode" not in ollama_body
+    assert "stream_options" not in ollama_body
+
+
 # ---- 能力探测 ----
 
 async def test_probe_ok():

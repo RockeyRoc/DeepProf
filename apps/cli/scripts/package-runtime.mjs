@@ -6,11 +6,11 @@ import { fileURLToPath } from "node:url";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const root = resolve(appRoot, "../..");
-const releaseRoot = join(root, ".release");
+const releaseRoot = resolve(process.env.DEEPPROF_RELEASE_ROOT || join(root, ".release"));
 const stage = join(releaseRoot, "deepprof-cli");
 const sourceManifest = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
 const pythonDirectories = [
-  "api", "apps/replay", "config", "data/courses", "graph",
+  "api", "apps/replay", "apps/web", "config", "data/courses", "graph",
   "library", "models", "packages/contracts", "runtime", "skills", "tools",
 ];
 
@@ -18,6 +18,8 @@ function within(parent, target) {
   const path = relative(resolve(parent), resolve(target));
   return path !== "" && path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path);
 }
+
+if (!within(root, releaseRoot)) throw new Error("Release output must stay inside the repository.");
 
 function copyDirectory(source, destination) {
   cpSync(source, destination, {
@@ -69,7 +71,7 @@ for (const forbidden of [
 ]) {
   if (existsSync(join(stage, forbidden))) throw new Error(`Refusing to package restricted experiment or credential material: ${forbidden}`);
 }
-for (const required of ["runtime/api/app.py", "runtime/runtime/core/__init__.py", "runtime/graph/education/builder.py", "runtime/apps/replay/index.html", "runtime/tools/retrieval/search_textbook.py", "runtime/requirements-runtime.txt"]) {
+for (const required of ["runtime/api/app.py", "runtime/runtime/core/__init__.py", "runtime/graph/education/builder.py", "runtime/apps/replay/index.html", "runtime/apps/web/index.html", "runtime/tools/retrieval/search_textbook.py", "runtime/requirements-runtime.txt"]) {
   if (!existsSync(join(stage, required))) throw new Error(`Packaged runtime layout is incomplete: ${required}`);
 }
 

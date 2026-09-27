@@ -18,7 +18,6 @@ from runtime.core.errors import (
 )
 from runtime.providers.capabilities import CAP_JSON, CAP_STREAM, CAP_TOOLS, CAP_VISION, normalize_capabilities
 from runtime.providers.profiles import (
-    API_MODE_CHAT,
     PROTOCOL_OPENAI_COMPATIBLE,
     ProviderProfile,
 )
@@ -202,10 +201,8 @@ class OpenAICompatibleProvider:
             body["tools"] = tools
         if request.get("temperature") is not None:
             body["temperature"] = request["temperature"]
-        if stream:
+        if stream and self.profile.protocol != "local":
             body["stream_options"] = {"include_usage": True}
-        if self.profile.api_mode == API_MODE_CHAT:
-            body["api_mode"] = API_MODE_CHAT
         return body
 
     @staticmethod

@@ -1,4 +1,4 @@
-export type Surface = "cli";
+export type Surface = "cli" | "web";
 
 export interface ClientCommand {
   command_id: string;

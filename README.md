@@ -61,12 +61,17 @@ The pilot course is C-language data structures. Current published evidence cover
 Install **Node.js 22+** and **Python 3.12+**, then:
 
 ```sh
-npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz
+deepprof
 ```
 
-First run needs access to a Python package index: it creates a version-isolated environment under `~/.deepprof`, installs the Runtime dependencies, and starts a Gateway bound to `127.0.0.1`. Setup itself makes no model call. Configure an OpenAI-compatible provider with `/login`, check the install with `deepprof doctor`, add optional scanned-page OCR with `deepprof setup --ocr`.
+First run needs access to a Python package index: it creates a version-isolated environment under `~/.deepprof`, installs the Runtime dependencies, and starts a Gateway bound to `127.0.0.1`. Setup itself makes no model call. Configure a provider with `/login` — `--provider local` registers an Ollama-style endpoint on `127.0.0.1:11434`, and `--provider glm` a Zhipu endpoint. Check the install with `deepprof doctor`, add optional scanned-page OCR with `deepprof setup --ocr`.
 
-The package ships its compiled CLI, SDK, Gateway source, course manifest and local replay page — no Git or repository checkout required. PowerShell users can invoke `npx.cmd` with the same package address.
+The package ships its compiled CLI, SDK, Gateway source, course manifest, read-only replay page and browser chat — no Git or repository checkout required. Use npx only for temporary sessions; npx does not make `deepprof` available in later terminals.
+
+`deepprof web` opens the browser chat: a session list, provider and model pickers, streamed replies and a cancel button. It deliberately runs the **ordinary chat path only** — the teaching policy, evidence retrieval and BKT update are not reached from the browser, so nothing it does produces a study turn. To open a study session, use the CLI.
+
+`deepprof check-update` checks for a newer stable release (`update` is an alias). `deepprof uninstall` removes the CLI and runtime while keeping your data; `deepprof uninstall --purge` clears user data after a confirmation, or add `--yes` to skip it.
 
 <details>
 <summary><b>What the CLI actually prints</b> (transcribed from <code>apps/cli/src/index.ts</code>)</summary>
@@ -79,8 +84,13 @@ The package ships its compiled CLI, SDK, Gateway source, course manifest and loc
 DeepProf CLI v0.6.2
 
 快速开始：deepprof （首次运行时自动准备本机环境）
+  npm install --global "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz" 持久安装，之后可直接运行 deepprof
   deepprof setup [--ocr]    安装 DeepProf Runtime（可选安装扫描件 OCR）
   deepprof doctor            检查 Node.js、Python 与本地安装状态
+  deepprof web               打开本机网页聊天
+  deepprof check-update      检查稳定版更新（update 是别名）
+  deepprof uninstall         卸载 CLI 和运行环境，保留用户数据
+  deepprof uninstall --purge 清理用户数据（需确认，或加 --yes）
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
@@ -102,7 +112,7 @@ The command set printed by `/help`:
 
 | Command | Purpose |
 |---|---|
-| `/login [--show-api-key\|--hidden-api-key]` | Configure a provider profile. Keys never reach history, events, replay or arguments. |
+| `/login [--provider local\|glm] [--profile <id>] [--base-url <url>] [--model <m>] [--show-api-key\|--hidden-api-key]` | Register a provider profile. `local` sets the Ollama-style protocol. Keys never reach history, events, replay or arguments. |
 | `/new [--mode chat\|study] [--group A\|B\|C] [--course <id>] [--title <t>]` | Create a session. Defaults to ordinary chat; naming a group opens the teaching path. |
 | `/chat <text>` · `/study <text>` | Force the current turn down one path. |
 | `/ask` · `/hint` · `/quiz` · `/answer` | Run a teaching turn at a declared action family. |
@@ -128,8 +138,11 @@ flowchart LR
   Decision --> Evidence[Versioned local course index]
   Decision --> Provider[Configured model provider]
   API --> Events[(Local sessions and audit events)]
+  Chat[Browser chat] -->|chat path only| API
   Replay[Read-only replay page] --> Events
 ```
+
+The diagram above traces the teaching path; the browser chat joins the Gateway but stops at the ordinary chat path, as described in [Quick start](#quick-start).
 
 The policy graph returns a structured teaching decision and never calls the provider, database or filesystem directly. The Runtime binds allowed actions, calls the configured provider and records a replayable event trail. Student answer content and provider secrets are not included in the published experiment bundle.
 
@@ -163,6 +176,7 @@ Engineering runs end to end; the teaching claims are not yet supported. Stating 
 | | State |
 |---|---|
 | Local CLI → Gateway → policy graph → provider → replay | Working; M2 offline acceptance passed |
+| Browser chat front end | Working; ordinary chat path only — no study turn, no evidence chain |
 | Versioned course index, page-locatable evidence, audit trail | Working |
 | M1 A/B live-provider run | Run recorded; 4 cells failed and were left unrevised |
 | M3 offline framework | 400 of 400 cells completed under a local fake provider |
@@ -177,7 +191,9 @@ Next gates, in order: teacher review and double-blind case rating → BKT parame
 
 ```
 apps/cli/            TypeScript CLI — keyboard-first entry point, REPL and session handling
-api/                 Loopback FastAPI Gateway — command validation, sessions, replay API
+apps/web/            Browser chat front end, served by the Gateway at /web
+apps/replay/         Read-only page for the recorded audit trail
+api/                 Loopback FastAPI Gateway — commands, sessions, providers, replay and web
 graph/education/     Teaching policy graph (LangGraph) returning PedagogicalDecision
 runtime/             Runtime: capability binding, provider adapters, memory, error model
 models/learner/      BKT estimation and update rules
@@ -186,7 +202,7 @@ packages/            Contract schemas and the TypeScript client SDK
 data/                Course manifest and the pilot question bank
 evaluation/          Offline evaluation entry points and metrics
 docs/                Design, experiment reports, figure catalogue and acceptance records
-docs/site/           Generators for the figures and brand assets used by index.html
+docs/site/           Generator for the README banner artwork
 index.html           Project site (open it directly, or serve it from the repository root)
 ```
 

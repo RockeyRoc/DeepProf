@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.5.0",
+  "contract_version": "1.6.0",
   "_source_of_truth": "shared/contracts 的 v0.5 内容迁移到 packages/contracts；与 runtime/core/events.py 的 EventType 保持一致（守卫见 tests/test_contract_consistency.py）。",
   "envelope": {
     "event_id": "string, 事件唯一标识；重复 event_id 视为幂等重放",
@@ -11,7 +11,7 @@
     "source": "string, 产生该事件的组件（runtime | api | provider | tool | library | gateway）",
     "timestamp": "string, ISO-8601 UTC",
     "client_id": "string | null, 可选；发起命令的前端标识",
-    "surface": "string | null, 可选；cli",
+    "surface": "string | null, 可选；cli | web",
     "audience": "string | null, 可选；事件定向投递用"
   },
   "events": {

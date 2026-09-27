@@ -1,13 +1,13 @@
 {
-  "contract_version": "1.5.0",
+  "contract_version": "1.6.0",
   "ClientCommand": {
     "command_id": "string",
     "client_id": "string",
-    "surface": "cli",
+    "surface": "cli | web",
     "session_id": "string | null",
     "learner_id": "string",
     "type": "string, 见 command_types",
-    "payload": "object; session.new accepts session_mode=chat|study and experiment_run boolean (internal frozen evaluations only)",
+    "payload": "object; session.new accepts session_mode=chat|study and experiment_run boolean (internal frozen evaluations only); session.model.set accepts profile_id and model for an idle chat session",
     "timestamp": "string, ISO-8601 UTC"
   },
   "command_types": [
@@ -17,11 +17,15 @@
     "session.resume",
     "session.fork",
     "session.compact",
+    "session.model.set",
     "quiz.generate",
     "quiz.answer",
     "library.import",
     "document.convert"
   ],
-  "_surfaces": { "cli": "完整会话入口（键盘优先）" },
+  "_payloads": {
+    "session.model.set": "{profile_id: string, model: string}; chat session only, no active turn"
+  },
+  "_surfaces": { "cli": "完整会话入口（键盘优先）", "web": "本机网页聊天和 Provider 设置" },
   "_boundary": "前端不直连 Provider/Memory/Tool；不持有 API Key；统一经 Gateway 进入 Runtime。"
 }

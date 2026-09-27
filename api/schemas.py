@@ -12,7 +12,7 @@ _CONTRACTS_DIR = Path(__file__).resolve().parents[1] / "packages" / "contracts"
 _COMMANDS = json.loads((_CONTRACTS_DIR / "client_command.json").read_text(encoding="utf-8"))
 COMMAND_TYPES: frozenset[str] = frozenset(_COMMANDS["command_types"])
 
-Surface = Literal["cli"]
+Surface = Literal["cli", "web"]
 
 
 class ClientCommand(BaseModel):

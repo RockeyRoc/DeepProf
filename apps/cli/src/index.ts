@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { appendFile, readFile, writeFile, mkdir } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { DpapiSecretStore, secretEnvironmentName } from "../../../packages/client_sdk/node/dpapi_secret_store.js";
 import { ProviderClient } from "../../../packages/client_sdk/provider_client.js";
 import { CourseClient } from "../../../packages/client_sdk/course_client.js";
@@ -19,11 +19,13 @@ import {
   findSystemPython,
   isDeveloperRuntime,
   preparePythonEnvironment,
+  pythonEnvironmentPath,
   resolveRuntimePaths,
   type RuntimePaths,
 } from "./packaged_runtime.js";
 
 interface Options { json: boolean; apiUrl?: string; home?: string; command: string; args: string[]; }
+const RELEASE_URL = "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz";
 
 function parseArgs(argv: string[]): Options {
   let json = false;
@@ -116,8 +118,13 @@ function printTopLevelHelp(): void {
   console.log(`DeepProf CLI v0.6.2
 
 快速开始：deepprof （首次运行时自动准备本机环境）
+  npm install --global "${RELEASE_URL}" 持久安装，之后可直接运行 deepprof
   deepprof setup [--ocr]    安装 DeepProf Runtime（可选安装扫描件 OCR）
   deepprof doctor            检查 Node.js、Python 与本地安装状态
+  deepprof web               打开本机网页聊天
+  deepprof check-update      检查稳定版更新（update 是别名）
+  deepprof uninstall         卸载 CLI 和运行环境，保留用户数据
+  deepprof uninstall --purge 清理用户数据（需确认，或加 --yes）
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
@@ -140,6 +147,9 @@ async function printDoctor(json: boolean): Promise<void> {
     const state = JSON.parse(readFileSync(join(home, "runtime", "0.6.2", "install-state.json"), "utf8")) as { runtimeHash?: string };
     installed = Boolean(state.runtimeHash && existsSync(join(home, "runtime", "0.6.2", "venv")));
   } catch { /* Setup has not completed. */ }
+  const names = process.platform === "win32" ? ["deepprof.cmd", "deepprof.exe"] : ["deepprof"];
+  const commandPath = (process.env.PATH || "").split(delimiter).flatMap((directory) => names.map((name) => join(directory, name)))
+    .find((candidate) => existsSync(candidate)) || null;
   const gateway = createRuntime();
   let gatewayStatus: string;
   try {
@@ -153,6 +163,8 @@ async function printDoctor(json: boolean): Promise<void> {
     runtime_root: paths.runtimeRoot,
     user_data: home,
     runtime_installed: installed,
+    global_command: commandPath,
+    global_command_available: Boolean(commandPath),
     gateway: gatewayStatus,
     developer_features: isDeveloperRuntime(paths.runtimeRoot),
   };
@@ -161,6 +173,7 @@ async function printDoctor(json: boolean): Promise<void> {
     console.log(`Node.js ${report.node}: ${report.node_supported ? "OK" : "需要 22 或更新版本"}`);
     console.log(`Python: ${python.version || python.error}`);
     console.log(`DeepProf Runtime: ${installed ? "已安装" : "未安装；运行 deepprof setup"}`);
+    console.log(`全局 deepprof 命令: ${commandPath || "未找到；使用 npm 全局安装，并重开终端"}`);
     console.log(`本地 Gateway: ${gatewayStatus}`);
     console.log(`用户数据目录: ${home}`);
     if (report.developer_features) console.log("实验开发命令: 可用");
@@ -186,6 +199,65 @@ async function runChild(command: string, args: string[], env: NodeJS.ProcessEnv 
     const child = spawn(command, args, { cwd: runtimeRoot(), env, stdio: quiet ? ["ignore", "ignore", "inherit"] : "inherit", windowsHide: true });
     child.once("error", reject);
     child.once("exit", (code, signal) => signal ? reject(new Error(`child_process_signal:${signal}`)) : resolveExit(code ?? 1));
+  });
+}
+
+async function checkUpdate(json: boolean): Promise<void> {
+  const response = await fetch("https://api.github.com/repos/RockeyRoc/DeepProf/releases/latest", {
+    headers: { accept: "application/vnd.github+json", "user-agent": "DeepProf-CLI" }, signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error(`update_check_failed_http_${response.status}`);
+  const release = await response.json() as { tag_name?: string; html_url?: string; prerelease?: boolean; draft?: boolean };
+  const latest = String(release.tag_name || "").replace(/^v/, "");
+  if (!latest || release.prerelease || release.draft) throw new Error("latest_stable_release_unavailable");
+  const current = "0.6.2", newer = latest.localeCompare(current, undefined, { numeric: true }) > 0;
+  if (json) jsonResult("update", { current, latest, update_available: newer, release: release.html_url || "" });
+  else console.log(newer ? `发现新版本 ${latest}（当前 ${current}）\n更新命令：npm install --global "${RELEASE_URL.replace("v0.6.2", `v${latest}`).replace("0.6.2.tgz", `${latest}.tgz`)}"` : `已是最新稳定版 ${current}。`);
+}
+
+async function uninstall(args: string[]): Promise<void> {
+  const purge = has(args, "--purge"), home = dataHome();
+  if (purge && !has(args, "--yes")) {
+    if (!input.isTTY) throw new Error(`purge_confirmation_required; rerun with --yes to delete ${home}`);
+    const rl = readline.createInterface({ input, output });
+    try { if (await rl.question(`永久删除 ${home} 中的数据？输入 DELETE 确认：`) !== "DELETE") throw new Error("uninstall_cancelled"); }
+    finally { rl.close(); }
+  }
+  if (isDeveloperRuntime(runtimeRoot()) && process.platform === "win32" && process.env.LOCALAPPDATA) {
+    const binDir = join(process.env.LOCALAPPDATA, "DeepProf", "bin");
+    for (const name of ["deepprof.cmd", "deepprof.ps1"]) {
+      const shim = join(binDir, name);
+      if (existsSync(shim) && readFileSync(shim, "utf8").includes(runtimeRoot())) rmSync(shim, { force: true });
+    }
+  } else {
+    const result = await new Promise<number>((resolveExit, reject) => {
+      const child = spawn(process.platform === "win32" ? "npm.cmd" : "npm", ["uninstall", "--global", "@deepprof/cli"], {
+        stdio: "inherit", windowsHide: true, shell: process.platform === "win32",
+      });
+      child.once("error", reject); child.once("exit", (code) => resolveExit(code ?? 1));
+    });
+    if (result !== 0) throw new Error(`npm_uninstall_failed_${result}`);
+  }
+  const venv = pythonEnvironmentPath(home);
+  if (existsSync(venv)) rmSync(venv, { recursive: true, force: true });
+  if (purge && existsSync(home)) rmSync(home, { recursive: true, force: true });
+  console.log(purge ? "DeepProf 与用户数据已删除。" : `DeepProf CLI 和运行环境已卸载；用户数据保留于 ${home}。`);
+}
+
+async function openWeb(args: string[], apiUrl?: string): Promise<void> {
+  const runtime = createRuntime(apiUrl), status = await runtime.start();
+  if (!status.baseUrl) throw new Error("runtime_unavailable");
+  const url = `${status.baseUrl}/web`;
+  console.log(`DeepProf 网页：${url}（按 Ctrl+C 停止本机服务）`);
+  if (!has(args, "--no-open")) {
+    const command = process.platform === "win32" ? "cmd.exe" : process.platform === "darwin" ? "open" : "xdg-open";
+    const browser = spawn(command, process.platform === "win32" ? ["/c", "start", "", url] : [url], { stdio: "ignore", windowsHide: true, detached: true });
+    browser.once("error", () => console.log(`无法自动打开浏览器，请手动访问 ${url}`));
+    browser.unref();
+  }
+  await new Promise<void>((resolveStop) => {
+    const stop = () => { process.off("SIGINT", stop); process.off("SIGTERM", stop); runtime.stop(); resolveStop(); };
+    process.once("SIGINT", stop); process.once("SIGTERM", stop);
   });
 }
 
@@ -309,10 +381,14 @@ async function login(baseUrl: string, state: CliState, args: string[], json: boo
   const rl = activeReadline || readline.createInterface({ input, output });
   let closedForSecretInput = false;
   try {
+    const providerKind = flag(args, "--provider") || "";
     const profileId = flag(args, "--profile") || (terminal ? await rl.question("Profile ID [default]: ") : "default") || "default";
     const displayName = flag(args, "--display-name") || (terminal ? await rl.question("Display name [DeepProf Provider]: ") : "DeepProf Provider") || "DeepProf Provider";
-    const requestedBase = flag(args, "--base-url") || (terminal ? await rl.question("Base URL [http://127.0.0.1:11434/v1]: ") : "http://127.0.0.1:11434/v1") || "http://127.0.0.1:11434/v1";
+    const defaultBase = providerKind === "glm" ? "https://open.bigmodel.cn/api/paas/v4" : "http://127.0.0.1:11434/v1";
+    const requestedBase = flag(args, "--base-url") || (terminal ? await rl.question(`Base URL [${defaultBase}]: `) : defaultBase) || defaultBase;
     const base = normalizeProviderBaseUrl(requestedBase);
+    const protocol = providerKind === "local" || /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])(:|\/)/i.test(base) && /:11434(?:\/|$)/.test(base)
+      ? "local" : "openai_compatible";
     if (terminal && base !== requestedBase.trim().replace(/\/+$/, "")) {
       console.log(`DeepSeek Base URL 已规范为 ${base}（DeepSeek OpenAI 兼容接口不使用 /v1 前缀）。`);
     }
@@ -323,21 +399,21 @@ async function login(baseUrl: string, state: CliState, args: string[], json: boo
     }
     let key = process.env[secretEnvironmentName(`provider:${profileId}`)] || "";
     if (has(args, "--api-key-stdin")) key = (await new Promise<string>((resolve) => { let data = ""; input.setEncoding("utf8"); input.on("data", (chunk) => { data += chunk; }); input.on("end", () => resolve(data.trim())); })).trim();
-    else if (terminal && (has(args, "--show-api-key") || (!has(args, "--hidden-api-key") && !existingProfile))) {
+    else if (protocol !== "local" && terminal && (has(args, "--show-api-key") || (!has(args, "--hidden-api-key") && !existingProfile))) {
       console.log("首次配置：API Key 将在屏幕上显示；输入完成后按 Enter。以后运行 login 默认隐藏输入。");
       key = await rl.question("API Key (visible first setup): ");
-    } else if (terminal) {
+    } else if (protocol !== "local" && terminal) {
       // Raw-mode secret input needs readline detached; the REPL recreates it in finally, even on failure.
       rl.close();
       closedForSecretInput = true;
       key = await hiddenQuestion("API Key (hidden; type or paste, then press Enter): ");
     }
-    if (!key && !base.startsWith("http://127.0.0.1")) throw new Error("api_key_required_without_local_provider");
+    if (!key && protocol !== "local") throw new Error("api_key_required_without_local_provider");
     const apiKeyRef = `provider:${profileId}`;
     // Encrypt before sending the key to the local Gateway. A DPAPI failure
     // must not leave a credential in a half-configured runtime process.
     if (key && process.platform === "win32") new DpapiSecretStore().set(apiKeyRef, key);
-    const saved = await providers.upsert({ profile_id: profileId, display_name: displayName, base_url: base, default_model: model, api_key: key || undefined, models: [] });
+    const saved = await providers.upsert({ profile_id: profileId, display_name: displayName, protocol, base_url: base, default_model: model, api_key: key || undefined, models: [] });
     let models: string[] = [];
     try { models = await providers.models(profileId); } catch { /* manual model entry remains valid */ }
     const chosenModel = model || models[0] || saved.default_model;
@@ -651,7 +727,7 @@ async function repl(apiUrl?: string): Promise<void> {
       const parsed = parseInputLine(line);
       const parts = parsed.args;
       const command = parsed.command;
-      if (command === "help") { console.log("/login [--show-api-key|--hidden-api-key] /new [--mode chat|study] [--group A|B|C] /chat <内容> /study <内容> /ask /hint /quiz /answer /learner /ocr <file> /feedback /acceptance --live /report /course list|use|import|bank /sources /trace /export /resume /tree /fork /compact /models /doctor /quit"); continue; }
+      if (command === "help") { console.log("/login [--provider local] [--show-api-key|--hidden-api-key] /new [--mode chat|study] [--group A|B|C] /chat <内容> /study <内容> /ask /hint /quiz /answer /learner /ocr <file> /feedback /acceptance --live /report /course list|use|import|bank /sources /trace /export /resume /tree /fork /compact /models /doctor /quit"); continue; }
       if (command === "ask") {
         let active = state.active_session_id;
         if (!active) { active = await sessions.create("常规对话", "B", state.course_id, "chat"); state.active_session_id = active; saveState(state); }
@@ -800,6 +876,14 @@ try {
     const message = "DeepProf Runtime 已就绪。配置 Provider 后运行 deepprof 开始使用。";
     if (options.json) jsonResult("setup", { status: "ready", user_data: dataHome(), ocr: options.args.includes("--ocr") });
     else console.log(message);
+  } else if (["check-update", "update"].includes(options.command)) {
+    await checkUpdate(options.json);
+  } else if (options.command === "uninstall") {
+    await uninstall(options.args);
+  } else if (options.command === "web") {
+    if (Number(process.versions.node.split(".")[0]) < 22) throw new Error("需要 Node.js 22 或更新版本。升级后重试。");
+    prepareRuntime();
+    await openWeb(options.args, options.apiUrl);
   } else if (!options.command) {
     if (options.json) throw new Error("command_required_when_json");
     if (Number(process.versions.node.split(".")[0]) < 22) throw new Error("需要 Node.js 22 或更新版本。升级后重试。");

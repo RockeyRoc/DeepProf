@@ -71,3 +71,8 @@ test("CLI new-session defaults are chat and B-group study regardless of remember
   assert.throws(() => newSessionOptions("chat", "A"), /experiment_group_requires_study_mode/);
   assert.throws(() => newSessionOptions("invalid"), /mode_must_be_chat_or_study/);
 });
+
+test("web clients can label Gateway commands with the web surface", () => {
+  const web = new CommandBus("http://127.0.0.1", "web", "web");
+  assert.equal(web.create("session.new", { session_mode: "chat" }).surface, "web");
+});

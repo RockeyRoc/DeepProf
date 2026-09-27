@@ -5,15 +5,17 @@
 需要 Node.js 22+、Python 3.12+ 和可访问的 Python 包索引。无需安装 Git 或下载整个仓库。
 
 ```sh
-npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz
+deepprof
 ```
 
-首次启动自动在 `~/.deepprof/runtime/0.6.2` 准备独立 Python 环境并安装锁定的直接依赖，然后启动仅监听 `127.0.0.1` 的 Gateway。Windows 使用 `%USERPROFILE%\\.deepprof`。配置模型后运行 `deepprof`；运行 `deepprof setup --ocr` 安装可选 OCR 依赖，运行 `deepprof doctor` 检查环境。环境准备仅在 CLI 启动时执行，不运行 npm 安装钩子。
+全局安装后，任何目录的新终端都可以运行 `deepprof`。首次启动自动在 `~/.deepprof/runtime/0.6.2` 准备独立 Python 环境并安装锁定的直接依赖，然后启动仅监听 `127.0.0.1` 的 Gateway。Windows 使用 `%USERPROFILE%\\.deepprof`。运行 `deepprof web` 打开网页聊天，`deepprof check-update` 检查版本，`deepprof uninstall` 移除 CLI 并保留用户数据；`--purge` 会要求确认后删除数据。
 
 PowerShell 用户也可运行：
 
 ```powershell
-npx.cmd --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof
+npm.cmd install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz
+deepprof
 ```
 
 CLI 是 Runtime 的键盘优先入口，不直接调用 Provider、Memory 或数据库。它会优先连接 `DEEPPROF_API_URL` 或 `~/.deepprof/gateway.json`，否则启动一个仅监听 `127.0.0.1` 的本地 Gateway。
