@@ -6,8 +6,11 @@ Matrix products: default
   LAPACK version 3.12.1
 
 locale:
-[1] C
-system code page: 65001
+[1] LC_COLLATE=Chinese (Simplified)_China.utf8 
+[2] LC_CTYPE=Chinese (Simplified)_China.utf8   
+[3] LC_MONETARY=Chinese (Simplified)_China.utf8
+[4] LC_NUMERIC=C                               
+[5] LC_TIME=Chinese (Simplified)_China.utf8    
 
 time zone: Asia/Shanghai
 tzcode source: internal

@@ -5,4 +5,4 @@ svglite 2.2.2
 ragg 1.5.2
 font_family sans
 source_encoding ASCII with Unicode escapes
-generated_at_utc 2026-09-24 01:05:50 UTC
+generated_at_utc 2026-09-27 06:26:14 UTC

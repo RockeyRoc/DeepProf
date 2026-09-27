@@ -1,6 +1,6 @@
 {
   "snapshot_version": "deepprof-experiment-snapshot-v1",
-  "generated_at": "2026-09-24T02:17:34.461668+00:00",
+  "generated_at": "2026-09-27T06:26:05.507733+00:00",
   "figure_backend": "R / ggplot2 + patchwork",
   "code": {
     "commit": "71c5edc24c33fe94ac5ff5fb08715bdeaf655737",
@@ -123,7 +123,7 @@
     "model": "deepseek-flash",
     "model_call_count": 123,
     "model_call_count_source": "session_events:model.requested",
-    "policy_version": "ds-v0.6.2-m1.1",
+    "policy_version": "ds-v0.6.2-m2.1",
     "sampling_temperature": 0.3,
     "retrieval": {
       "top_k": 5,

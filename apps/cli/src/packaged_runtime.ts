@@ -54,6 +54,9 @@ export function resolveRuntimePaths(moduleDir = moduleDirectory, cwd = process.c
 }
 
 function findPackageRoot(moduleDir: string, runtimeRoot: string): string {
+  // A configured source checkout can contain apps/cli/package.json below the
+  // Runtime root. Prefer the root that owns the requirements used by setup.
+  if (existsSync(join(runtimeRoot, "runtime", "requirements-runtime.txt"))) return runtimeRoot;
   if (existsSync(join(runtimeRoot, "package.json"))) return runtimeRoot;
   let current = resolve(moduleDir);
   for (let depth = 0; depth < 10; depth += 1) {
