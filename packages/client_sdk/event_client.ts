@@ -3,7 +3,7 @@ import type { RuntimeEvent } from "./types.js";
 const EVENT_TYPES = [
   "session.started", "session.resumed", "session.compacted", "session.ended",
   "agent.started", "agent.turn.started", "agent.turn.completed", "agent.failed",
-  "model.requested", "model.stream.delta", "model.completed", "model.failed",
+  "model.requested", "model.stream.delta", "model.stream.reasoning.delta", "model.completed", "model.failed",
   "tool.requested", "tool.approved", "tool.started", "tool.completed", "tool.failed",
   "memory.read", "memory.write", "pedagogy.node.entered", "pedagogy.decision",
   "pedagogy.node.exited",

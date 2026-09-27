@@ -65,11 +65,11 @@ function flag(args: string[], name: string): string | undefined {
 function has(args: string[], name: string): boolean { return args.includes(name); }
 
 async function askWithInterrupt(baseUrl: string, learnerId: string, sessionId: string, content: string,
-  onDelta?: (text: string) => void, action = "ask"): Promise<Awaited<ReturnType<typeof ask>> | null> {
+  onDelta?: (text: string) => void, action = "ask", onReasoning?: (text: string) => void): Promise<Awaited<ReturnType<typeof ask>> | null> {
   const controller = new AbortController();
   const onInterrupt = () => controller.abort();
   process.once("SIGINT", onInterrupt);
-  try { return await ask(baseUrl, learnerId, sessionId, content, onDelta, action, controller.signal); }
+  try { return await ask(baseUrl, learnerId, sessionId, content, onDelta, action, controller.signal, onReasoning); }
   catch (error) {
     if (errorMessage(error) === "turn_cancelled") return null;
     throw error;
@@ -125,6 +125,11 @@ function printTopLevelHelp(): void {
   deepprof check-update      检查稳定版更新（update 是别名）
   deepprof uninstall         卸载 CLI 和运行环境，保留用户数据
   deepprof uninstall --purge 清理用户数据（需确认，或加 --yes）
+  deepprof login [--provider 厂家] [--model 默认模型] [--models 模型1,模型2]
+  deepprof providers search|list|delete  搜索、查看或删除模型服务
+  deepprof models list|add|delete        管理服务下已添加的模型
+  deepprof sessions list|rename|delete   管理普通对话
+  deepprof thinking <session_id> on|off  设置模型思考模式
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
@@ -373,6 +378,9 @@ async function hiddenQuestion(prompt: string): Promise<string> {
 async function login(baseUrl: string, state: CliState, args: string[], json: boolean,
   activeReadline?: readline.Interface, restoreReadline?: () => void): Promise<void> {
   const providers = new ProviderClient(baseUrl);
+  const configuredProfiles = await providers.list().catch(() => []);
+  const requestedProfileId = flag(args, "--profile") || "";
+  const existingConfig = configuredProfiles.find((profile) => profile.profile_id === requestedProfileId);
   if (has(args, "--api-key")) throw new Error("api_key_command_line_not_supported; use --api-key-stdin or a Secret environment variable");
   if (has(args, "--show-api-key") && has(args, "--hidden-api-key")) throw new Error("choose_one_api_key_display_mode");
   const terminal = input.isTTY && !json && !has(args, "--api-key-stdin");
@@ -381,42 +389,77 @@ async function login(baseUrl: string, state: CliState, args: string[], json: boo
   const rl = activeReadline || readline.createInterface({ input, output });
   let closedForSecretInput = false;
   try {
-    const providerKind = flag(args, "--provider") || "";
-    const profileId = flag(args, "--profile") || (terminal ? await rl.question("Profile ID [default]: ") : "default") || "default";
-    const displayName = flag(args, "--display-name") || (terminal ? await rl.question("Display name [DeepProf Provider]: ") : "DeepProf Provider") || "DeepProf Provider";
-    const defaultBase = providerKind === "glm" ? "https://open.bigmodel.cn/api/paas/v4" : "http://127.0.0.1:11434/v1";
-    const requestedBase = flag(args, "--base-url") || (terminal ? await rl.question(`Base URL [${defaultBase}]: `) : defaultBase) || defaultBase;
+    const aliases: Record<string, string> = { local: "ollama", deepseek: "deepseek" };
+    let vendorId = aliases[flag(args, "--provider") || ""] || flag(args, "--provider") || existingConfig?.vendor_id || "deepseek";
+    let matches = await providers.catalog(vendorId);
+    if (terminal) {
+      const search = await rl.question(`搜索服务厂家 [${vendorId}]: `);
+      if (search.trim()) {
+        matches = await providers.catalog(search.trim());
+        if (!matches.length) throw new Error(`provider_not_found:${search.trim()}`);
+        if (matches.length > 1) console.log(matches.map((item) => `${String(item.id)} · ${String(item.name)} (${String(item.name_en)})`).join("\n"));
+        const selected = await rl.question(`选择厂家 ID [${String(matches[0].id)}]: `);
+        vendorId = selected.trim() || String(matches[0].id);
+      }
+    }
+    const vendor = matches.find((item) => item.id === vendorId) || (await providers.catalog(vendorId)).find((item) => item.id === vendorId);
+    if (!vendor) throw new Error(`unknown_provider:${vendorId}`);
+    const protocol = vendor.protocol === "local" ? "local" : "openai_compatible";
+    const defaultBase = String(existingConfig?.base_url || vendor.base_url || "");
+    const requestedBase = flag(args, "--base-url") || (terminal ? await rl.question(`高级设置 · API 地址 [${defaultBase}]: `) : defaultBase) || defaultBase;
     const base = normalizeProviderBaseUrl(requestedBase);
-    const protocol = providerKind === "local" || /^(https?:\/\/)?(localhost|127\.0\.0\.1|\[::1\])(:|\/)/i.test(base) && /:11434(?:\/|$)/.test(base)
-      ? "local" : "openai_compatible";
+    if (!base) throw new Error("base_url_required_for_custom_provider");
     if (terminal && base !== requestedBase.trim().replace(/\/+$/, "")) {
       console.log(`DeepSeek Base URL 已规范为 ${base}（DeepSeek OpenAI 兼容接口不使用 /v1 前缀）。`);
     }
-    const model = flag(args, "--model") || (terminal ? await rl.question("Model (optional): ") : "");
-    let existingProfile = false;
-    if (terminal && !has(args, "--show-api-key")) {
-      try { existingProfile = (await providers.list()).some((profile) => profile.profile_id === profileId); } catch { /* first-run gateway may not expose profiles yet */ }
+    let key = "";
+    let profileId = requestedProfileId;
+    if (!profileId) {
+      do { profileId = `${vendorId}-${Date.now().toString(36)}`; }
+      while (configuredProfiles.some((profile) => profile.profile_id === profileId));
     }
-    let key = process.env[secretEnvironmentName(`provider:${profileId}`)] || "";
+    const apiKeyRef = existingConfig?.api_key_ref || `provider:${profileId}`;
+    const existingProfile = Boolean(existingConfig);
+    key = process.env[secretEnvironmentName(apiKeyRef)] || (process.platform === "win32" ? new DpapiSecretStore().get(apiKeyRef) || "" : "");
     if (has(args, "--api-key-stdin")) key = (await new Promise<string>((resolve) => { let data = ""; input.setEncoding("utf8"); input.on("data", (chunk) => { data += chunk; }); input.on("end", () => resolve(data.trim())); })).trim();
-    else if (protocol !== "local" && terminal && (has(args, "--show-api-key") || (!has(args, "--hidden-api-key") && !existingProfile))) {
+    else if (vendor.key_required && terminal && (has(args, "--show-api-key") || (!has(args, "--hidden-api-key") && !existingProfile))) {
       console.log("首次配置：API Key 将在屏幕上显示；输入完成后按 Enter。以后运行 login 默认隐藏输入。");
       key = await rl.question("API Key (visible first setup): ");
-    } else if (protocol !== "local" && terminal) {
+    } else if (vendor.key_required && terminal) {
       // Raw-mode secret input needs readline detached; the REPL recreates it in finally, even on failure.
       rl.close();
       closedForSecretInput = true;
-      key = await hiddenQuestion("API Key (hidden; type or paste, then press Enter): ");
+      const entered = await hiddenQuestion(`API Key (${existingProfile ? "留空沿用已保存密钥；" : ""}隐藏输入，按 Enter 继续): `);
+      if (entered) key = entered;
     }
-    if (!key && protocol !== "local") throw new Error("api_key_required_without_local_provider");
-    const apiKeyRef = `provider:${profileId}`;
+    if (!key && vendor.key_required) throw new Error("api_key_required");
+    const displayName = flag(args, "--display-name") || String(existingConfig?.display_name || vendor.name || vendorId);
+    const discovery = await providers.discover({ profile_id: profileId, display_name: displayName, vendor_id: vendorId,
+      protocol, base_url: base, api_key: key || undefined, models: [], default_model: "" });
+    const discoveryStatus = String(discovery.status || "network_error");
+    let available = Array.isArray(discovery.models) ? discovery.models as Array<Record<string, unknown>> : [];
+    if (terminal && discoveryStatus === "ok") console.log(`可用模型：\n${available.map((item) => `  ${String(item.id)}${item.reasoning_mode === "toggle" ? " · 可切换思考" : item.reasoning_mode === "always" ? " · 固定思考" : ""}`).join("\n")}`);
+    if (terminal && discoveryStatus === "authentication_failed") throw new Error("model_discovery_authentication_failed; 请检查 API Key");
+    let chosenModel = flag(args, "--model") || (existingConfig?.vendor_id === vendorId ? existingConfig.default_model : "");
+    if (!chosenModel && terminal) chosenModel = (await rl.question(`选择默认模型${available[0]?.id ? ` [${String(available[0].id)}]` : "（可手动填写 ID）"}: `)).trim() || String(available[0]?.id || "");
+    if (!chosenModel && available.length) chosenModel = String(available[0].id || "");
+    if (!chosenModel) throw new Error(discoveryStatus === "unsupported" ? "model_required; 该服务不提供模型列表，请使用 --model <model_id>" : "model_required; use --model <model_id>");
+    let additionalModels = flag(args, "--models")?.split(",").map((item) => item.trim()).filter(Boolean) || [];
+    if (terminal && discoveryStatus === "ok") {
+      const extra = await rl.question("添加其他模型 ID（逗号分隔，留空只添加默认模型）: ");
+      if (extra.trim()) additionalModels = extra.split(",").map((item) => item.trim()).filter(Boolean);
+    }
+    const retainedModels = existingConfig?.vendor_id === vendorId
+      ? [...existingConfig.models, existingConfig.default_model].filter(Boolean) : [];
+    const models = Array.from(new Set([...retainedModels, chosenModel, ...additionalModels]));
+    const capabilities = Object.fromEntries(available.filter((item) => models.includes(String(item.id))).map((item) => [String(item.id), item]));
     // Encrypt before sending the key to the local Gateway. A DPAPI failure
     // must not leave a credential in a half-configured runtime process.
     if (key && process.platform === "win32") new DpapiSecretStore().set(apiKeyRef, key);
-    const saved = await providers.upsert({ profile_id: profileId, display_name: displayName, protocol, base_url: base, default_model: model, api_key: key || undefined, models: [] });
-    let models: string[] = [];
-    try { models = await providers.models(profileId); } catch { /* manual model entry remains valid */ }
-    const chosenModel = model || models[0] || saved.default_model;
+    const saved = await providers.upsert({ profile_id: profileId, display_name: displayName, protocol, base_url: base,
+      vendor_id: vendorId, model_selection_mode: discoveryStatus === "ok" ? "catalog" : "manual",
+      model_capabilities: capabilities, default_model: chosenModel, api_key: key || undefined, models });
+    await providers.updateModels(profileId, models, chosenModel, capabilities);
     let probe: Record<string, unknown>;
     try {
       probe = await providers.probe(profileId, chosenModel || undefined);
@@ -428,6 +471,8 @@ async function login(baseUrl: string, state: CliState, args: string[], json: boo
     const data = {
       profile: saved,
       models,
+      discovered_models: available,
+      discovery_status: discoveryStatus,
       probe,
       connected: probe.status === "ok",
       persisted_secret: persisted,
@@ -444,6 +489,131 @@ async function login(baseUrl: string, state: CliState, args: string[], json: boo
   }
 }
 
+async function confirmDelete(args: string[], prompt: string, ask?: (text: string) => Promise<string>): Promise<void> {
+  if (has(args, "--yes")) return;
+  if (!input.isTTY && !ask) throw new Error("deletion_confirmation_required; rerun with --yes");
+  const answer = ask ? await ask(`${prompt} 输入 DELETE 确认：`) : await (async () => {
+    const rl = readline.createInterface({ input, output });
+    try { return await rl.question(`${prompt} 输入 DELETE 确认：`); } finally { rl.close(); }
+  })();
+  if (answer !== "DELETE") throw new Error("operation_cancelled");
+}
+
+async function manageProviders(provider: ProviderClient, args: string[], json: boolean,
+  ask?: (text: string) => Promise<string>): Promise<void> {
+  const sub = positionals(args)[0] || "list";
+  if (sub === "search") {
+    const rows = await provider.catalog(positionals(args).slice(1).join(" "));
+    if (json) jsonResult("providers.search", { providers: rows });
+    else for (const row of rows) console.log(`${String(row.id)} · ${String(row.name)} · ${String(row.base_url || "自定义地址")}`);
+    return;
+  }
+  if (sub === "list") {
+    const profiles = await provider.list();
+    if (json) jsonResult("providers.list", { providers: profiles });
+    else for (const item of profiles) console.log(`${item.profile_id} · ${item.display_name} · ${item.default_model || "未选模型"}${item.has_secret ? " · Key 已保存" : " · 无 Key"}`);
+    return;
+  }
+  if (sub === "delete") {
+    const id = positionals(args)[1] || flag(args, "--profile");
+    if (!id) throw new Error("provider_id_required");
+    await confirmDelete(args, `永久删除模型服务 ${id} 及其未被其他服务共用的凭据？`, ask);
+    const selection = await provider.defaultSelection().catch(() => null);
+    const replacement = flag(args, "--replacement") || "";
+    const replacementModel = flag(args, "--model") || "";
+    if (selection?.profile_id === id) {
+      const alternatives = (await provider.list()).filter((item) => item.profile_id !== id);
+      if (alternatives.length && !replacement) throw new Error(`replacement_provider_required; pass --replacement <profile_id> from: ${alternatives.map((item) => item.profile_id).join(", ")}`);
+    }
+    const result = await provider.deleteProfile(id, replacement, replacementModel);
+    if (json) jsonResult("providers.delete", result); else console.log(`已删除模型服务 ${id}`);
+    return;
+  }
+  throw new Error(`unknown_providers_command:${sub}`);
+}
+
+async function manageModels(provider: ProviderClient, args: string[], json: boolean,
+  ask?: (text: string) => Promise<string>): Promise<void> {
+  const parts = positionals(args);
+  const sub = parts[0] || "list";
+  const profiles = await provider.list();
+  const explicitProfile = (sub === "list" && parts.length >= 2) || ((sub === "add" || sub === "delete") && parts.length >= 3)
+    ? parts[1] : "";
+  let profileId = flag(args, "--profile") || explicitProfile;
+  if (!profileId) profileId = (await provider.defaultSelection()).profile_id;
+  const profile = profiles.find((item) => item.profile_id === profileId);
+  if (!profile) throw new Error(`provider_not_found:${profileId}`);
+  if (sub === "list") {
+    const models = profile.models.length ? profile.models : (profile.default_model ? [profile.default_model] : []);
+    if (json) jsonResult("models.list", { profile_id: profileId, models, default_model: profile.default_model });
+    else console.log(models.map((model) => `${model === profile.default_model ? "* " : "  "}${model}`).join("\n"));
+    return;
+  }
+  if (sub === "add") {
+    const explicitProfile = parts.length >= 3 ? parts[1] : "";
+    if (explicitProfile) { profileId = explicitProfile; }
+    const targetProfile = profiles.find((item) => item.profile_id === profileId);
+    if (!targetProfile) throw new Error(`provider_not_found:${profileId}`);
+    const model = parts.length >= 3 ? parts[2] : parts[1];
+    if (!model) throw new Error("model_id_required");
+    const models = Array.from(new Set([...targetProfile.models, targetProfile.default_model, model].filter(Boolean)));
+    const defaultModel = flag(args, "--default") || targetProfile.default_model || model;
+    const caps = { ...targetProfile.model_capabilities };
+    const result = await provider.updateModels(profileId, models, defaultModel, caps);
+    if (flag(args, "--default")) await provider.setDefault(profileId, defaultModel);
+    if (json) jsonResult("models.add", result); else console.log(`已添加模型 ${model}${defaultModel === model ? "（默认）" : ""}`);
+    return;
+  }
+  if (sub === "delete") {
+    const explicitProfile = parts.length >= 3 ? parts[1] : "";
+    if (explicitProfile) profileId = explicitProfile;
+    const targetProfile = profiles.find((item) => item.profile_id === profileId);
+    if (!targetProfile) throw new Error(`provider_not_found:${profileId}`);
+    const model = parts.length >= 3 ? parts[2] : parts[1];
+    if (!model) throw new Error("model_id_required");
+    await confirmDelete(args, `从 ${profileId} 中删除模型 ${model}？`, ask);
+    const replacement = flag(args, "--replacement-model") || "";
+    const replacementProfile = flag(args, "--replacement-provider") || "";
+    if (targetProfile.default_model === model && targetProfile.models.filter((item) => item !== model).length && !replacement) {
+      throw new Error(`replacement_model_required; pass --replacement-model <model_id>`);
+    }
+    const result = await provider.deleteModel(profileId, model, replacement, replacementProfile);
+    if (json) jsonResult("models.delete", result); else console.log(`已删除模型 ${model}`);
+    return;
+  }
+  throw new Error(`unknown_models_command:${sub}`);
+}
+
+async function manageSessions(sessions: ReturnType<typeof clients>["sessions"], args: string[], json: boolean,
+  state: CliState, ask?: (text: string) => Promise<string>): Promise<void> {
+  const parts = positionals(args);
+  const sub = parts[0] || "list";
+  if (sub === "list") {
+    const rows = await sessions.list(state.learner_id);
+    if (json) jsonResult("sessions.list", { sessions: rows });
+    else for (const item of rows) console.log(`${item.session_id} · ${item.session_mode || "study"} · ${item.title || "(untitled)"}`);
+    return;
+  }
+  const id = parts[1] || flag(args, "--session") || state.active_session_id || "";
+  if (!id) throw new Error("session_id_required");
+  if (sub === "rename") {
+    const title = flag(args, "--title") || parts.slice(2).join(" ").trim();
+    if (!title) throw new Error("session_title_required");
+    const result = await sessions.rename(id, title);
+    if (json) jsonResult("sessions.rename", result.result || {}, id); else console.log(`已重命名为：${title}`);
+    return;
+  }
+  if (sub === "delete") {
+    const summary = await sessions.get(id);
+    await confirmDelete(args, `永久删除普通对话“${summary.title || id}”及其所有消息？`, ask);
+    const result = await sessions.delete(id);
+    if (state.active_session_id === id) saveState({ ...state, active_session_id: null });
+    if (json) jsonResult("sessions.delete", result.result || {}, id); else console.log(`已删除会话 ${id}`);
+    return;
+  }
+  throw new Error(`unknown_sessions_command:${sub}`);
+}
+
 async function runCommand(options: Options): Promise<void> {
   const runtime = createRuntime(options.apiUrl);
   const status = await runtime.start();
@@ -455,11 +625,18 @@ async function runCommand(options: Options): Promise<void> {
   const command = options.command;
   try {
     if (command === "login") return await login(status.baseUrl, state, options.args, options.json);
+    if (command === "providers") return await manageProviders(provider, options.args, options.json);
     if (command === "models") {
-      const selection = await provider.defaultSelection();
-      const profileId = flag(options.args, "--profile") || selection.profile_id;
-      const models = await provider.models(profileId);
-      if (options.json) jsonResult(command, { profile_id: profileId, models }); else console.log(models.join("\n"));
+      return await manageModels(provider, options.args, options.json);
+    }
+    if (command === "sessions") return await manageSessions(sessions, options.args, options.json, state);
+    if (command === "thinking") {
+      const values = positionals(options.args, ["--session"]);
+      const sessionId = flag(options.args, "--session") || values[0] || state.active_session_id || "";
+      const mode = values.find((item) => item === "on" || item === "off") || "";
+      if (!sessionId || !mode) throw new Error("usage: deepprof thinking <session_id> on|off");
+      const result = await sessions.setThinking(sessionId, mode === "on");
+      if (options.json) jsonResult("thinking", result.result || {}, sessionId); else console.log(`深度思考已${mode === "on" ? "开启" : "关闭"}`);
       return;
     }
     if (command === "doctor") {
@@ -477,7 +654,8 @@ async function runCommand(options: Options): Promise<void> {
       const { sessionMode, group } = newSessionOptions(flag(options.args, "--mode"), flag(options.args, "--group"));
       const title = flag(options.args, "--title") || positionals(options.args, ["--group", "--course", "--mode", "--title"]).join(" ");
       const courseId = flag(options.args, "--course") || state.course_id;
-      const id = await sessions.create(title || (sessionMode === "chat" ? "常规对话" : "学习会话"), group, courseId, sessionMode);
+      const id = await sessions.create(title || (sessionMode === "chat" ? "常规对话" : "学习会话"), group, courseId, sessionMode, false,
+        sessionMode === "chat" ? { provider_profile: flag(options.args, "--provider"), model: flag(options.args, "--model"), thinking_enabled: has(options.args, "--thinking") } : undefined);
       saveState({ ...state, active_session_id: id, experiment_group: group, course_id: courseId });
       return options.json ? jsonResult(command, {}, id) : console.log(id);
     }
@@ -543,10 +721,11 @@ async function runCommand(options: Options): Promise<void> {
       let active = sessionId;
       if (!active) { active = await sessions.create("学习会话", state.experiment_group, state.course_id); saveState({ ...state, active_session_id: active }); }
       if (!content) throw new Error("question_required");
+      const channels = streamChannels();
       const result = await askWithInterrupt(status.baseUrl, state.learner_id, active, content,
-        options.json ? undefined : (text) => process.stdout.write(text), flag(options.args, "--action"));
+        options.json ? undefined : channels.answer, flag(options.args, "--action"), options.json ? undefined : channels.reasoning);
       if (!result) { if (!options.json) console.log("本轮已取消，会话已保留。"); return; }
-      if (options.json) jsonResult(command, { answer: result.answer, usage: result.usage, provider_profile: result.provider_profile, model: result.model,
+      if (options.json) jsonResult(command, { answer: result.answer, reasoning: result.reasoning, usage: result.usage, provider_profile: result.provider_profile, model: result.model,
         group: result.experiment_group, action: result.action, policy_version: result.policy_version,
         session_mode: result.session_mode, turn_mode: result.turn_mode,
         routing_reason: result.routing_reason, routing_version: result.routing_version,
@@ -568,8 +747,9 @@ async function runCommand(options: Options): Promise<void> {
       const content = positionals(options.args, ["--session"]).filter((item) => item !== sessionId).join(" ") || "请给我一个提示";
       let active = sessionId;
       if (!active) active = await sessions.create("学习会话", state.experiment_group, state.course_id);
+      const channels = streamChannels();
       const result = await askWithInterrupt(status.baseUrl, state.learner_id, active, content,
-        options.json ? undefined : (text) => process.stdout.write(text), "hint");
+        options.json ? undefined : channels.answer, "hint", options.json ? undefined : channels.reasoning);
       if (!result) { if (!options.json) console.log("本轮已取消，会话已保留。"); return; }
       if (!result.streamed && !options.json) process.stdout.write(result.answer);
       if (options.json) jsonResult("hint", { ...result }, active);
@@ -685,6 +865,15 @@ function printTree(nodes: Array<{ session_id: string; title: string; children: A
   for (const node of nodes) { console.log(`${"  ".repeat(depth)}${node.session_id} ${node.title || "(untitled)"}`); printTree(node.children as Array<{ session_id: string; title: string; children: Array<unknown> }>, depth + 1); }
 }
 
+function streamChannels(): { answer: (text: string) => void; reasoning: (text: string) => void } {
+  let hasReasoning = false;
+  let hasAnswer = false;
+  return {
+    reasoning(text) { if (!hasReasoning) { process.stdout.write("\n思考：\n"); hasReasoning = true; } process.stdout.write(text); },
+    answer(text) { if (!hasAnswer && hasReasoning) process.stdout.write("\n回答：\n"); hasAnswer = true; process.stdout.write(text); },
+  };
+}
+
 async function repl(apiUrl?: string): Promise<void> {
   const runtime = createRuntime(apiUrl);
   const status = await runtime.start();
@@ -727,7 +916,7 @@ async function repl(apiUrl?: string): Promise<void> {
       const parsed = parseInputLine(line);
       const parts = parsed.args;
       const command = parsed.command;
-      if (command === "help") { console.log("/login [--provider local] [--show-api-key|--hidden-api-key] /new [--mode chat|study] [--group A|B|C] /chat <内容> /study <内容> /ask /hint /quiz /answer /learner /ocr <file> /feedback /acceptance --live /report /course list|use|import|bank /sources /trace /export /resume /tree /fork /compact /models /doctor /quit"); continue; }
+      if (command === "help") { console.log("/login /providers search|list|delete /models list|add|delete /sessions list|rename|delete /thinking on|off /new [--mode chat|study] /chat <内容> /study <内容> /ask /hint /quiz /answer /learner /ocr <file> /feedback /course list|use|import|bank /sources /trace /export /resume /tree /fork /compact /doctor /quit"); continue; }
       if (command === "ask") {
         let active = state.active_session_id;
         if (!active) { active = await sessions.create("常规对话", "B", state.course_id, "chat"); state.active_session_id = active; saveState(state); }
@@ -769,8 +958,9 @@ async function repl(apiUrl?: string): Promise<void> {
         if (explicitMode === "study" && summary.session_mode === "chat") throw new Error("当前是常规对话。请先运行 /new --mode study 创建教学会话。");
         activeAbort = new AbortController();
         let result;
+        const channels = streamChannels();
         try { result = await ask(status.baseUrl, state.learner_id, active, content,
-          (text) => process.stdout.write(text), explicitMode, activeAbort.signal); }
+          channels.answer, explicitMode, activeAbort.signal, channels.reasoning); }
         finally { activeAbort = null; }
         if (!result.streamed) process.stdout.write(result.answer);
         console.log(`\n${result.turn_mode === "chat" ? "常规对话" : `${result.experiment_group} · ${result.action}`} · trace ${result.trace_id}`);
@@ -781,7 +971,8 @@ async function repl(apiUrl?: string): Promise<void> {
         activeAbort = new AbortController();
         console.log(paint("正在生成提示 · Ctrl+C 取消本轮", "dim", true));
         let result;
-        try { result = await ask(status.baseUrl, state.learner_id, active, positionals(parts, ["--session"]).join(" ") || "请给我一个提示", (text) => process.stdout.write(text), "hint", activeAbort.signal); }
+        const channels = streamChannels();
+        try { result = await ask(status.baseUrl, state.learner_id, active, positionals(parts, ["--session"]).join(" ") || "请给我一个提示", channels.answer, "hint", activeAbort.signal, channels.reasoning); }
         finally { activeAbort = null; }
         if (!result.streamed) process.stdout.write(result.answer);
         console.log(`\n${result.experiment_group} · ${result.action} · trace ${result.trace_id}`);
@@ -796,7 +987,21 @@ async function repl(apiUrl?: string): Promise<void> {
       } else if (command === "compact") {
         if (!state.active_session_id) throw new Error("session_id_required"); await sessions.compact(state.active_session_id, Number(parts[0] || 60)); console.log("compacted");
       } else if (command === "models") {
-        const selection = await new ProviderClient(status.baseUrl).defaultSelection(); console.log((await new ProviderClient(status.baseUrl).models(selection.profile_id)).join("\n"));
+        await manageModels(provider, parts, false, (text) => rl.question(text));
+      } else if (command === "providers") {
+        await manageProviders(provider, parts, false, (text) => rl.question(text));
+      } else if (command === "sessions") {
+        await manageSessions(sessions, parts, false, state, (text) => rl.question(text));
+        if (positionals(parts)[0] === "delete" && (positionals(parts)[1] || state.active_session_id) === state.active_session_id) {
+          state.active_session_id = null; saveState(state);
+        }
+      } else if (command === "thinking") {
+        const values = positionals(parts, ["--session"]);
+        const sessionId = flag(parts, "--session") || state.active_session_id;
+        const mode = values.find((item) => item === "on" || item === "off");
+        if (!sessionId || !mode) throw new Error("usage: /thinking on|off");
+        const result = await sessions.setThinking(sessionId, mode === "on");
+        console.log(`深度思考已${mode === "on" ? "开启" : "关闭"}${result.result?.reasoning_mode ? `（${String(result.result.reasoning_mode)}）` : ""}`);
       } else if (command === "doctor") {
         const selection = await new ProviderClient(status.baseUrl).defaultSelection(); console.log(await new ProviderClient(status.baseUrl).probe(selection.profile_id, selection.model));
       } else if (command === "login") {

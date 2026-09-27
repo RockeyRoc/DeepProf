@@ -61,6 +61,13 @@ class OpenAICompatibleProvider:
         client, owns = self._make_client()
         try:
             response = await client.get(url, headers=self._headers(require_key=False))
+            if response.status_code in {404, 405, 501}:
+                raise ProviderError(
+                    f"provider {self.profile_id} does not expose a model catalog",
+                    kind="model_list_unsupported",
+                    status_code=response.status_code,
+                    details={"profile_id": self.profile_id},
+                )
             self._ensure_success(response)
             data = response.json()
             models = [str(item.get("id", "")) for item in data.get("data", []) if item.get("id")]
@@ -75,7 +82,8 @@ class OpenAICompatibleProvider:
 
     async def generate(self, request: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
         body = self._body(request, stream=False)
-        client, owns = self._make_client()
+        timeout = max(self._timeout_seconds, 1800.0) if request.get("thinking_enabled") else self._timeout_seconds
+        client, owns = self._make_client(timeout_seconds=timeout)
         try:
             response = await client.post(self._url(CHAT_ENDPOINT), json=body, headers=self._headers())
             self._ensure_success(response)
@@ -92,6 +100,8 @@ class OpenAICompatibleProvider:
         message = choice.get("message") or {}
         return {
             "content": message.get("content") or "",
+            "reasoning_content": (message.get("reasoning_content") or message.get("reasoning") or "")
+            if self._reasoning_allowed(request) else "",
             "tool_calls": self._assemble_final_tool_calls(message.get("tool_calls") or []),
             "finish_reason": choice.get("finish_reason") or "",
             "usage": data.get("usage") or {},
@@ -103,7 +113,8 @@ class OpenAICompatibleProvider:
         self, request: dict[str, Any], ctx: dict[str, Any]
     ) -> AsyncIterator[dict[str, Any]]:
         body = self._body(request, stream=True)
-        client, owns = self._make_client()
+        timeout = max(self._timeout_seconds, 1800.0) if request.get("thinking_enabled") else self._timeout_seconds
+        client, owns = self._make_client(timeout_seconds=timeout)
         try:
             async with client.stream(
                 "POST", self._url(CHAT_ENDPOINT), json=body, headers=self._headers()
@@ -136,6 +147,9 @@ class OpenAICompatibleProvider:
                         continue
                     choice = choices[0]
                     delta = choice.get("delta") or {}
+                    reasoning = delta.get("reasoning_content") or delta.get("reasoning")
+                    if isinstance(reasoning, str) and reasoning and self._reasoning_allowed(request):
+                        yield {"type": "reasoning_delta", "text": reasoning}
                     text = delta.get("content")
                     if isinstance(text, str) and text:
                         yield {"type": "delta", "text": text}
@@ -162,10 +176,10 @@ class OpenAICompatibleProvider:
 
     # ---- 内部 ----
 
-    def _make_client(self) -> tuple[httpx.AsyncClient, bool]:
+    def _make_client(self, *, timeout_seconds: float | None = None) -> tuple[httpx.AsyncClient, bool]:
         if self._client is not None:
             return self._client, False
-        timeout = (self.profile.timeout_ms / 1000.0) if self.profile.timeout_ms else self._timeout_seconds
+        timeout = timeout_seconds or ((self.profile.timeout_ms / 1000.0) if self.profile.timeout_ms else self._timeout_seconds)
         client = httpx.AsyncClient(timeout=timeout, transport=self._transport)
         return client, True
 
@@ -187,12 +201,11 @@ class OpenAICompatibleProvider:
 
     def _body(self, request: dict[str, Any], *, stream: bool) -> dict[str, Any]:
         messages = request.get("messages") or []
+        model = str(request.get("model") or self.profile.default_model)
+        model_caps = dict(self.profile.model_capabilities.get(model) or {})
         body: dict[str, Any] = {
-            "model": request.get("model") or self.profile.default_model,
-            "messages": [
-                {k: v for k, v in (m if isinstance(m, dict) else m.to_dict()).items() if k != "metadata"}
-                for m in messages
-            ],
+            "model": model,
+            "messages": [self._message_for_model(m, model, model_caps) for m in messages],
             "max_tokens": int(request.get("max_tokens") or self._default_max_tokens),
             "stream": stream,
         }
@@ -201,9 +214,52 @@ class OpenAICompatibleProvider:
             body["tools"] = tools
         if request.get("temperature") is not None:
             body["temperature"] = request["temperature"]
+        thinking_enabled = request.get("thinking_enabled")
+        mode = str(model_caps.get("reasoning_mode") or "unknown")
+        if mode == "always":
+            thinking_enabled = True
+        elif mode != "toggle":
+            thinking_enabled = None
+        vendor = self.profile.vendor_id.lower()
+        if thinking_enabled is not None:
+            enabled = bool(thinking_enabled)
+            parameter = str(model_caps.get("thinking_parameter") or "")
+            if not parameter:
+                parameter = {
+                    "deepseek": "thinking.type",
+                    "qwen": "enable_thinking",
+                    "siliconflow": "enable_thinking",
+                    "openrouter": "reasoning.enabled",
+                }.get(vendor, "")
+            if parameter == "thinking.type":
+                body["thinking"] = {"type": "enabled" if enabled else "disabled"}
+            elif parameter == "enable_thinking":
+                body["enable_thinking"] = enabled
+            elif parameter == "reasoning.enabled":
+                body["reasoning"] = {"enabled": enabled}
+        if model_caps.get("max_output_tokens"):
+            body["max_tokens"] = min(body["max_tokens"], int(model_caps["max_output_tokens"]))
         if stream and self.profile.protocol != "local":
             body["stream_options"] = {"include_usage": True}
         return body
+
+    def _message_for_model(self, message: Any, model: str, model_caps: dict[str, Any]) -> dict[str, Any]:
+        data = dict(message if isinstance(message, dict) else message.to_dict())
+        metadata = dict(data.pop("metadata", {}) or {})
+        if (
+            model_caps.get("preserve_reasoning")
+            and data.get("role") == "assistant"
+            and metadata.get("provider_profile") == self.profile_id
+            and metadata.get("model") == model
+            and metadata.get("reasoning_content")
+        ):
+            data["reasoning_content"] = str(metadata["reasoning_content"])
+        return data
+
+    def _reasoning_allowed(self, request: dict[str, Any]) -> bool:
+        model = str(request.get("model") or self.profile.default_model)
+        mode = str((self.profile.model_capabilities.get(model) or {}).get("reasoning_mode") or "unknown")
+        return mode == "always" or (mode == "toggle" and bool(request.get("thinking_enabled")))
 
     @staticmethod
     def _merge_tool_call(pending: dict[int, dict[str, Any]], call: dict[str, Any]) -> None:

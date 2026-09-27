@@ -37,6 +37,9 @@ class ProviderProfile:
     timeout_ms: int = 0
     max_retries: int = 0
     capabilities: dict[str, bool] = field(default_factory=dict)
+    vendor_id: str = ""
+    model_selection_mode: str = "manual"
+    model_capabilities: dict[str, dict[str, Any]] = field(default_factory=dict)
     enabled: bool = True
 
     def to_dict(self, *, include_secret_ref: bool = True) -> dict[str, Any]:
@@ -52,6 +55,9 @@ class ProviderProfile:
             "timeout_ms": self.timeout_ms,
             "max_retries": self.max_retries,
             "capabilities": dict(self.capabilities),
+            "vendor_id": self.vendor_id,
+            "model_selection_mode": self.model_selection_mode,
+            "model_capabilities": {key: dict(value) for key, value in self.model_capabilities.items()},
             "enabled": self.enabled,
         }
         if include_secret_ref:
@@ -78,6 +84,9 @@ class ProviderProfile:
             timeout_ms=int(data.get("timeout_ms") or 0),
             max_retries=int(data.get("max_retries") or 0),
             capabilities=dict(data.get("capabilities") or {}),
+            vendor_id=str(data.get("vendor_id", "")),
+            model_selection_mode=str(data.get("model_selection_mode", "manual")),
+            model_capabilities={str(key): dict(value) for key, value in (data.get("model_capabilities") or {}).items() if isinstance(value, dict)},
             enabled=bool(data.get("enabled", True)),
         )
 

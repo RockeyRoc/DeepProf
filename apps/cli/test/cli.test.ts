@@ -19,6 +19,8 @@ test("buildTree groups forked sessions and transcript is deterministic", () => {
     "[常规对话] assistant: 你好");
   assert.equal(transcriptText([{ index: 1, role: "assistant", content: "试着想想", metadata: { turn_mode: "study" } }]),
     "[教学回合] assistant: 试着想想");
+  assert.equal(transcriptText([{ index: 2, role: "assistant", content: "答案", metadata: { turn_mode: "chat", reasoning_content: "推理" } }]),
+    "[常规对话] assistant: 答案\n思考:\n推理");
 });
 
 test("EventClient deduplicates and isolates session cursors", () => {

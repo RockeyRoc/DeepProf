@@ -31,6 +31,7 @@ class EventType(str, Enum):
 
     MODEL_REQUESTED = "model.requested"
     MODEL_STREAM_DELTA = "model.stream.delta"
+    MODEL_STREAM_REASONING_DELTA = "model.stream.reasoning.delta"
     MODEL_COMPLETED = "model.completed"
     MODEL_FAILED = "model.failed"
 
@@ -147,6 +148,9 @@ class InMemoryEventStore:
     def last_sequence(self, session_id: str) -> int:
         bucket = self._events.get(session_id)
         return bucket[-1].sequence if bucket else 0
+
+    def delete_session(self, session_id: str) -> None:
+        self._events.pop(session_id, None)
 
     def all(self) -> Iterator[RuntimeEvent]:
         for bucket in self._events.values():

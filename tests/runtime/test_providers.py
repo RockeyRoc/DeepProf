@@ -134,6 +134,51 @@ async def test_stream_emits_delta_usage_and_finish():
     assert frames[-1] == {"type": "finish", "finish_reason": "stop"}
 
 
+async def test_thinking_parameters_are_provider_and_model_capability_specific():
+    deepseek = make_provider(
+        lambda _: httpx.Response(200, json={}), vendor_id="deepseek",
+        model_capabilities={"model-a": {"reasoning_mode": "toggle", "thinking_parameter": "thinking.type"}},
+    )
+    body = deepseek._body({"model": "model-a", "messages": [], "thinking_enabled": True}, stream=False)
+    assert body["thinking"] == {"type": "enabled"}
+    disabled = deepseek._body({"model": "model-a", "messages": [], "thinking_enabled": False}, stream=False)
+    assert disabled["thinking"] == {"type": "disabled"}
+
+    qwen = make_provider(
+        lambda _: httpx.Response(200, json={}), vendor_id="qwen",
+        model_capabilities={"qwen3": {"reasoning_mode": "toggle", "thinking_parameter": "enable_thinking"}},
+    )
+    body = qwen._body({"model": "qwen3", "messages": [], "thinking_enabled": True}, stream=False)
+    assert body["enable_thinking"] is True
+    assert "thinking" not in body
+
+    unknown = make_provider(lambda _: httpx.Response(200, json={}), vendor_id="glm")
+    body = unknown._body({"messages": [], "thinking_enabled": True}, stream=False)
+    assert "thinking" not in body and "enable_thinking" not in body and "reasoning" not in body
+
+
+async def test_reasoning_sse_frames_are_separate_from_answer_frames():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["thinking"] == {"type": "enabled"}
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(
+            {"choices": [{"delta": {"reasoning_content": "推理"}, "finish_reason": None}]},
+            delta("正文"),
+            {"choices": [{"delta": {}, "finish_reason": "stop"}]},
+        ))
+
+    provider = make_provider(
+        handler, vendor_id="deepseek",
+        model_capabilities={"model-a": {"reasoning_mode": "toggle", "thinking_parameter": "thinking.type"}},
+    )
+    frames = [frame async for frame in provider.stream({"model": "model-a", "messages": [], "thinking_enabled": True}, {})]
+    assert frames[:2] == [
+        {"type": "reasoning_delta", "text": "推理"},
+        {"type": "delta", "text": "正文"},
+    ]
+    assert frames[-1] == {"type": "finish", "finish_reason": "stop"}
+
+
 async def test_stream_assembles_tool_calls_by_index():
     """流式工具调用按 index 增量装配：id/name 先到，arguments 分片拼接。"""
 

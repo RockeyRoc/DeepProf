@@ -6,6 +6,7 @@ import type { ExperimentGroup, RuntimeEvent, SessionMessage, SessionSummary } fr
 export interface AskResult {
   session_id: string;
   answer: string;
+  reasoning: string;
   usage: Record<string, unknown>;
   provider_profile: string | null;
   model: string | null;
@@ -42,6 +43,7 @@ export async function ask(
   onDelta?: (text: string) => void,
   requestedAction = "",
   signal?: AbortSignal,
+  onReasoning?: (text: string) => void,
 ): Promise<AskResult> {
   const { sessions, commands } = clients(baseUrl, learnerId);
   const summary = await sessions.get(sessionId);
@@ -50,6 +52,7 @@ export async function ask(
   if (!traceId) throw new Error("turn_trace_id_missing");
   const events: RuntimeEvent[] = [];
   let answer = "";
+  let reasoning = "";
   let usage: Record<string, unknown> = {};
   let providerProfile: string | null = null;
   let model: string | null = null;
@@ -83,6 +86,11 @@ export async function ask(
         answer += text;
         streamed = true;
         onDelta?.(text);
+      } else if (event.type === "model.stream.reasoning.delta") {
+        const text = String(event.payload.text || "");
+        reasoning += text;
+        streamed = true;
+        onReasoning?.(text);
       } else if (event.type === "model.completed") {
         usage = (event.payload.usage && typeof event.payload.usage === "object") ? event.payload.usage as Record<string, unknown> : {};
       } else if (event.type === "agent.turn.started") {
@@ -137,14 +145,19 @@ export async function ask(
     await Promise.race([
       done,
       cancelled,
-      new Promise<never>((_, reject) => { timeout = setTimeout(() => reject(new Error("turn_timeout")), 180_000); }),
+      new Promise<never>((_, reject) => {
+        const waitMs = summary.thinking_enabled ? 1_800_000 : 180_000;
+        timeout = setTimeout(() => reject(new Error("turn_timeout")), waitMs);
+      }),
     ]);
     settled = true;
     if (!answer) {
       const transcript = await sessions.transcript(sessionId);
-      answer = transcript.filter((message) => message.role === "assistant").at(-1)?.content || "";
+      const last = transcript.filter((message) => message.role === "assistant").at(-1);
+      answer = last?.content || "";
+      reasoning = String(last?.metadata?.reasoning_content || "");
     }
-    return { session_id: sessionId, answer, usage, provider_profile: providerProfile || summary.provider_profile || null,
+    return { session_id: sessionId, answer, reasoning, usage, provider_profile: providerProfile || summary.provider_profile || null,
       model: model || summary.model || null, last_sequence: eventClient.lastSequence, trace_id: traceId,
       session_mode: summary.session_mode || "study", turn_mode: turnMode, routing_reason: routingReason,
       routing_version: routingVersion,
@@ -175,6 +188,8 @@ export function transcriptText(messages: SessionMessage[]): string {
   return messages.map((message) => {
     const mode = message.metadata?.turn_mode === "chat" ? "常规对话"
       : message.metadata?.turn_mode === "study" ? "教学回合" : "";
-    return `${mode ? `[${mode}] ` : ""}${message.role}: ${message.content}`;
+    const reasoning = typeof message.metadata?.reasoning_content === "string" && message.metadata.reasoning_content
+      ? `\n思考:\n${message.metadata.reasoning_content}` : "";
+    return `${mode ? `[${mode}] ` : ""}${message.role}: ${message.content}${reasoning}`;
   }).join("\n");
 }

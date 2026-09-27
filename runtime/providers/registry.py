@@ -95,6 +95,9 @@ class ProviderRegistry:
         self._fallbacks.pop(profile_id, None)
         self._roles = {role: binding for role, binding in self._roles.items() if binding[0] != profile_id}
 
+    def unset_role(self, role: str) -> None:
+        self._roles.pop(role, None)
+
     def get(self, profile_id: str) -> Provider:
         if profile_id not in self._providers:
             raise ValueError(

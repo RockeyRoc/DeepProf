@@ -123,6 +123,33 @@ class SqliteSessionStore:
             ).fetchall()
         return [str(row["session_id"]) for row in rows]
 
+    def delete(self, session_id: str) -> bool:
+        """Permanently remove a session, its messages/events and detach child branches atomically."""
+        self._conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = self._conn.execute("SELECT 1 FROM sessions WHERE session_id = ?", (session_id,)).fetchone()
+            if row is None:
+                self._conn.rollback()
+                return False
+            children = self._conn.execute("SELECT session_id, payload FROM sessions WHERE parent_id = ?", (session_id,)).fetchall()
+            for child in children:
+                try:
+                    payload = json.loads(child["payload"] or "{}")
+                except json.JSONDecodeError:
+                    payload = {}
+                payload["parent_id"] = None
+                self._conn.execute("UPDATE sessions SET parent_id=NULL, payload=? WHERE session_id=?",
+                                   (json.dumps(payload, ensure_ascii=False, default=str), child["session_id"]))
+            self._conn.execute("DELETE FROM events WHERE session_id = ?", (session_id,))
+            self._conn.execute("UPDATE command_receipts SET session_id=NULL, status='deleted', result='{}' WHERE session_id = ?",
+                               (session_id,))
+            self._conn.execute("DELETE FROM sessions WHERE session_id = ?", (session_id,))
+            self._conn.commit()
+            return True
+        except BaseException:
+            self._conn.rollback()
+            raise
+
     def close(self) -> None:
         self._conn.close()
 

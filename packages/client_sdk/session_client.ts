@@ -14,9 +14,11 @@ export class SessionClient {
     return response.json() as Promise<SessionSummary[]>;
   }
 
-  async create(title = "学习会话", group = "B", courseId = "ds.c_language.v1", sessionMode: "chat" | "study" = "study", experimentRun = false): Promise<string> {
+  async create(title = "学习会话", group = "B", courseId = "ds.c_language.v1", sessionMode: "chat" | "study" = "study", experimentRun = false,
+    selection?: { provider_profile?: string; model?: string; thinking_enabled?: boolean }): Promise<string> {
     const payload: Record<string, unknown> = { title, session_mode: sessionMode };
     if (sessionMode === "study") Object.assign(payload, { group, course_id: courseId, experiment_run: experimentRun });
+    else if (selection) Object.assign(payload, selection);
     const accepted = await this.commands.send(this.commands.create("session.new", payload));
     if (!accepted.session_id) throw new Error("session_not_created");
     return accepted.session_id;
@@ -58,5 +60,17 @@ export class SessionClient {
 
   async compact(sessionId: string, keep = 60): Promise<CommandAccepted> {
     return this.commands.send(this.commands.create("session.compact", { keep }, sessionId));
+  }
+
+  async rename(sessionId: string, title: string): Promise<CommandAccepted> {
+    return this.commands.send(this.commands.create("session.rename", { title }, sessionId));
+  }
+
+  async delete(sessionId: string): Promise<CommandAccepted> {
+    return this.commands.send(this.commands.create("session.delete", {}, sessionId));
+  }
+
+  async setThinking(sessionId: string, enabled: boolean): Promise<CommandAccepted> {
+    return this.commands.send(this.commands.create("session.thinking.set", { enabled }, sessionId));
   }
 }

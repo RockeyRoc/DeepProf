@@ -14,8 +14,8 @@ from graph.education.policies import EVIDENCE_GAP_TEXT, GENERATE_TEMPERATURE
 from evaluation.question_bank import QuestionBankError, load_bank
 from models.learner.bkt import DEFAULT_PARAMETERS, parameters_from_snapshot
 
-from api.event_types import (CONVERSATION_TURN_COMPLETED_EVENT, TEACHING_DECISION_EVENT,
-                             TEACHING_TURN_COMPLETED_EVENT)
+from api.event_types import (CONVERSATION_TURN_COMPLETED_EVENT, MESSAGE_DELETE_EVENT, MESSAGE_EDIT_EVENT,
+                             MESSAGE_REGENERATE_EVENT, TEACHING_DECISION_EVENT, TEACHING_TURN_COMPLETED_EVENT)
 from api.schemas import ClientCommand, CommandAccepted, SessionMessageView, SessionSummary
 from runtime.core.events import EventType, RuntimeEvent, new_id
 from runtime.core.message import Message
@@ -102,7 +102,9 @@ async def session_learner_estimates(session_id: str, request: Request, concept_i
 @router.post("/commands", response_model=CommandAccepted)
 async def post_command(command: ClientCommand, request: Request) -> CommandAccepted:
     service = _service(request)
-    if command.type in {"message.send", "session.resume", "session.fork", "session.compact", "turn.cancel", "session.model.set"} and not command.session_id:
+    if command.type in {"message.send", "message.edit", "message.regenerate", "message.delete", "session.resume",
+                        "session.fork", "session.compact", "turn.cancel", "session.model.set", "session.rename",
+                        "session.delete", "session.thinking.set"} and not command.session_id:
         raise HTTPException(status_code=400, detail="session_id is required for this command")
     receipts = request.app.state.command_store
     prior = receipts.get(command.command_id)
@@ -132,6 +134,31 @@ async def post_command(command: ClientCommand, request: Request) -> CommandAccep
             if mode == "study" and course_id != manifest["course_id"]:
                 raise HTTPException(status_code=404, detail={"code": "course_not_found", "message": "课程不存在"})
             profile_id, model = _provider_snapshot(service)
+            requested_profile = str(command.payload.get("provider_profile") or "").strip()
+            requested_model = str(command.payload.get("model") or "").strip()
+            selected_profile = None
+            if requested_profile:
+                try:
+                    selected_profile = service.router.profile(requested_profile)
+                except ValueError as exc:
+                    raise HTTPException(status_code=404, detail={"code": "provider_not_found", "message": str(exc)}) from exc
+                profile_id = requested_profile
+                model = requested_model or selected_profile.default_model
+            elif profile_id:
+                try:
+                    selected_profile = service.router.profile(profile_id)
+                except ValueError:
+                    selected_profile = None
+            if mode == "chat" and selected_profile and model:
+                if selected_profile.models and model not in selected_profile.models:
+                    raise HTTPException(status_code=409, detail={"code": "model_not_added", "message": "所选模型尚未添加到该服务。"})
+                if not selected_profile.models and selected_profile.model_selection_mode != "manual" and model != selected_profile.default_model:
+                    raise HTTPException(status_code=409, detail={"code": "model_not_added", "message": "请先将所选模型添加到该服务。"})
+            thinking_enabled = bool(command.payload.get("thinking_enabled", False)) if mode == "chat" else False
+            selected_caps = dict(selected_profile.model_capabilities.get(model) or {}) if selected_profile and model else {}
+            reasoning_mode = str(selected_caps.get("reasoning_mode") or "unknown")
+            if thinking_enabled and reasoning_mode not in {"toggle", "always"}:
+                raise HTTPException(status_code=409, detail={"code": "thinking_capability_unknown", "message": "当前模型未确认支持可开关的深度思考。"})
             session = service.new_session(learner_id=command.learner_id, title=str(command.payload.get("title", "")))
             try:
                 bank_version = str(load_bank().get("version") or "")
@@ -156,6 +183,7 @@ async def post_command(command: ClientCommand, request: Request) -> CommandAccep
             else:
                 session.metadata["provider_profile"] = profile_id
                 session.metadata["model"] = model
+                session.metadata["thinking_enabled"] = thinking_enabled or reasoning_mode == "always"
                 session.metadata["chat_routing_version"] = CHAT_ROUTING_VERSION
             service.save_session(session)
             session_id = session.session_id
@@ -280,10 +308,62 @@ async def post_command(command: ClientCommand, request: Request) -> CommandAccep
                 raise HTTPException(status_code=404, detail={"code": "provider_not_found", "message": str(exc)}) from exc
             if not profile.enabled:
                 raise HTTPException(status_code=409, detail={"code": "provider_disabled", "message": "Provider 已停用"})
+            if not model:
+                model = profile.default_model
+            if not model or (profile.models and model not in profile.models) or (not profile.models and profile.model_selection_mode != "manual" and model != profile.default_model):
+                raise HTTPException(status_code=409, detail={"code": "model_not_added", "message": "所选模型尚未添加到该服务。"})
             session.metadata["provider_profile"] = profile_id
-            session.metadata["model"] = model or profile.default_model
+            session.metadata["model"] = model
+            model_caps = dict(profile.model_capabilities.get(session.metadata["model"]) or {})
+            mode = str(model_caps.get("reasoning_mode") or "unknown")
+            session.metadata["thinking_enabled"] = mode == "always"
             service.save_session(session)
             result_data = {"provider_profile": profile_id, "model": session.metadata["model"]}
+        elif command.type == "session.rename":
+            session = service.get_session(str(command.session_id))
+            if str(session.metadata.get("session_mode") or "study") != "chat":
+                raise HTTPException(status_code=409, detail={"code": "chat_session_required", "message": "只有普通对话可以重命名。"})
+            if session.session_id in request.app.state.active_turns:
+                raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": "请等待当前回合结束后再重命名。"})
+            title = str(command.payload.get("title") or "").strip()
+            if not 1 <= len(title) <= 100:
+                raise HTTPException(status_code=422, detail={"code": "invalid_session_title", "message": "会话名称需为 1–100 个字符。"})
+            session.title = title
+            service.save_session(session)
+            result_data = {"session_id": session.session_id, "title": title}
+        elif command.type == "session.thinking.set":
+            session = service.get_session(str(command.session_id))
+            if str(session.metadata.get("session_mode") or "study") != "chat":
+                raise HTTPException(status_code=409, detail={"code": "chat_session_required", "message": "深度思考设置仅适用于普通对话。"})
+            if session.session_id in request.app.state.active_turns:
+                raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": "请等待当前回合结束后再修改思考设置。"})
+            enabled = bool(command.payload.get("enabled", False))
+            profile_id = str(session.metadata.get("provider_profile") or "")
+            model = str(session.metadata.get("model") or "")
+            profile = service.router.profile(profile_id) if profile_id else None
+            model_caps = dict(profile.model_capabilities.get(model) or {}) if profile else {}
+            mode = str(model_caps.get("reasoning_mode") or "unknown")
+            if enabled and mode not in {"toggle", "always"}:
+                raise HTTPException(status_code=409, detail={"code": "thinking_capability_unknown", "message": "当前模型未确认支持可开关的深度思考。"})
+            if not enabled and mode == "always":
+                raise HTTPException(status_code=409, detail={"code": "thinking_always_on", "message": "当前模型固定启用思考，不能关闭。"})
+            session.metadata["thinking_enabled"] = enabled or mode == "always"
+            service.save_session(session)
+            result_data = {"enabled": session.metadata["thinking_enabled"], "reasoning_mode": mode}
+        elif command.type == "session.delete":
+            session = service.get_session(str(command.session_id))
+            if str(session.metadata.get("session_mode") or "study") != "chat":
+                raise HTTPException(status_code=409, detail={"code": "chat_session_required", "message": "只有普通对话可以删除。"})
+            if session.session_id in request.app.state.active_turns:
+                raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": "请停止当前生成后再删除会话。"})
+            store = service.sessions
+            if store is None or not callable(getattr(store, "delete", None)) or not store.delete(session.session_id):
+                raise HTTPException(status_code=404, detail={"code": "session_not_found", "message": "会话不存在。"})
+            delete_events = getattr(service.events, "delete_session", None)
+            if callable(delete_events):
+                delete_events(session.session_id)
+            result_data = {"deleted": True, "title": session.title}
+            session_id = None
         elif command.type in {"session.resume", "session.fork", "session.compact", "message.send"}:
             session = service.get_session(str(command.session_id))
             if command.type == "session.resume":
@@ -325,28 +405,70 @@ async def post_command(command: ClientCommand, request: Request) -> CommandAccep
                     raise HTTPException(status_code=409, detail={"code": "experiment_chat_disabled", "message": "实验会话固定使用教学模式"})
                 if session_mode == "chat" and requested_action in {"study", "hint", "quiz", "answer"}:
                     raise HTTPException(status_code=409, detail={"code": "study_session_required", "message": "请创建教学会话后再使用教学功能"})
-                async with request.app.state.turn_lock:
-                    if session.session_id in request.app.state.active_turns:
-                        raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": "此会话已有活动回合"})
-                    request.app.state.active_turns.add(session.session_id)
-                    session.metadata["active_turn"] = {
-                        "command_id": command.command_id,
-                        "trace_id": trace_id,
-                        "status": "running",
-                    }
-                    service.save_session(session)
-                    ctx = {"session_id": session.session_id, "trace_id": trace_id, "learner_id": session.learner_id,
-                           "client_id": command.client_id, "surface": command.surface,
-                           "command_id": command.command_id,
-                           "provider_profile": str(experiment.get("provider_profile") or session.metadata.get("provider_profile") or ""),
-                           "model": str(experiment.get("model") or session.metadata.get("model") or ""),
-                           "freeze_model": bool(experiment.get("model_snapshot") == "frozen" or session.metadata.get("model")),
-                           "generation_config": dict(experiment.get("sampling") or {"temperature": GENERATE_TEMPERATURE}),
-                           "requested_action": requested_action,
-                           "session_mode": session_mode,
-                           "m3_evidence_options": dict(getattr(request.app.state, "m3_evidence_options", {}).get(session.session_id) or {})}
-                    task = asyncio.create_task(_run_turn(service, session, text, ctx, request.app.state))
-                    request.app.state.turn_tasks[session.session_id] = task
+                if session_mode == "chat":
+                    _assert_chat_model_ready(service, session)
+                await _begin_turn(service=service, session=session, text=text, command=command,
+                                  trace_id=trace_id, app_state=request.app.state,
+                                  requested_action=requested_action)
+        elif command.type == "message.delete":
+            session = service.get_session(str(command.session_id))
+            _require_chat_session(session, "只有普通对话可以删除消息。")
+            _require_idle(session, request.app.state, "请等待当前回合结束后再删除消息。")
+            index = _message_index(command.payload, len(session.messages))
+            removed = session.messages.pop(index)
+            service.save_session(session)
+            await service.emit(RuntimeEvent(type=MESSAGE_DELETE_EVENT,
+                payload={"index": index, "role": removed.role, "remaining": len(session.messages)},
+                session_id=session.session_id, trace_id=trace_id, source="gateway",
+                client_id=command.client_id, surface=command.surface).to_dict())
+            result_data = {"index": index, "role": removed.role, "remaining": len(session.messages)}
+        elif command.type == "message.edit":
+            session = service.get_session(str(command.session_id))
+            _require_chat_session(session, "只有普通对话可以编辑消息。")
+            _require_idle(session, request.app.state, "请等待当前回合结束后再编辑消息。")
+            index = _message_index(command.payload, len(session.messages))
+            if session.messages[index].role != "user":
+                raise HTTPException(status_code=422, detail={"code": "not_a_user_message", "message": "只能编辑你自己的消息。"})
+            content = str(command.payload.get("content") or "").strip()
+            if not content:
+                raise HTTPException(status_code=422, detail={"code": "message_content_required", "message": "编辑后的消息不能为空。"})
+            # 校验全部通过之后才动历史：被拒绝的请求不改变会话任何状态。
+            _assert_chat_model_ready(service, session)
+            dropped = len(session.messages) - index
+            del session.messages[index:]
+            service.save_session(session)
+            await service.emit(RuntimeEvent(type=MESSAGE_EDIT_EVENT, payload={"index": index, "dropped": dropped},
+                session_id=session.session_id, trace_id=trace_id, source="gateway",
+                client_id=command.client_id, surface=command.surface).to_dict())
+            await _begin_turn(service=service, session=session, text=content, command=command,
+                              trace_id=trace_id, app_state=request.app.state, requested_action="chat")
+            result_data = {"index": index, "dropped": dropped}
+        elif command.type == "message.regenerate":
+            session = service.get_session(str(command.session_id))
+            _require_chat_session(session, "只有普通对话可以重新生成。")
+            _require_idle(session, request.app.state, "请等待当前回合结束后再重新生成。")
+            total = len(session.messages)
+            index = _message_index(command.payload, total, default_last=True)
+            if session.messages[index].role != "assistant":
+                raise HTTPException(status_code=422, detail={"code": "not_an_assistant_message", "message": "只能重新生成助手的回复。"})
+            # 重新生成只针对最新一条回复：它的后面不能还有别的消息，否则会连带丢掉。
+            if index != total - 1:
+                raise HTTPException(status_code=409, detail={"code": "not_the_last_message", "message": "只能重新生成最后一条回复。"})
+            if index == 0 or session.messages[index - 1].role != "user":
+                raise HTTPException(status_code=409, detail={"code": "no_preceding_user_message", "message": "上一条不是你的消息，无法重新生成。"})
+            text = session.messages[index - 1].content
+            _assert_chat_model_ready(service, session)
+            session.messages.pop()
+            service.save_session(session)
+            await service.emit(RuntimeEvent(type=MESSAGE_REGENERATE_EVENT,
+                payload={"index": index, "remaining": len(session.messages)},
+                session_id=session.session_id, trace_id=trace_id, source="gateway",
+                client_id=command.client_id, surface=command.surface).to_dict())
+            # append_user=False：上一轮的提问已经在历史里，不能再追加一条，否则上下文会重复
+            await _begin_turn(service=service, session=session, text=text, command=command,
+                              trace_id=trace_id, app_state=request.app.state, requested_action="chat",
+                              append_user=False)
+            result_data = {"index": index, "remaining": len(session.messages)}
         else:
             raise HTTPException(status_code=501, detail=f"command type not implemented: {command.type}")
 
@@ -362,6 +484,86 @@ def _receipt_response(command_id: str, receipt: dict[str, Any]) -> CommandAccept
     return CommandAccepted(command_id=command_id, session_id=receipt.get("session_id"),
                            status=str(receipt.get("status") or "accepted"), trace_id=receipt.get("trace_id"),
                            result=dict(receipt.get("result") or {}))
+
+
+def _require_chat_session(session: Session, message: str) -> None:
+    """消息级改写只允许出现在普通对话里。
+
+    教学会话（study）承载 M1–M3 的实验证据，历史一旦被二次编辑就无法回溯，
+    因此这里与 session.rename / session.delete 用同一条判据把它挡在门外。
+    """
+    if str(session.metadata.get("session_mode") or "study") != "chat":
+        raise HTTPException(status_code=409, detail={"code": "chat_session_required", "message": message})
+
+
+def _require_idle(session: Session, state: Any, message: str) -> None:
+    if session.session_id in state.active_turns:
+        raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": message})
+
+
+def _message_index(payload: dict[str, Any], total: int, *, default_last: bool = False) -> int:
+    """取出消息下标；越界或类型不对一律 422，绝不静默落到别的消息上。"""
+    raw = payload.get("index")
+    if raw is None and default_last:
+        raw = total - 1
+    if isinstance(raw, bool) or not isinstance(raw, int):
+        try:
+            raw = int(str(raw))
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=422,
+                                detail={"code": "invalid_message_index", "message": "请提供要操作的消息序号。"})
+    if not 0 <= raw < total:
+        raise HTTPException(status_code=422,
+                            detail={"code": "invalid_message_index", "message": "消息序号超出范围。"})
+    return raw
+
+
+def _assert_chat_model_ready(service: RuntimeService, session: Session) -> None:
+    """续写 chat 会话之前，确认它绑定的服务与模型仍然可用。"""
+    profile_id = str(session.metadata.get("provider_profile") or "")
+    model = str(session.metadata.get("model") or "")
+    try:
+        profile = service.router.profile(profile_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail={"code": "model_reselection_required", "message": "此会话使用的模型服务已删除，请重新选择模型后继续。"}) from exc
+    if not profile.enabled:
+        raise HTTPException(status_code=409, detail={"code": "model_reselection_required", "message": "此会话使用的模型服务已停用，请重新选择模型后继续。"})
+    if not model or (profile.models and model not in profile.models) or (not profile.models and profile.model_selection_mode != "manual" and model != profile.default_model):
+        raise HTTPException(status_code=409, detail={"code": "model_reselection_required", "message": "此会话使用的模型已不在已添加列表中，请重新选择模型后继续。"})
+
+
+async def _begin_turn(*, service: RuntimeService, session: Session, text: str, command: ClientCommand,
+                      trace_id: str, app_state: Any, requested_action: str = "auto",
+                      append_user: bool = True) -> None:
+    """在会话上开启一轮生成。
+
+    message.send / message.edit / message.regenerate 共用这一个入口；``append_user``
+    为 False 时不再追加提问——重新生成时那条提问已经躺在历史里了。
+    """
+    experiment = dict(session.metadata.get("experiment") or {})
+    async with app_state.turn_lock:
+        if session.session_id in app_state.active_turns:
+            raise HTTPException(status_code=409, detail={"code": "turn_already_active", "message": "此会话已有活动回合"})
+        app_state.active_turns.add(session.session_id)
+        session.metadata["active_turn"] = {
+            "command_id": command.command_id,
+            "trace_id": trace_id,
+            "status": "running",
+        }
+        service.save_session(session)
+        ctx = {"session_id": session.session_id, "trace_id": trace_id, "learner_id": session.learner_id,
+               "client_id": command.client_id, "surface": command.surface,
+               "command_id": command.command_id,
+               "provider_profile": str(experiment.get("provider_profile") or session.metadata.get("provider_profile") or ""),
+               "model": str(experiment.get("model") or session.metadata.get("model") or ""),
+               "thinking_enabled": bool(session.metadata.get("thinking_enabled", False)),
+               "freeze_model": bool(experiment.get("model_snapshot") == "frozen" or session.metadata.get("model")),
+               "generation_config": dict(experiment.get("sampling") or {"temperature": GENERATE_TEMPERATURE}),
+               "requested_action": requested_action,
+               "session_mode": str(session.metadata.get("session_mode") or "study"),
+               "m3_evidence_options": dict(getattr(app_state, "m3_evidence_options", {}).get(session.session_id) or {})}
+        task = asyncio.create_task(_run_turn(service, session, text, ctx, app_state, append_user=append_user))
+        app_state.turn_tasks[session.session_id] = task
 
 
 def _provider_snapshot(service: RuntimeService) -> tuple[str, str]:
@@ -442,7 +644,8 @@ def _locator(item: dict[str, Any]) -> dict[str, Any]:
     return {key: item[key] for key in allowed if item.get(key) is not None}
 
 
-async def _run_turn(service: RuntimeService, session: Session, text: str, ctx: dict[str, Any], app_state: Any) -> None:
+async def _run_turn(service: RuntimeService, session: Session, text: str, ctx: dict[str, Any], app_state: Any,
+                    *, append_user: bool = True) -> None:
     """选择聊天或冻结的教学路径，并将本轮状态与终态事件持久化。"""
     experiment = dict(session.metadata.get("experiment") or {})
     group = str(experiment.get("group") or "B").upper()
@@ -458,8 +661,11 @@ async def _run_turn(service: RuntimeService, session: Session, text: str, ctx: d
     action = ""
     citations: list[dict[str, Any]] = []
     try:
-        session.append(Message(role="user", content=text, metadata={"turn_mode": turn_mode,
-            "routing_reason": routing_reason, "routing_version": CHAT_ROUTING_VERSION}))
+        # 重新生成时不追加提问：那条提问已经在历史里，_run_chat_turn 取的正是 session.messages[-1]
+        if append_user:
+            session.append(Message(role="user", content=text, metadata={"turn_mode": turn_mode,
+                "routing_reason": routing_reason, "routing_version": CHAT_ROUTING_VERSION,
+                "thinking_enabled": bool(ctx.get("thinking_enabled")) if turn_mode == "chat" else False}))
         if turn_mode == "study":
             session.metadata["experiment"] = {**experiment, "group": group, "course_id": course_id}
         service.save_session(session)
@@ -471,12 +677,15 @@ async def _run_turn(service: RuntimeService, session: Session, text: str, ctx: d
         await service.emit(RuntimeEvent(type=EventType.AGENT_TURN_STARTED.value, payload=started_payload,
             session_id=session.session_id, trace_id=ctx["trace_id"], client_id=ctx.get("client_id"), surface=ctx.get("surface")).to_dict())
         if turn_mode == "chat":
-            answer = await _run_chat_turn(service, session, ctx)
+            ctx["chat_capture"] = {"answer": "", "reasoning": ""}
+            answer, reasoning = await _run_chat_turn(service, session, ctx)
             if not answer.strip():
                 raise RuntimeError("empty_model_response")
             session.append(Message(role="assistant", content=answer, metadata={"trace_id": ctx["trace_id"],
                 "turn_mode": "chat", "routing_reason": routing_reason, "routing_version": CHAT_ROUTING_VERSION,
-                "provider_profile": profile_id, "model": model}))
+                "provider_profile": profile_id, "model": model, "thinking_enabled": bool(ctx.get("thinking_enabled")),
+                "reasoning_content": reasoning, "reasoning_status": "complete" if reasoning else "empty"}))
+            ctx["chat_assistant_saved"] = True
             await service.emit(RuntimeEvent(type=CONVERSATION_TURN_COMPLETED_EVENT, payload={
                 "session_mode": str(session.metadata.get("session_mode") or "chat"), "turn_mode": "chat",
                 "routing_reason": routing_reason, "routing_version": CHAT_ROUTING_VERSION},
@@ -576,6 +785,15 @@ async def _run_turn(service: RuntimeService, session: Session, text: str, ctx: d
         await service.emit(RuntimeEvent(type=EventType.AGENT_TURN_COMPLETED.value, payload={"status": "failed"},
             session_id=session.session_id, trace_id=ctx["trace_id"], client_id=ctx.get("client_id"), surface=ctx.get("surface")).to_dict())
     finally:
+        capture = dict(ctx.get("chat_capture") or {})
+        partial_answer = str(capture.get("answer") or "")
+        partial_reasoning = str(capture.get("reasoning") or "")
+        if turn_mode == "chat" and (partial_answer or partial_reasoning) and not ctx.get("chat_assistant_saved"):
+            session.append(Message(role="assistant", content=partial_answer, metadata={
+                "trace_id": ctx["trace_id"], "turn_mode": "chat", "provider_profile": profile_id, "model": model,
+                "thinking_enabled": bool(ctx.get("thinking_enabled")), "reasoning_content": partial_reasoning,
+                "reasoning_status": terminal_status, "partial": True,
+            }))
         pending = session.metadata.get("active_turn")
         if isinstance(pending, dict) and pending.get("trace_id") == ctx.get("trace_id"):
             session.metadata["active_turn"] = None
@@ -591,7 +809,7 @@ async def _run_turn(service: RuntimeService, session: Session, text: str, ctx: d
         app_state.turn_tasks.pop(session.session_id, None)
 
 
-async def _run_chat_turn(service: RuntimeService, session: Session, ctx: dict[str, Any]) -> str:
+async def _run_chat_turn(service: RuntimeService, session: Session, ctx: dict[str, Any]) -> tuple[str, str]:
     messages = [Message(role="system", content=CHAT_SYSTEM_PROMPT)]
     prior = [message for message in session.messages[:-1]
              if message.role in {"user", "assistant"}
@@ -600,15 +818,26 @@ async def _run_chat_turn(service: RuntimeService, session: Session, ctx: dict[st
     messages.append(session.messages[-1])
     request = {"role": "tutor.default", "provider_profile": ctx.get("provider_profile") or None,
                "model": ctx.get("model") or None, "messages": [message.to_dict() for message in messages],
+               "thinking_enabled": bool(ctx.get("thinking_enabled")),
+               "max_tokens": 32768 if ctx.get("thinking_enabled") else None,
                "temperature": float((ctx.get("generation_config") or {}).get("temperature", GENERATE_TEMPERATURE)),
                "tools": []}
     parts: list[str] = []
+    reasoning_parts: list[str] = []
     async for frame in service.generate(request, {**ctx, "suppress_user_stream": False}):
         if frame.get("type") == "delta":
             parts.append(str(frame.get("text") or ""))
+            capture = ctx.get("chat_capture")
+            if isinstance(capture, dict):
+                capture["answer"] = "".join(parts)
+        elif frame.get("type") == "reasoning_delta":
+            reasoning_parts.append(str(frame.get("text") or ""))
+            capture = ctx.get("chat_capture")
+            if isinstance(capture, dict):
+                capture["reasoning"] = "".join(reasoning_parts)
         elif frame.get("type") == "error":
             raise RuntimeError(str((frame.get("error") or {}).get("message") or "provider_failed"))
-    return "".join(parts)
+    return "".join(parts), "".join(reasoning_parts)
 
 
 async def _run_group_a(service: RuntimeService, session: Session, text: str, ctx: dict[str, Any],
@@ -672,4 +901,16 @@ def _summary(service: RuntimeService, session: Session) -> SessionSummary:
         course_id=str(experiment.get("course_id") or ""),
         provider_profile=str(experiment.get("provider_profile") or session.metadata.get("provider_profile") or ""),
         model=str(experiment.get("model") or session.metadata.get("model") or ""),
+        thinking_enabled=bool(session.metadata.get("thinking_enabled", False)),
+        reasoning_mode=_session_reasoning_mode(service, session),
     )
+
+
+def _session_reasoning_mode(service: RuntimeService, session: Session) -> str:
+    profile_id = str(session.metadata.get("provider_profile") or "")
+    model = str(session.metadata.get("model") or "")
+    try:
+        profile = service.router.profile(profile_id)
+    except ValueError:
+        return "unknown"
+    return str((profile.model_capabilities.get(model) or {}).get("reasoning_mode") or "unknown")

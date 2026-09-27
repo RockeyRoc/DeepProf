@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.4.0",
+  "contract_version": "1.7.0",
   "ProviderProfile": {
     "profile_id": "string",
     "display_name": "string",
@@ -13,6 +13,9 @@
     "timeout_ms": "integer",
     "max_retries": "integer",
     "capabilities": "object, stream/tools/json/vision/reasoning 等",
+    "vendor_id": "string, 可选；共享供应商目录 ID",
+    "model_selection_mode": "catalog | manual",
+    "model_capabilities": "object, 按模型保存 reasoning 可切换/固定/不支持/未知等能力",
     "enabled": "boolean"
   },
   "_secret_boundary": "api_key_ref 之外不得出现任何明文密钥；Profile 导出默认剔除 secret。",

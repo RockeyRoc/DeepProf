@@ -31,7 +31,7 @@ def client():
 def test_health_reports_assembly_state(client):
     payload = client.get("/health").json()
     assert payload["status"] == "ok"
-    assert payload["contract_version"] == "1.6.0"
+    assert payload["contract_version"] == "1.7.0"
     assert payload["action_bindings"] == {"hint": "render_template", "teach": "render_template"}
     assert payload["providers"][0]["profile_id"] == "fake"
 

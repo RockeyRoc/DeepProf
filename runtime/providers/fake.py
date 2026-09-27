@@ -55,6 +55,9 @@ class FakeProvider:
             yield error_frame(error.to_dict())
             return
         content = str(step.get("content", ""))
+        reasoning = str(step.get("reasoning_content") or "")
+        for start in range(0, len(reasoning), self._chunk_size):
+            yield {"type": "reasoning_delta", "text": reasoning[start : start + self._chunk_size]}
         for start in range(0, len(content), self._chunk_size):
             yield {"type": "delta", "text": content[start : start + self._chunk_size]}
         for call in step.get("tool_calls") or []:
@@ -69,6 +72,7 @@ class FakeProvider:
             raise step if isinstance(step, ProviderError) else ProviderError(str(step))
         return {
             "content": str(step.get("content", "")),
+            "reasoning_content": str(step.get("reasoning_content") or ""),
             "tool_calls": list(step.get("tool_calls") or []),
             "finish_reason": str(step.get("finish_reason", "stop")),
             "usage": dict(step.get("usage") or {}),

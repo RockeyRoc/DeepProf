@@ -122,3 +122,11 @@ class InMemorySessionStore:
             for s in self._sessions.values()
             if learner_id is None or s.learner_id == learner_id
         ]
+
+    def delete(self, session_id: str) -> bool:
+        if self._sessions.pop(session_id, None) is None:
+            return False
+        for child in self._sessions.values():
+            if child.parent_id == session_id:
+                child.parent_id = None
+        return True

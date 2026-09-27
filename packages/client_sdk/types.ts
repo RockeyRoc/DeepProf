@@ -70,6 +70,8 @@ export interface SessionSummary {
   course_id?: string;
   provider_profile?: string;
   model?: string;
+  thinking_enabled?: boolean;
+  reasoning_mode?: "toggle" | "always" | "unsupported" | "unknown" | string;
 }
 
 export interface SessionMessage {
@@ -158,6 +160,9 @@ export interface ProviderProfile {
   timeout_ms: number;
   max_retries: number;
   capabilities: Record<string, boolean>;
+  vendor_id: string;
+  model_selection_mode: "catalog" | "manual";
+  model_capabilities: Record<string, Record<string, unknown>>;
   enabled: boolean;
   has_secret: boolean;
 }

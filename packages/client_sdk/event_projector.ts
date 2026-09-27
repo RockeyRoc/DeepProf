@@ -5,6 +5,7 @@ export interface ProjectedState {
   status: "idle" | "running" | "waiting" | "review" | "failed";
   activeAction: string | null;
   answer: string;
+  reasoning: string;
   events: RuntimeEvent[];
 }
 
@@ -13,6 +14,7 @@ export const initialProjectedState: ProjectedState = {
   status: "idle",
   activeAction: null,
   answer: "",
+  reasoning: "",
   events: [],
 };
 
@@ -27,7 +29,7 @@ export function projectEvent(state: ProjectedState, event: RuntimeEvent): Projec
 
   switch (event.type) {
     case "agent.started":
-      next = { ...next, status: "running", answer: "" };
+      next = { ...next, status: "running", answer: "", reasoning: "" };
       break;
     case "agent.turn.started":
     case "model.requested":
@@ -40,6 +42,11 @@ export function projectEvent(state: ProjectedState, event: RuntimeEvent): Projec
     case "model.stream.delta": {
       const text = String(event.payload.text ?? "");
       next = { ...next, status: "running", answer: `${next.answer}${text}` };
+      break;
+    }
+    case "model.stream.reasoning.delta": {
+      const text = String(event.payload.text ?? "");
+      next = { ...next, status: "running", reasoning: `${next.reasoning}${text}` };
       break;
     }
     case "pedagogy.decision":

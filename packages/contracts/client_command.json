@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.6.0",
+  "contract_version": "1.7.0",
   "ClientCommand": {
     "command_id": "string",
     "client_id": "string",
@@ -18,13 +18,25 @@
     "session.fork",
     "session.compact",
     "session.model.set",
+    "session.rename",
+    "session.delete",
+    "session.thinking.set",
     "quiz.generate",
     "quiz.answer",
     "library.import",
-    "document.convert"
+    "document.convert",
+    "message.edit",
+    "message.regenerate",
+    "message.delete"
   ],
   "_payloads": {
-    "session.model.set": "{profile_id: string, model: string}; chat session only, no active turn"
+    "session.model.set": "{profile_id: string, model: string}; chat session only, no active turn",
+    "session.rename": "{title: string}; ordinary chat only, no active turn",
+    "session.delete": "{}; ordinary chat only, no active turn",
+    "session.thinking.set": "{enabled: boolean}; chat only, no active turn",
+    "message.edit": "{index: integer, content: string}; chat only, no active turn; index must be a user message",
+    "message.regenerate": "{index: integer}; chat only, no active turn; defaults to the last assistant message",
+    "message.delete": "{index: integer}; chat only, no active turn"
   },
   "_surfaces": { "cli": "完整会话入口（键盘优先）", "web": "本机网页聊天和 Provider 设置" },
   "_boundary": "前端不直连 Provider/Memory/Tool；不持有 API Key；统一经 Gateway 进入 Runtime。"

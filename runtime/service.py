@@ -119,6 +119,10 @@ class RuntimeService:
                 has_text = has_text or bool(delta_text.strip())
                 if not suppress_user_stream:
                     await self._emit_ctx(EventType.MODEL_STREAM_DELTA, {"text": delta_text}, ctx)
+            elif kind == "reasoning_delta":
+                reasoning_text = str(frame.get("text") or "")
+                if reasoning_text and not suppress_user_stream:
+                    await self._emit_ctx(EventType.MODEL_STREAM_REASONING_DELTA, {"text": reasoning_text}, ctx)
             elif kind == "usage":
                 usage = dict(frame.get("usage") or {})
             elif kind == "finish":

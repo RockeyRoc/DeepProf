@@ -43,6 +43,10 @@ _FIELDS: dict[str, tuple[str, ...]] = {
                                  "question_bank_version", "correct", "eligible", "skip_reason", "hint_count", "grading_source"),
     "document.converted": ("status", "source_sha256", "page_count", "ocr_used", "review_required",
                             "markdown_path", "metadata_path", "format", "error_code"),
+    # 消息级操作只回放序号与角色，正文永不出现在事件里。
+    "message.edited": ("index", "dropped"),
+    "message.regenerated": ("index", "remaining"),
+    "message.deleted": ("index", "role", "remaining"),
 }
 
 _SAFE_FAILURE_CODES = {

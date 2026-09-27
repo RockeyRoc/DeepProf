@@ -15,6 +15,9 @@ export interface ProviderProfileInput {
   timeout_ms?: number;
   max_retries?: number;
   capabilities?: Record<string, boolean>;
+  vendor_id?: string;
+  model_selection_mode?: "catalog" | "manual";
+  model_capabilities?: Record<string, Record<string, unknown>>;
   enabled?: boolean;
 }
 
@@ -24,6 +27,18 @@ export class ProviderClient {
   async list(): Promise<ProviderProfile[]> {
     const response = await fetch(`${this.baseUrl}/providers`);
     return parseResponse<ProviderProfile[]>(response, "providers_failed");
+  }
+
+  async catalog(query = ""): Promise<Array<Record<string, unknown>>> {
+    const response = await fetch(`${this.baseUrl}/providers/catalog?query=${encodeURIComponent(query)}`);
+    return parseResponse<Array<Record<string, unknown>>>(response, "provider_catalog_failed");
+  }
+
+  async discover(input: ProviderProfileInput & { vendor_id?: string }): Promise<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/providers/discover`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input),
+    });
+    return parseResponse<Record<string, unknown>>(response, "model_discovery_failed");
   }
 
   async upsert(profile: ProviderProfileInput): Promise<ProviderProfile> {
@@ -44,6 +59,30 @@ export class ProviderClient {
     return this.models(profileId);
   }
 
+  async updateModels(profileId: string, models: string[], defaultModel: string, modelCapabilities: Record<string, Record<string, unknown>> = {}): Promise<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/providers/${encodeURIComponent(profileId)}/models`, {
+      method: "PUT", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ models, default_model: defaultModel, model_capabilities: modelCapabilities }),
+    });
+    return parseResponse<Record<string, unknown>>(response, "models_save_failed");
+  }
+
+  async deleteModel(profileId: string, model: string, replacementModel = "", replacementProfile = ""): Promise<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/providers/${encodeURIComponent(profileId)}/models/${encodeURIComponent(model)}`, {
+      method: "DELETE", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ replacement_model: replacementModel, replacement_profile_id: replacementProfile }),
+    });
+    return parseResponse<Record<string, unknown>>(response, "model_delete_failed");
+  }
+
+  async deleteProfile(profileId: string, replacementProfile = "", replacementModel = ""): Promise<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/providers/${encodeURIComponent(profileId)}`, {
+      method: "DELETE", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ replacement_profile_id: replacementProfile, replacement_model: replacementModel }),
+    });
+    return parseResponse<Record<string, unknown>>(response, "provider_delete_failed");
+  }
+
   async probe(profileId: string, model?: string): Promise<Record<string, unknown>> {
     const response = await fetch(`${this.baseUrl}/providers/${encodeURIComponent(profileId)}/probe`, {
       method: "POST",
@@ -60,7 +99,7 @@ export class ProviderClient {
 
   async setDefault(profileId: string, model = "", role = "tutor.default"): Promise<ProviderSelection> {
     const response = await fetch(`${this.baseUrl}/providers/default`, {
-      method: "PUT",
+      method: "PATCH",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ role, profile_id: profileId, model }),
     });

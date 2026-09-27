@@ -33,7 +33,7 @@ def load_profiles(path: Path | None = None) -> list[ProviderProfile]:
 def save_profiles(profiles: list[ProviderProfile], path: Path | None = None) -> Path:
     target = path or paths.providers_file()
     target.parent.mkdir(parents=True, exist_ok=True)
-    payload = {"contract_version": "1.4.0", "profiles": [p.to_dict() for p in profiles]}
+    payload = {"contract_version": "1.7.0", "profiles": [p.to_dict() for p in profiles]}
     target.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return target
 

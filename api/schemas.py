@@ -59,6 +59,9 @@ class ProviderProfileIn(BaseModel):
     timeout_ms: int = 0
     max_retries: int = 0
     capabilities: dict[str, bool] = Field(default_factory=dict)
+    vendor_id: str = ""
+    model_selection_mode: Literal["catalog", "manual"] = "manual"
+    model_capabilities: dict[str, dict[str, Any]] = Field(default_factory=dict)
     enabled: bool = True
 
 
@@ -76,6 +79,9 @@ class ProviderProfileOut(BaseModel):
     timeout_ms: int
     max_retries: int
     capabilities: dict[str, bool]
+    vendor_id: str = ""
+    model_selection_mode: str = "manual"
+    model_capabilities: dict[str, dict[str, Any]] = Field(default_factory=dict)
     enabled: bool
     has_secret: bool = False
 
@@ -98,6 +104,8 @@ class SessionSummary(BaseModel):
     course_id: str = ""
     provider_profile: str = ""
     model: str = ""
+    thinking_enabled: bool = False
+    reasoning_mode: str = "unknown"
 
 
 class SessionMessageView(BaseModel):

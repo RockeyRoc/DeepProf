@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import os
 from typing import Any
 
 from config import paths
@@ -13,6 +14,7 @@ from config.settings import Settings
 from runtime.providers.factory import build_registry, load_profiles, load_role_map
 from runtime.providers.profiles import ProviderProfile
 from runtime.providers.secrets import ChainedSecretStore, EnvSecretStore, SecretStore
+from runtime.providers.windows_secrets import WindowsDpapiSecretStore
 from runtime.service import RuntimeService
 from runtime.storage.sqlite_store import SqliteEventStore, SqliteSessionStore
 
@@ -37,7 +39,13 @@ def build_runtime_service(
     resolved = settings or Settings.from_env()
     paths.ensure_layout()
 
-    secrets: SecretStore = secret_store or ChainedSecretStore(EnvSecretStore())
+    if secret_store is None:
+        # Keep the Windows Gateway and CLI on the same DPAPI-backed store;
+        # other platforms retain their established process-environment flow.
+        stores = (WindowsDpapiSecretStore(), EnvSecretStore()) if os.name == "nt" else (EnvSecretStore(), WindowsDpapiSecretStore())
+        secrets = ChainedSecretStore(*stores)
+    else:
+        secrets = secret_store
     registry = build_registry(
         profiles if profiles is not None else load_profiles(),
         secret_store=secrets,
