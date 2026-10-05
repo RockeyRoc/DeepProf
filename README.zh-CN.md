@@ -136,9 +136,9 @@ ds.c_language.v1 · group B · 模型未配置 · 使用 /login 配置 Provider
 
 </details>
 
-<img src="media/web-workspace-v0.6.4.png" alt="v0.6.4 网页工作台的实际窄窗口截图，使用本地 Fake Provider；没有外部模型请求。" width="720">
+<img src="media/web-workspace-v0.6.4.jpg" alt="v0.6.4 网页工作台的高清窄窗口实拍，使用本地 Fake Provider；没有外部模型请求。" width="720">
 
-v0.6.4 网页工作台的实际窄窗口截图，使用本地 Fake Provider；没有外部模型请求。
+v0.6.4 网页工作台的高清窄窗口实拍，使用本地 Fake Provider；没有外部模型请求。
 
 ## 架构
 
