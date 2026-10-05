@@ -46,3 +46,7 @@ scripts/review_fulltext_ocr.py
 scripts/audit_fulltext_figure_geometry.py
 scripts/audit_historical_rag_resume.py
 scripts/build_bkt_rag_experiment_report.py
+docs/acceptance-gap-ledger.md
+docs/engineering-acceptance-20260928.md
+docs/experiments/public-bkt/
+docs/review-pack/

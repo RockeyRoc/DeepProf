@@ -91,8 +91,22 @@ def test_merge_rejects_wrong_page_and_missing_page(tmp_path):
         merge_pages(tmp_path, {'pdf_pages': 2, 'source_sha256': 'source'})
 
 
-def test_120_cases_preserve_partitions_without_gold_leakage():
-    data = make_cases()
+def test_120_cases_preserve_partitions_without_gold_leakage(tmp_path):
+    import csv
+    owner = tmp_path / 'question-owner.csv'
+    columns = ['item_id', 'split', 'question_family_id', 'concept_id', 'question_text',
+               'concept_name', 'required_conditions', 'standard_evidence_text', 'draft_answerability']
+    with owner.open('w', encoding='utf-8', newline='') as file:
+        writer = csv.DictWriter(file, fieldnames=columns)
+        writer.writeheader()
+        for split in ['development', 'sealed_test']:
+            for index in range(40):
+                writer.writerow({'item_id': f'{split}-{index}', 'split': split,
+                    'question_family_id': f'{split}-family-{index}', 'concept_id': 'DS-LIN-01',
+                    'question_text': 'Synthetic public test question', 'concept_name': 'Linear list',
+                    'required_conditions': 'private gold', 'standard_evidence_text': 'private gold',
+                    'draft_answerability': 'private gold'})
+    data = make_cases(owner)
     assert len(data['cases']) == 120
     assert data['counts'] == {'historical': 40, 'development': 40, 'sealed_test': 40}
     for row in data['cases'][40:]:

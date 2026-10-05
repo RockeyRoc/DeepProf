@@ -23,8 +23,7 @@ def test_constructed_report_reproduces_locked_historical_metrics(tmp_path):
     from pathlib import Path
 
     project = Path(__file__).resolve().parents[2]
-    expected = project / "docs" / "experiments" / "m3-abc-research" / \
-        "m3-abc-bkt-20260928T134542Z-a216df" / "bkt-calibration" / "bkt-calibration.json"
+    expected = project / "tests" / "fixtures" / "constructed-bkt-historical-metrics.json"
     output = tmp_path / "constructed.json"
     report = diagnostics.run_constructed(output, expected)
     assert report["n_sequences"] == 40
