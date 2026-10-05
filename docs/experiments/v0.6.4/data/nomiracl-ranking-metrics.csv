@@ -1,0 +1,9 @@
+﻿split,method,mean_ndcg5,relevant_queries,scope
+dev,BGE-M3 dense,0.7508232156095835,393,fixed judged candidates
+dev,BM25,0.4247826027747887,393,fixed judged candidates
+dev,BGE-M3 + BM25 RRF-60,0.6402465383208267,393,fixed judged candidates
+dev,BGE reranker v2-m3,0.7862877386055414,393,fixed judged candidates
+test,BGE-M3 dense,0.7618345097399376,920,fixed judged candidates
+test,BM25,0.4295878097672513,920,fixed judged candidates
+test,BGE-M3 + BM25 RRF-60,0.6562523775683199,920,fixed judged candidates
+test,BGE reranker v2-m3,0.7969353640204592,920,fixed judged candidates

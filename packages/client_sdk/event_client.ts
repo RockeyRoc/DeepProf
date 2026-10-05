@@ -90,7 +90,10 @@ export class EventClient {
       try {
         const url = new URL(`/sessions/${encodeURIComponent(sessionId)}/events`, this.options.baseUrl);
         url.searchParams.set("from_sequence", String(this.cursors.get(sessionId) || 0));
-        const response = await fetch(url, { signal: this.controller.signal, headers: { accept: "text/event-stream" } });
+        const headers: Record<string, string> = { accept: "text/event-stream" };
+        const cursor = this.cursors.get(sessionId) || 0;
+        if (cursor > 0) headers["last-event-id"] = String(cursor);
+        const response = await fetch(url, { signal: this.controller.signal, headers });
         if (!response.ok || !response.body) throw new Error(`event_stream:${response.status}`);
         await this.readSse(response.body);
         if (!this.closed) {

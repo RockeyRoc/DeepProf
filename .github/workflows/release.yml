@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: Existing release tag to publish (for example v0.6.2)
+        description: Existing release tag to publish (for example v0.6.4)
         required: true
         type: string
 
@@ -18,61 +18,71 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Resolve existing release tag
-        id: release-meta
-        env:
-          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
-        run: |
-          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid release tag: $RELEASE_TAG" >&2
-            exit 1
-          fi
-          git fetch origin "refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
-          git rev-parse --verify "refs/tags/$RELEASE_TAG^{commit}" >/dev/null
-          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+        with:
+          ref: ${{ inputs.release_tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: apps/cli/package-lock.json
+      - name: Verify tag and package version
+        id: release-meta
+        env:
+          RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+        run: |
+          VERSION=$(node -p "require('./apps/cli/package.json').version")
+          test "$RELEASE_TAG" = "v$VERSION"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
       - name: Install CJK test font
         run: sudo apt-get update && sudo apt-get install --yes --no-install-recommends fonts-noto-cjk
-      - run: python -m pip install -r requirements.txt
-      - run: python -m pip install -r requirements-ocr.txt
+      - run: python -m pip install -r requirements.txt -r requirements-ocr.txt
       - run: python -m pytest -o addopts= -q
-      - name: Verify M3 without paid model calls
-        run: python -m evaluation.m3_acceptance --run-id "m3-release-${{ github.run_id }}-${{ github.run_attempt }}" --output-dir "${{ runner.temp }}/deepprof-m3-release"
+      - name: Verify offline acceptance
+        run: |
+          python -m evaluation.m2_acceptance --output "${{ runner.temp }}/deepprof-m2-release.json"
+          python -m evaluation.m3_acceptance --run-id "m3-release-${{ github.run_id }}-${{ github.run_attempt }}" --output-dir "${{ runner.temp }}/deepprof-m3-release"
+      - run: python scripts/build_public_evidence.py --check --bundle
       - run: npm ci --prefix apps/cli
       - run: npm run typecheck --prefix apps/cli
       - run: npm run pack:release --prefix apps/cli
-      - name: Verify the committed research assets
+      - name: Verify release assets and local package
+        env:
+          VERSION: ${{ steps.release-meta.outputs.version }}
         run: |
-          test -s docs/experiments/M1-M3-experimental-report.pdf
-          test -s docs/experiments/M1-M3-实验报告.md
-          test -s docs/experiments/releases/M1-M3-evidence.zip
-      - name: Create GitHub Release
+          (cd .release && sha256sum --check "DEEPPROF-v$VERSION-SHA256SUMS.txt")
+          npm exec --yes --package=".release/deepprof-cli-$VERSION.tgz" -- deepprof --version
+      - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release-meta.outputs.tag }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
         run: |
           gh release create "$RELEASE_TAG" --verify-tag \
-          .release/deepprof-cli-0.6.2.tgz \
-            .release/deepprof-cli-0.6.2.sha256 \
-            .release/DEEPPROF-v0.6.2-SHA256SUMS.txt \
-            docs/experiments/releases/M1-M3-SHA256SUMS.txt \
-            docs/experiments/M1-M3-experimental-report.pdf \
-            docs/experiments/M1-M3-实验报告.md \
-            docs/experiments/releases/M1-M3-evidence.zip \
+            ".release/deepprof-cli-$VERSION.tgz" \
+            ".release/deepprof-cli-$VERSION.sha256" \
+            ".release/DEEPPROF-$RELEASE_TAG-SHA256SUMS.txt" \
+            ".release/DEEPPROF-$RELEASE_TAG-evidence.zip" \
+            ".release/DEEPPROF-$RELEASE_TAG-public-manifest.json" \
+            .release/M3-BKT-RAG-report.pdf \
+            .release/M3-BKT-RAG-report.zh-CN.md \
             --repo "$GITHUB_REPOSITORY" \
-            --title "DeepProf $GITHUB_REF_NAME — M1–M3 experiment report" \
-            --notes-file .github/RELEASE_NOTES.md
-      - name: Smoke test the published npx package
+            --title "DeepProf $RELEASE_TAG — browser workspace and BKT/RAG evidence" \
+            --notes-file .github/RELEASE_NOTES.md --latest
+      - name: Download, verify and smoke test the published package
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.release-meta.outputs.tag }}
+          VERSION: ${{ steps.release-meta.outputs.version }}
+          DEEPPROF_HOME: ${{ runner.temp }}/deepprof-published-smoke
         run: |
-          npm exec --yes --package="https://github.com/RockeyRoc/DeepProf/releases/download/$RELEASE_TAG/deepprof-cli-0.6.2.tgz" -- deepprof --version
+          mkdir -p "${{ runner.temp }}/published-assets"
+          gh release download "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" --dir "${{ runner.temp }}/published-assets"
+          (cd "${{ runner.temp }}/published-assets" && sha256sum --check "DEEPPROF-$RELEASE_TAG-SHA256SUMS.txt")
+          npm exec --yes --package="https://github.com/RockeyRoc/DeepProf/releases/download/$RELEASE_TAG/deepprof-cli-$VERSION.tgz" -- deepprof --version
+          npm exec --yes --package="https://github.com/RockeyRoc/DeepProf/releases/download/$RELEASE_TAG/deepprof-cli-$VERSION.tgz" -- deepprof doctor

@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CLI_VERSION = "0.6.2";
+const CLI_VERSION = "0.6.4";
 const moduleDirectory = dirname(fileURLToPath(import.meta.url));
 
 export interface RuntimePaths {
@@ -22,6 +22,18 @@ export interface PythonCommand {
 interface InstallState {
   runtimeHash: string;
   ocrHash?: string;
+}
+
+interface SetupCommandResult {
+  status: number | null;
+  error?: Error;
+  stdout?: string | Uint8Array | null;
+  stderr?: string | Uint8Array | null;
+}
+
+export interface RuntimeSetupDependencies {
+  findPython?: () => PythonCommand;
+  runCommand?: (command: string, args: string[], stdio: "inherit") => SetupCommandResult;
 }
 
 export function resolveRuntimePaths(moduleDir = moduleDirectory, cwd = process.cwd()): RuntimePaths {
@@ -170,16 +182,19 @@ export function preparePythonEnvironment(options: {
   withOcr?: boolean;
   onProgress?: (message: string) => void;
   home?: string;
+  dependencies?: RuntimeSetupDependencies;
 }): string {
   const withOcr = options.withOcr === true;
-  const python = findSystemPython();
+  const python = options.dependencies?.findPython?.() || findSystemPython();
+  const runCommand = options.dependencies?.runCommand || ((command: string, args: string[], stdio: "inherit") =>
+    spawnSync(command, args, { stdio, windowsHide: true }));
   const venvPath = pythonEnvironmentPath(options.home);
   const venvPython = environmentPythonPath(venvPath);
   const statePath = pythonInstallStatePath(venvPath);
   const runtimeHash = environmentRequirementsHash(options.paths.packageRoot, false);
   const ocrHash = withOcr ? environmentRequirementsHash(options.paths.packageRoot, true) : undefined;
 
-  const fail = (label: string, result: ReturnType<typeof spawnSync>): never => {
+  const fail = (label: string, result: SetupCommandResult): never => {
     if (result.error) throw new Error(`${label}：${result.error.message}`);
     if (result.status !== 0) throw new Error(`${label}（退出码 ${String(result.status)}）。网络不可用时可稍后重试，环境目录为 ${dirname(venvPath)}。`);
     throw new Error(`${label}：未知错误`);
@@ -197,16 +212,16 @@ export function preparePythonEnvironment(options: {
 
     options.onProgress?.(`正在为 DeepProf 准备 Python ${python.version} 环境…`);
     if (!existsSync(venvPython)) {
-      const venv = spawnSync(python.executable, [...python.prefixArgs, "-m", "venv", venvPath], { stdio: "inherit", windowsHide: true });
+      const venv = runCommand(python.executable, [...python.prefixArgs, "-m", "venv", venvPath], "inherit");
       if (venv.status !== 0) fail("创建 Python 环境失败", venv);
     }
 
     options.onProgress?.("正在安装 DeepProf 的固定 Python 依赖（首次运行需要网络）…");
     const requirements = join(options.paths.packageRoot, "runtime", "requirements-runtime.txt");
-    const runtimeInstall = spawnSync(venvPython, ["-m", "pip", "install", "--disable-pip-version-check", "-r", requirements], { stdio: "inherit", windowsHide: true });
+    const runtimeInstall = runCommand(venvPython, ["-m", "pip", "install", "--disable-pip-version-check", "-r", requirements], "inherit");
     if (runtimeInstall.status !== 0) fail("安装 DeepProf 依赖失败", runtimeInstall);
     if (withOcr) {
-      const ocrInstall = spawnSync(venvPython, ["-m", "pip", "install", "--disable-pip-version-check", "-r", join(options.paths.packageRoot, "runtime", "requirements-ocr.txt")], { stdio: "inherit", windowsHide: true });
+      const ocrInstall = runCommand(venvPython, ["-m", "pip", "install", "--disable-pip-version-check", "-r", join(options.paths.packageRoot, "runtime", "requirements-ocr.txt")], "inherit");
       if (ocrInstall.status !== 0) fail("安装 OCR 可选依赖失败", ocrInstall);
     } else if (previous?.ocrHash && previous.runtimeHash !== runtimeHash) {
       options.onProgress?.("已有环境包含的可选 OCR 包将保留。");

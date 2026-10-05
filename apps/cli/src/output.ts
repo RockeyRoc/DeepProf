@@ -26,15 +26,28 @@ export function jsonResult(command: string, data: Record<string, unknown> = {}, 
 }
 
 export function jsonError(command: string, error: unknown): void {
-  const candidate = error && typeof error === "object" ? error as { code?: unknown; message?: unknown } : {};
+  const candidate = error && typeof error === "object" ? error as {
+    code?: unknown;
+    message?: unknown;
+    details?: unknown;
+  } : {};
   const code = typeof candidate.code === "string" && candidate.code ? candidate.code : (error instanceof Error ? "cli_error" : "error");
   const message = typeof candidate.message === "string" ? candidate.message : String(error);
-  const value = { code, message };
+  const details = candidate.details && typeof candidate.details === "object" && !Array.isArray(candidate.details)
+    ? candidate.details : undefined;
+  const value = { code, message, ...(details ? { details } : {}) };
   process.stdout.write(`${JSON.stringify({ ok: false, command, session_id: null, error: value })}\n`);
 }
 
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (!(error instanceof Error)) return String(error);
+  const candidate = error as Error & { code?: unknown; details?: unknown };
+  const details = candidate.details && typeof candidate.details === "object"
+    ? candidate.details as Record<string, unknown> : {};
+  const classification = typeof details.kind === "string" ? details.kind
+    : typeof candidate.code === "string" ? candidate.code : "";
+  return classification && !error.message.includes(classification)
+    ? `${error.message} (${classification})` : error.message;
 }
 
 export function usageStatus(profile: string | null, model: string | null, usage: Record<string, unknown>): string {

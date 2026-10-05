@@ -1,0 +1,13 @@
+﻿condition,split,observed,planned,valid,generated,requests,failed,excluded_configuration,unknown_answerability,false_accept_generation_numerator,false_accept_generation_denominator,false_accept_generation_rate,false_reject_no_generation_numerator,false_reject_no_generation_denominator,false_reject_no_generation_rate,developer_action_match_numerator,developer_action_match_denominator,developer_action_match_rate
+retrieval-on_constraint-on,historical,40,40,40,28,28,0,0,0,1,6,0.16666666666666666,7,34,0.20588235294117646,32,40,0.8
+retrieval-on_constraint-on,development,40,40,40,38,38,0,0,0,6,8,0.75,0,32,0.0,0,0,
+retrieval-on_constraint-on,sealed_test,40,40,40,39,39,0,0,0,8,9,0.8888888888888888,0,31,0.0,0,0,
+retrieval-on_constraint-off,historical,40,40,40,33,33,0,0,0,6,6,1.0,7,34,0.20588235294117646,32,40,0.8
+retrieval-on_constraint-off,development,40,40,40,40,40,0,0,0,8,8,1.0,0,32,0.0,0,0,
+retrieval-on_constraint-off,sealed_test,40,40,40,40,40,0,0,0,9,9,1.0,0,31,0.0,0,0,
+retrieval-off_constraint-on,historical,40,40,40,0,0,0,0,0,0,6,0.0,34,34,1.0,5,40,0.125
+retrieval-off_constraint-on,development,40,40,40,0,0,0,0,0,0,8,0.0,32,32,1.0,0,0,
+retrieval-off_constraint-on,sealed_test,40,40,40,0,0,0,0,0,0,9,0.0,31,31,1.0,0,0,
+retrieval-off_constraint-off,historical,40,40,40,33,33,0,0,0,6,6,1.0,7,34,0.20588235294117646,32,40,0.8
+retrieval-off_constraint-off,development,40,40,40,40,40,0,0,0,8,8,1.0,0,32,0.0,0,0,
+retrieval-off_constraint-off,sealed_test,40,40,40,40,40,0,0,0,9,9,1.0,0,31,0.0,0,0,

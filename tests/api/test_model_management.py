@@ -12,6 +12,7 @@ from runtime.core.message import Message
 from runtime.core.session import Session
 from runtime.providers.profiles import ProviderProfile
 from runtime.testing import make_service
+from models.learner.store import SqliteLearnerStore
 
 
 def _command(client: TestClient, command_id: str, command_type: str, *, session_id: str | None = None,
@@ -153,9 +154,11 @@ def test_provider_deletion_is_rejected_while_its_session_is_generating():
     assert service.router.has_secret("test-provider")
 
 
-def test_session_rename_delete_only_affect_chat_and_detach_branches():
+def test_session_rename_is_chat_only_and_delete_cleans_study_learning_data(tmp_path):
     service = make_service()
     app = create_app(service=service)
+    service.learner_store = SqliteLearnerStore.open(tmp_path / "study-delete.sqlite")
+    app.state.learner_store = service.learner_store
     root = Session(title="原对话", metadata={"session_mode": "chat"})
     root.append(Message(role="assistant", content="回答", metadata={"reasoning_content": "private reasoning"}))
     child = root.fork(title="分支")
@@ -173,6 +176,19 @@ def test_session_rename_delete_only_affect_chat_and_detach_branches():
 
         response = _command(client, "study-rename", "session.rename", session_id=study.session_id, payload={"title": "不允许"})
         assert response.status_code == 409
+
+        service.learner_store.record_attempt(attempt_id="study-delete-attempt", learner_id="local",
+            session_id=study.session_id, trace_id="study-delete-trace", course_id="course-v1",
+            item_id="item-1", concept_id="concept-1", bank_version="bank-v1", correct=True,
+            hint_count=0, grading_source="exact_normalized_match", confidence=1.0)
+        response = _command(client, "delete-study", "session.delete", session_id=study.session_id)
+        assert response.status_code == 200
+        assert response.json()["result"]["learning_records"] == {
+            "attempts_deleted": 1, "observations_deleted": 1, "outbox_deleted": 1, "estimates_replayed": 1,
+        }
+        assert service.learner_store._conn.execute(
+            "SELECT COUNT(*) FROM attempts WHERE session_id=?", (study.session_id,)
+        ).fetchone()[0] == 0
 
         response = _command(client, "delete", "session.delete", session_id=root.session_id)
         assert response.status_code == 200

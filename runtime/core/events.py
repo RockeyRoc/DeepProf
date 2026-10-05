@@ -35,6 +35,11 @@ class EventType(str, Enum):
     MODEL_COMPLETED = "model.completed"
     MODEL_FAILED = "model.failed"
 
+    WEB_SEARCH_STARTED = "web.search.started"
+    WEB_SEARCH_COMPLETED = "web.search.completed"
+    WEB_SEARCH_FAILED = "web.search.failed"
+    RESEARCH_PROGRESS = "research.progress"
+
     TOOL_REQUESTED = "tool.requested"
     TOOL_APPROVED = "tool.approved"
     TOOL_STARTED = "tool.started"

@@ -7,7 +7,9 @@ import pytest
 
 from evaluation.dev_cases import CASE_VERSION
 from scripts.run_m3_live_pilot import (PLANNED_CELLS, _copy_library_index, _retrieval_queries,
-    _generation_judgment, _summary, live_cases, run, select_cases)
+    _generation_judgment, _no_generation_reason, _provider_diagnostics, _summary,
+    expected_provider_calls_per_cell, live_cases,
+    normalize_m3_evidence_options, run, select_cases)
 from runtime.storage.migrations import connect
 
 
@@ -65,6 +67,41 @@ def test_generation_judgment_distinguishes_stop_truncation_and_no_call() -> None
     assert _generation_judgment(truncated, "t") == "truncated"
     assert _generation_judgment(complete, "t") == "completed"
     assert _generation_judgment([], "t") == "not_applicable"
+
+
+def test_provider_diagnostics_keep_connection_causes_and_drop_error_text() -> None:
+    events = [{"trace_id": "t", "type": "model.requested", "payload": {"model": "m"}},
+        {"trace_id": "t", "type": "model.failed", "payload": {"error": {"code": "provider_error",
+            "details": {"kind": "connection_failed", "detail": "ConnectError", "os_errno": 10061,
+                "cause_types": ["ConnectError", "ConnectError"], "body": "private response text"}},
+            "usage": {"prompt_tokens": 0}}}]
+    result = _provider_diagnostics(events, "t")
+    assert result == {"request_count": 1, "requests": [{"provider_profile": "", "model": "m"}],
+        "outcomes": [{"status": "failed",
+        "failure_kind": "connection_failed", "http_status": None, "finish_reason": "",
+        "cause_types": ["ConnectError", "ConnectError"], "os_errno": 10061,
+        "usage": {"prompt_tokens": 0}}]}
+    assert "private response text" not in json.dumps(result)
+
+
+def test_no_generation_reason_is_an_allow_list_value() -> None:
+    events = [{"trace_id": "t", "type": "teaching.decision", "payload": {
+        "generation_skipped": True, "capability_status": "insufficient_evidence"}}]
+    assert _no_generation_reason(events, "t") == "insufficient_evidence"
+    policy = [{"trace_id": "t", "type": "pedagogy.decision", "payload": {"action": "reflect"}}]
+    assert _no_generation_reason(policy, "t") == "policy_selected_no_generation"
+    assert _no_generation_reason([], "t") == "unclassified_no_generation"
+
+
+def test_rag_ablation_skips_calls_when_evidence_constraint_stops_without_retrieval():
+    options = normalize_m3_evidence_options({"retrieval_enabled": False, "evidence_constraint": True})
+    assert expected_provider_calls_per_cell(options) == 0
+    assert expected_provider_calls_per_cell(normalize_m3_evidence_options(
+        {"retrieval_enabled": True, "evidence_constraint": True})) == 1
+    assert expected_provider_calls_per_cell(normalize_m3_evidence_options(
+        {"retrieval_enabled": False, "evidence_constraint": False})) == 1
+    with pytest.raises(ValueError, match="boolean"):
+        normalize_m3_evidence_options({"retrieval_enabled": "false"})
 
 
 def test_live_summary_counts_truncation_as_failed_but_preserves_application_terminal() -> None:

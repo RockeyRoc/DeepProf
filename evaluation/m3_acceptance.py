@@ -13,6 +13,7 @@ import json
 import math
 import os
 import random
+import secrets
 import re
 import tempfile
 import time
@@ -25,7 +26,7 @@ from fastapi.testclient import TestClient
 
 from api.app import create_app
 from config.settings import Settings
-from evaluation.dev_cases import CASE_VERSION
+from evaluation.dev_cases import CASE_VERSION, M3_CASE_VERSION, derive_m3_cases
 from graph.education.bindings import ACTION_BINDINGS
 from graph.education.contracts import POLICY_VERSION
 from models.learner.bkt import DEFAULT_PARAMETERS, update
@@ -36,14 +37,23 @@ from tools.retrieval import build_search_textbook_tool
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_CASES = ROOT / "evaluation" / "dev_cases.json"
-M3_CASE_VERSION = "ds-m3-offline-v1"
 GROUPS = ("A", "B", "C")
 ABLATION = ((True, True), (True, False), (False, True), (False, False))
 FAKE_REPLY = "让我们先明确题目中的条件，再逐步检查你的推理，可以吗？"
-PROMPT_VERSION = "education-prompts-source-fingerprint-v1"
-PROMPT_FILES = ("api/sessions.py", "graph/education/nodes/ask.py", "graph/education/nodes/teach.py",
-                "graph/education/nodes/hint.py", "graph/education/nodes/correct.py",
-                "runtime/capabilities.py")
+PROMPT_VERSION = "education-prompts-source-fingerprint-v2"
+PROMPT_FILES = (
+    "api/sessions.py",
+    "graph/education/bindings.py",
+    "graph/education/nodes/ask.py",
+    "graph/education/nodes/teach.py",
+    "graph/education/nodes/hint.py",
+    "graph/education/nodes/correct.py",
+    "graph/education/policies/__init__.py",
+    "runtime/capabilities.py",
+    "runtime/service.py",
+    "runtime/providers/openai_compatible.py",
+    "skills/socratic/__init__.py",
+)
 FROZEN_CONFIG_KEYS = (
     "case_version", "source_case_sha256", "m3_case_sha256", "sample_type", "human_subjects",
     "provider_profile", "model", "fake_provider_used", "paid_model_used", "network_required",
@@ -93,37 +103,8 @@ def _read_json(path: Path) -> Any:
 
 
 def _derived_cases(source: dict[str, Any]) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    for original in source["cases"]:
-        case = dict(original)
-        category = str(case.get("category") or "")
-        if category == "consecutive_errors":
-            outcomes = [False, False, False]
-        elif category == "hint_then_success":
-            outcomes = [True, True, False]
-        else:
-            outcomes = [True, False, True]
-        case.update({
-            "m3_case_version": M3_CASE_VERSION,
-            "source_case_version": source["version"],
-            "sample_type": "constructed_developer_fixture",
-            "attempt_history": [
-                {"item_id": f"{case['case_id']}-ATT-{index + 1}", "correct": correct,
-                 "hint_count": 0, "grading_source": "exact_normalized_match", "confidence": 1.0}
-                for index, correct in enumerate(outcomes)
-            ],
-            "retrieval_fixture": {
-                "document_id": f"fixture-doc-{case['concept_id']}",
-                "chunk_id": f"fixture-chunk-{case['case_id']}",
-                "page": int(case.get("repeat") or 1),
-                "chapter": "Constructed developer fixture",
-                "source": "constructed_fixture; not a textbook citation",
-                "text": f"Constructed evidence fixture for {case['concept_id']}; not source material.",
-            },
-            "allowed_variants": list(case.get("expected_action_family") or []),
-        })
-        rows.append(case)
-    return rows
+    """Compatibility wrapper around pure case construction (no API test dependency)."""
+    return derive_m3_cases(source)
 
 
 def _case_state(case: dict[str, Any]) -> dict[str, Any]:
@@ -409,19 +390,27 @@ def _metrics(cells: list[dict[str, Any]], replay_cells: list[dict[str, Any]],
 
 
 def _score_templates(run_dir: Path, main_cells: list[dict[str, Any]]) -> list[str]:
-    entries = [{"blind_id": hashlib.sha256(f"{row['case_id']}|{row['group']}".encode()).hexdigest()[:14],
-                "case_id": row["case_id"], "sample_type": row["sample_type"],
+    entries = [{"blind_id": secrets.token_hex(7),
+                "context": dict(row.get("rating_context") or {}),
                 "response_text": row.get("response_text") or "", "action_appropriateness": None,
-                "answer_leakage": None, "citation_support": None, "uncertainty_handling": None, "notes": ""}
+                "accuracy": None, "clarity": None, "coherence": None, "engagement": None,
+                "naturalness": None, "personalization_relevance": None,
+                "answer_leakage": None, "citation_support": None, "uncertainty_handling": None,
+                "citation_evidence_sufficient": None, "notes": ""}
                for row in main_cells if row.get("phase") == "main"]
     files: list[str] = []
     for index, seed in ((1, 613), (2, 907)):
         ordered = list(entries)
         random.Random(seed).shuffle(ordered)
         target = run_dir / "scoring" / f"rater-{index:02d}.json"
-        _write_json(target, {"schema_version": "m3-blind-rating-v1", "rater_id": f"rater-{index:02d}",
-            "group_labels_hidden": True, "scale": {"action_appropriateness": "1-5", "answer_leakage": "true|false",
-                "citation_support": "1-5", "uncertainty_handling": "1-5"}, "items": ordered})
+        if not target.is_file():
+            _write_json(target, {"schema_version": "m3-blind-rating-v1", "rater_id": f"rater-{index:02d}",
+                "group_labels_hidden": True, "case_identifiers_hidden": True,
+                "scale": {"action_appropriateness": "1-5", "accuracy": "1-5", "clarity": "1-5",
+                    "coherence": "1-5", "engagement": "1-5", "naturalness": "1-5",
+                    "personalization_relevance": "1-5", "answer_leakage": "true|false",
+                    "citation_support": "1-5", "uncertainty_handling": "1-5",
+                    "citation_evidence_sufficient": "true|false"}, "items": ordered})
         files.append(str(target))
     return files
 
@@ -597,6 +586,8 @@ def audit_scores(run_dir: str | Path) -> dict[str, Any]:
         for item in raw_items:
             if not isinstance(item, dict) or not str(item.get("blind_id") or "").strip():
                 raise ValueError(f"invalid_blind_id:{rater_name}")
+            if "group" in item or "case_id" in item or data.get("case_identifiers_hidden") is False:
+                raise ValueError(f"blind_identifiers_exposed:{rater_name}")
             blind_id = str(item["blind_id"])
             if blind_id in result:
                 raise ValueError(f"duplicate_blind_id:{rater_name}:{blind_id}")
@@ -607,11 +598,17 @@ def audit_scores(run_dir: str | Path) -> dict[str, Any]:
     right_by_id = _items_by_id(right, "rater-02")
     if set(left_by_id) != set(right_by_id):
         raise ValueError("rater_item_ids_mismatch")
-    fields = ("action_appropriateness", "answer_leakage", "citation_support", "uncertainty_handling")
+    fields = ("action_appropriateness", "accuracy", "clarity", "coherence", "engagement",
+              "naturalness", "personalization_relevance",
+              "answer_leakage", "citation_support", "uncertainty_handling", "citation_evidence_sufficient")
     result: dict[str, Any] = {"schema_version": "m3-rater-agreement-v1", "run_id": root.name, "fields": {}}
     rating_scales: dict[str, set[Any] | type] = {
-        "action_appropriateness": {1, 2, 3, 4, 5}, "answer_leakage": bool,
+        "action_appropriateness": {1, 2, 3, 4, 5}, "accuracy": {1, 2, 3, 4, 5},
+        "clarity": {1, 2, 3, 4, 5}, "coherence": {1, 2, 3, 4, 5},
+        "engagement": {1, 2, 3, 4, 5}, "naturalness": {1, 2, 3, 4, 5},
+        "personalization_relevance": {1, 2, 3, 4, 5}, "answer_leakage": bool,
         "citation_support": {1, 2, 3, 4, 5}, "uncertainty_handling": {1, 2, 3, 4, 5},
+        "citation_evidence_sufficient": bool,
     }
     for rater_name, items_by_id in (("rater-01", left_by_id), ("rater-02", right_by_id)):
         for item in items_by_id.values():

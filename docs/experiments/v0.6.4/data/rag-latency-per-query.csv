@@ -1,0 +1,161 @@
+﻿case_id,method,latency_ms,retrieval_labels_status,pool_is_candidate_union_not_corpus_recall
+DSDEV-001,Hash dense,120.981,pending_human_annotation,True
+DSDEV-001,BM25,158.204,pending_human_annotation,True
+DSDEV-001,RRF merge,0.099,pending_human_annotation,True
+DSDEV-001,Total retrieval,280.207,pending_human_annotation,True
+DSDEV-002,Hash dense,118.16,pending_human_annotation,True
+DSDEV-002,BM25,151.158,pending_human_annotation,True
+DSDEV-002,RRF merge,0.4,pending_human_annotation,True
+DSDEV-002,Total retrieval,269.895,pending_human_annotation,True
+DSDEV-003,Hash dense,115.346,pending_human_annotation,True
+DSDEV-003,BM25,148.487,pending_human_annotation,True
+DSDEV-003,RRF merge,0.356,pending_human_annotation,True
+DSDEV-003,Total retrieval,264.407,pending_human_annotation,True
+DSDEV-004,Hash dense,120.807,pending_human_annotation,True
+DSDEV-004,BM25,148.648,pending_human_annotation,True
+DSDEV-004,RRF merge,0.147,pending_human_annotation,True
+DSDEV-004,Total retrieval,269.818,pending_human_annotation,True
+DSDEV-005,Hash dense,121.649,pending_human_annotation,True
+DSDEV-005,BM25,148.215,pending_human_annotation,True
+DSDEV-005,RRF merge,0.141,pending_human_annotation,True
+DSDEV-005,Total retrieval,270.178,pending_human_annotation,True
+DSDEV-006,Hash dense,122.534,pending_human_annotation,True
+DSDEV-006,BM25,147.571,pending_human_annotation,True
+DSDEV-006,RRF merge,0.16,pending_human_annotation,True
+DSDEV-006,Total retrieval,270.519,pending_human_annotation,True
+DSDEV-007,Hash dense,114.97,pending_human_annotation,True
+DSDEV-007,BM25,146.665,pending_human_annotation,True
+DSDEV-007,RRF merge,0.469,pending_human_annotation,True
+DSDEV-007,Total retrieval,262.275,pending_human_annotation,True
+DSDEV-008,Hash dense,112.999,pending_human_annotation,True
+DSDEV-008,BM25,144.276,pending_human_annotation,True
+DSDEV-008,RRF merge,0.183,pending_human_annotation,True
+DSDEV-008,Total retrieval,257.687,pending_human_annotation,True
+DSDEV-009,Hash dense,114.46,pending_human_annotation,True
+DSDEV-009,BM25,175.465,pending_human_annotation,True
+DSDEV-009,RRF merge,0.148,pending_human_annotation,True
+DSDEV-009,Total retrieval,290.29,pending_human_annotation,True
+DSDEV-010,Hash dense,114.133,pending_human_annotation,True
+DSDEV-010,BM25,172.758,pending_human_annotation,True
+DSDEV-010,RRF merge,0.176,pending_human_annotation,True
+DSDEV-010,Total retrieval,287.26,pending_human_annotation,True
+DSDEV-011,Hash dense,113.599,pending_human_annotation,True
+DSDEV-011,BM25,150.65,pending_human_annotation,True
+DSDEV-011,RRF merge,0.179,pending_human_annotation,True
+DSDEV-011,Total retrieval,264.649,pending_human_annotation,True
+DSDEV-012,Hash dense,115.41,pending_human_annotation,True
+DSDEV-012,BM25,152.817,pending_human_annotation,True
+DSDEV-012,RRF merge,0.187,pending_human_annotation,True
+DSDEV-012,Total retrieval,268.622,pending_human_annotation,True
+DSDEV-013,Hash dense,111.792,pending_human_annotation,True
+DSDEV-013,BM25,145.842,pending_human_annotation,True
+DSDEV-013,RRF merge,0.141,pending_human_annotation,True
+DSDEV-013,Total retrieval,257.976,pending_human_annotation,True
+DSDEV-014,Hash dense,111.581,pending_human_annotation,True
+DSDEV-014,BM25,143.886,pending_human_annotation,True
+DSDEV-014,RRF merge,0.157,pending_human_annotation,True
+DSDEV-014,Total retrieval,255.812,pending_human_annotation,True
+DSDEV-015,Hash dense,113.95,pending_human_annotation,True
+DSDEV-015,BM25,151.206,pending_human_annotation,True
+DSDEV-015,RRF merge,0.155,pending_human_annotation,True
+DSDEV-015,Total retrieval,265.493,pending_human_annotation,True
+DSDEV-016,Hash dense,112.909,pending_human_annotation,True
+DSDEV-016,BM25,178.142,pending_human_annotation,True
+DSDEV-016,RRF merge,0.183,pending_human_annotation,True
+DSDEV-016,Total retrieval,291.445,pending_human_annotation,True
+DSDEV-017,Hash dense,116.413,pending_human_annotation,True
+DSDEV-017,BM25,142.152,pending_human_annotation,True
+DSDEV-017,RRF merge,0.12,pending_human_annotation,True
+DSDEV-017,Total retrieval,258.868,pending_human_annotation,True
+DSDEV-018,Hash dense,115.275,pending_human_annotation,True
+DSDEV-018,BM25,146.199,pending_human_annotation,True
+DSDEV-018,RRF merge,0.127,pending_human_annotation,True
+DSDEV-018,Total retrieval,261.791,pending_human_annotation,True
+DSDEV-019,Hash dense,112.907,pending_human_annotation,True
+DSDEV-019,BM25,174.774,pending_human_annotation,True
+DSDEV-019,RRF merge,0.121,pending_human_annotation,True
+DSDEV-019,Total retrieval,287.979,pending_human_annotation,True
+DSDEV-020,Hash dense,112.872,pending_human_annotation,True
+DSDEV-020,BM25,151.271,pending_human_annotation,True
+DSDEV-020,RRF merge,0.145,pending_human_annotation,True
+DSDEV-020,Total retrieval,264.465,pending_human_annotation,True
+DSDEV-021,Hash dense,114.52,pending_human_annotation,True
+DSDEV-021,BM25,174.546,pending_human_annotation,True
+DSDEV-021,RRF merge,0.395,pending_human_annotation,True
+DSDEV-021,Total retrieval,289.634,pending_human_annotation,True
+DSDEV-022,Hash dense,116.446,pending_human_annotation,True
+DSDEV-022,BM25,146.889,pending_human_annotation,True
+DSDEV-022,RRF merge,0.122,pending_human_annotation,True
+DSDEV-022,Total retrieval,263.655,pending_human_annotation,True
+DSDEV-023,Hash dense,110.985,pending_human_annotation,True
+DSDEV-023,BM25,147.584,pending_human_annotation,True
+DSDEV-023,RRF merge,0.156,pending_human_annotation,True
+DSDEV-023,Total retrieval,259.13,pending_human_annotation,True
+DSDEV-024,Hash dense,116.445,pending_human_annotation,True
+DSDEV-024,BM25,144.056,pending_human_annotation,True
+DSDEV-024,RRF merge,0.133,pending_human_annotation,True
+DSDEV-024,Total retrieval,260.789,pending_human_annotation,True
+DSDEV-025,Hash dense,110.454,pending_human_annotation,True
+DSDEV-025,BM25,147.0,pending_human_annotation,True
+DSDEV-025,RRF merge,0.19,pending_human_annotation,True
+DSDEV-025,Total retrieval,257.858,pending_human_annotation,True
+DSDEV-026,Hash dense,115.634,pending_human_annotation,True
+DSDEV-026,BM25,175.455,pending_human_annotation,True
+DSDEV-026,RRF merge,0.8,pending_human_annotation,True
+DSDEV-026,Total retrieval,292.114,pending_human_annotation,True
+DSDEV-027,Hash dense,122.639,pending_human_annotation,True
+DSDEV-027,BM25,178.936,pending_human_annotation,True
+DSDEV-027,RRF merge,0.157,pending_human_annotation,True
+DSDEV-027,Total retrieval,302.105,pending_human_annotation,True
+DSDEV-028,Hash dense,114.856,pending_human_annotation,True
+DSDEV-028,BM25,147.291,pending_human_annotation,True
+DSDEV-028,RRF merge,0.984,pending_human_annotation,True
+DSDEV-028,Total retrieval,263.303,pending_human_annotation,True
+DSDEV-029,Hash dense,112.62,pending_human_annotation,True
+DSDEV-029,BM25,146.381,pending_human_annotation,True
+DSDEV-029,RRF merge,0.381,pending_human_annotation,True
+DSDEV-029,Total retrieval,259.572,pending_human_annotation,True
+DSDEV-030,Hash dense,116.717,pending_human_annotation,True
+DSDEV-030,BM25,143.053,pending_human_annotation,True
+DSDEV-030,RRF merge,0.146,pending_human_annotation,True
+DSDEV-030,Total retrieval,260.108,pending_human_annotation,True
+DSDEV-031,Hash dense,114.892,pending_human_annotation,True
+DSDEV-031,BM25,150.865,pending_human_annotation,True
+DSDEV-031,RRF merge,0.136,pending_human_annotation,True
+DSDEV-031,Total retrieval,266.089,pending_human_annotation,True
+DSDEV-032,Hash dense,111.622,pending_human_annotation,True
+DSDEV-032,BM25,142.802,pending_human_annotation,True
+DSDEV-032,RRF merge,0.144,pending_human_annotation,True
+DSDEV-032,Total retrieval,254.693,pending_human_annotation,True
+DSDEV-033,Hash dense,116.541,pending_human_annotation,True
+DSDEV-033,BM25,143.814,pending_human_annotation,True
+DSDEV-033,RRF merge,0.123,pending_human_annotation,True
+DSDEV-033,Total retrieval,260.931,pending_human_annotation,True
+DSDEV-034,Hash dense,116.046,pending_human_annotation,True
+DSDEV-034,BM25,147.883,pending_human_annotation,True
+DSDEV-034,RRF merge,0.186,pending_human_annotation,True
+DSDEV-034,Total retrieval,264.291,pending_human_annotation,True
+DSDEV-035,Hash dense,124.57,pending_human_annotation,True
+DSDEV-035,BM25,153.691,pending_human_annotation,True
+DSDEV-035,RRF merge,0.141,pending_human_annotation,True
+DSDEV-035,Total retrieval,278.558,pending_human_annotation,True
+DSDEV-036,Hash dense,112.655,pending_human_annotation,True
+DSDEV-036,BM25,145.227,pending_human_annotation,True
+DSDEV-036,RRF merge,0.124,pending_human_annotation,True
+DSDEV-036,Total retrieval,258.21,pending_human_annotation,True
+DSDEV-037,Hash dense,113.033,pending_human_annotation,True
+DSDEV-037,BM25,149.218,pending_human_annotation,True
+DSDEV-037,RRF merge,0.328,pending_human_annotation,True
+DSDEV-037,Total retrieval,262.762,pending_human_annotation,True
+DSDEV-038,Hash dense,114.401,pending_human_annotation,True
+DSDEV-038,BM25,149.42,pending_human_annotation,True
+DSDEV-038,RRF merge,0.122,pending_human_annotation,True
+DSDEV-038,Total retrieval,264.126,pending_human_annotation,True
+DSDEV-039,Hash dense,118.647,pending_human_annotation,True
+DSDEV-039,BM25,144.878,pending_human_annotation,True
+DSDEV-039,RRF merge,0.179,pending_human_annotation,True
+DSDEV-039,Total retrieval,263.922,pending_human_annotation,True
+DSDEV-040,Hash dense,112.691,pending_human_annotation,True
+DSDEV-040,BM25,150.072,pending_human_annotation,True
+DSDEV-040,RRF merge,0.145,pending_human_annotation,True
+DSDEV-040,Total retrieval,263.071,pending_human_annotation,True

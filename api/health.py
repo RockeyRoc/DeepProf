@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 
 router = APIRouter(tags=["health"])
 
-CONTRACT_VERSION = "1.7.0"
+CONTRACT_VERSION = "1.9.0"
 
 
 @router.get("/health")

@@ -88,6 +88,10 @@ def _safe_cell(cell: dict[str, Any], events: list[dict[str, Any]], max_tokens: i
     terminals = [event for event in events if event.get("type") in {"model.completed", "model.failed"}]
     finish_reasons: list[str] = []
     model_error_codes: list[str] = []
+    error_categories: list[str] = []
+    error_statuses: list[str] = []
+    transport_error_types: list[str] = []
+    os_error_codes: list[str] = []
     totals = {key: 0 for key in ("prompt_tokens", "completion_tokens", "total_tokens", "cache_hit_tokens", "cache_miss_tokens")}
     usage_events = 0
     for event in terminals:
@@ -98,6 +102,20 @@ def _safe_cell(cell: dict[str, Any], events: list[dict[str, Any]], max_tokens: i
         if event.get("type") == "model.failed":
             error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
             model_error_codes.append(_safe_code(error.get("code") or error.get("kind")))
+            details = error.get("details") if isinstance(error.get("details"), dict) else {}
+            kind = str(details.get("kind") or error.get("kind") or "")
+            if kind.replace("_", "").isalnum():
+                error_categories.append(kind[:48])
+            status = details.get("http_status", details.get("status_code"))
+            if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
+                error_statuses.append(str(status))
+            types = details.get("cause_types")
+            if isinstance(types, list):
+                transport_error_types.extend(str(value)[:64] for value in types[:4]
+                                             if isinstance(value, str) and value.replace("_", "").isalnum())
+            number = details.get("os_errno")
+            if isinstance(number, int) and not isinstance(number, bool) and 0 <= number <= 65535:
+                os_error_codes.append(str(number))
         usage = _event_usage(event)
         if usage:
             usage_events += 1
@@ -121,12 +139,17 @@ def _safe_cell(cell: dict[str, Any], events: list[dict[str, Any]], max_tokens: i
     return {
         "case_id": str(cell.get("case_id") or ""),
         "group": str(cell.get("group") or ""),
-        "terminal_status": cell_status,
+        "phase": str(cell.get("phase") or "main"),
+        "terminal_status": str(cell.get("application_status") or cell_status),
         "evaluation_status": evaluation_status,
         "provider_requests": len(requested),
         "provider_outcome": outcome,
         "finish_reason": ";".join(sorted(set(finish_reasons))),
         "provider_error_codes": ";".join(sorted(set(model_error_codes))),
+        "provider_error_categories": ";".join(sorted(set(error_categories))),
+        "provider_http_statuses": ";".join(sorted(set(error_statuses))),
+        "provider_transport_error_types": ";".join(sorted(set(transport_error_types))),
+        "provider_os_error_codes": ";".join(sorted(set(os_error_codes))),
         "prompt_tokens": totals["prompt_tokens"],
         "completion_tokens": totals["completion_tokens"],
         "total_tokens": totals["total_tokens"],
@@ -137,10 +160,12 @@ def _safe_cell(cell: dict[str, Any], events: list[dict[str, Any]], max_tokens: i
         "reported_completion_over_configured_limit": totals["completion_tokens"] > max_tokens,
         "action": action,
         "developer_fixture_action_match": bool(cell.get("action_family_match")),
+        "bkt_config_sha256": str((cell.get("frozen_config") or {}).get("bkt_config_hash") or ""),
         "locatable_references": _number(cell.get("locatable_references")),
         "reference_count": _number(cell.get("reference_count")),
         "synthetic_attempt_seeds": len(cell.get("bkt_observations") or []),
         "elapsed_ms": float(cell.get("elapsed_ms") or 0),
+        "no_generation_reason": "provider_not_called_policy_or_retrieval_path" if not requested else "",
         "terminal_failure_code": _safe_code(cell.get("failure_reason")) if cell_status != "completed" else "",
         "evaluation_failure_code": (
             "model_truncated" if evaluation_status == "failed_truncated" else
@@ -191,6 +216,10 @@ def build_aggregate(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]
             "provider_finish_length": sum(row["provider_outcome"] == "finish_reason_length" for row in members),
             "provider_completed_stop": sum(row["provider_outcome"] == "completed" and row["finish_reason"] == "stop" for row in members),
             "provider_failed_events": sum(bool(row["provider_error_codes"]) for row in members),
+            "provider_error_categories": dict(Counter(
+                kind for row in members for kind in row["provider_error_categories"].split(";") if kind)),
+            "provider_http_statuses": dict(Counter(
+                status for row in members for status in row["provider_http_statuses"].split(";") if status)),
             "prompt_tokens": sum(row["prompt_tokens"] for row in members),
             "completion_tokens": sum(row["completion_tokens"] for row in members),
             "cache_hit_tokens": sum(row["cache_hit_tokens"] for row in members),
@@ -248,8 +277,9 @@ def build_aggregate(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]
         "started_at": manifest.get("started_at"),
         "finished_at": manifest.get("finished_at"),
         "provider": {"profile_id": manifest.get("provider_profile"), "model": manifest.get("model")},
-        "sample": {"case_count": int(manifest.get("planned_cells") or 0) // len(GROUPS),
+        "sample": {"case_count": int(manifest.get("planned_cases") or int(manifest.get("planned_cells") or 0) // len(GROUPS)),
                    "observed_cells": len(cell_rows), "groups": list(GROUPS),
+                   "phase": str(manifest.get("phase") or "main"),
                    "type": str(manifest.get("sample_type") or "constructed_developer_fixture"),
                    "human_subjects": bool(manifest.get("human_subjects", False)),
                    "selected_case_ids": [str(item.get("case_id") or "") for item in selected]},
@@ -259,7 +289,8 @@ def build_aggregate(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]
                    "one_turn_per_cell": bool((manifest.get("call_budget") or {}).get("one_turn_per_cell")),
                    "max_output_tokens_requested": max_tokens,
                    "max_retries": int((manifest.get("generation_limit") or {}).get("max_retries") or 0),
-                   "provider_probe_performed": bool(manifest.get("provider_probe_performed"))},
+                   "provider_probe_performed": bool(manifest.get("provider_probe_performed")),
+                   "phase": str(manifest.get("phase") or "main")},
         "groups": groups,
         "evaluation_judgment": {
             "cell_outcomes": evaluation_outcomes,
@@ -268,6 +299,14 @@ def build_aggregate(run_dir: Path) -> tuple[dict[str, Any], list[dict[str, Any]]
         },
         "provider_output": {"finish_reason_counts": dict(finish_counts),
                             "model_failed_events": sum(group["provider_failed_events"] for group in groups.values()),
+                            "error_categories": dict(Counter(kind for row in cell_rows
+                                for kind in row["provider_error_categories"].split(";") if kind)),
+                            "http_statuses": dict(Counter(status for row in cell_rows
+                                for status in row["provider_http_statuses"].split(";") if status)),
+                            "transport_error_types": dict(Counter(name for row in cell_rows
+                                for name in row["provider_transport_error_types"].split(";") if name)),
+                            "os_error_codes": dict(Counter(code for row in cell_rows
+                                for code in row["provider_os_error_codes"].split(";") if code)),
                             "usage_missing_calls": sum(row["usage_missing"] for row in cell_rows),
                             "maximum_reported_completion_tokens_in_one_cell": reported_max,
                             "cells_where_reported_completion_exceeded_requested_limit": sum(row["reported_completion_over_configured_limit"] for row in cell_rows)},

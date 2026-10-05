@@ -1,0 +1,5 @@
+﻿metric,numerator,denominator,rate,unit,review_source
+字段可解析率,540,540,1.0,540 fields,"AI-assisted, uncalibrated; not human rating"
+来源实际可定位率,92,92,1.0,answer-visible citation occurrences,"AI-assisted, uncalibrated; not human rating"
+语义完整支持率,82,119,0.6890756302521008,claim-citation pairs,"AI-assisted, uncalibrated; not human rating"
+事实主张证据覆盖率,86,261,0.32950191570881227,factual-claim candidates,"AI-assisted, uncalibrated; not human rating"

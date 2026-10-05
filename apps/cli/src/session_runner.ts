@@ -26,8 +26,22 @@ export interface AskResult {
   learner_uncertainty: number | null;
   bkt_model_version: string;
   evidence_refs: Array<Record<string, unknown>>;
+  web_search: Record<string, unknown>;
   streamed: boolean;
   events: RuntimeEvent[];
+}
+
+export function turnFailureError(value: unknown): Error {
+  const failure = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const error = new Error(String(failure.message || "agent_failed")) as Error & {
+    code?: string;
+    details?: Record<string, unknown>;
+  };
+  if (typeof failure.code === "string") error.code = failure.code;
+  if (failure.details && typeof failure.details === "object" && !Array.isArray(failure.details)) {
+    error.details = failure.details as Record<string, unknown>;
+  }
+  return error;
 }
 
 export function clients(baseUrl: string, learnerId: string): { commands: CommandBus; sessions: SessionClient } {
@@ -69,6 +83,7 @@ export async function ask(
   let turnMode: "chat" | "study" = summary.session_mode || "study";
   let routingReason = "";
   let routingVersion = "";
+  let webSearch: Record<string, unknown> = { mode: summary.web_search_mode || "auto", status: "off", results: [] };
   let streamed = false;
   let settled = false;
   let resolveTurn: (() => void) | null = null;
@@ -93,12 +108,21 @@ export async function ask(
         onReasoning?.(text);
       } else if (event.type === "model.completed") {
         usage = (event.payload.usage && typeof event.payload.usage === "object") ? event.payload.usage as Record<string, unknown> : {};
+      } else if (event.type === "web.search.started") {
+        webSearch = { ...webSearch, mode: event.payload.mode || webSearch.mode, provider: event.payload.provider || "",
+          status: "searching", native: Boolean(event.payload.native) };
+      } else if (event.type === "web.search.completed") {
+        webSearch = { mode: event.payload.mode || webSearch.mode, status: event.payload.status || "completed", provider: event.payload.provider || "",
+          query: event.payload.query || "", search_confirmed: Boolean(event.payload.search_confirmed),
+          results: Array.isArray(event.payload.sources) ? event.payload.sources as Array<Record<string, unknown>> : [] };
+      } else if (event.type === "web.search.failed") {
+        webSearch = { ...webSearch, mode: event.payload.mode || webSearch.mode, status: "failed", error: event.payload.error || {} };
       } else if (event.type === "agent.turn.started") {
         turnMode = event.payload.turn_mode === "chat" ? "chat" : "study";
         routingReason = String(event.payload.routing_reason || routingReason);
         routingVersion = String(event.payload.routing_version || routingVersion);
       } else if (event.type === "agent.failed") {
-        rejectTurn?.(new Error(String((event.payload.error as Record<string, unknown> | undefined)?.message || "agent_failed")));
+        rejectTurn?.(turnFailureError(event.payload.error));
       } else if (event.type === "teaching.turn.completed") {
         turnMode = "study";
         routingReason = String(event.payload.routing_reason || "");
@@ -151,11 +175,12 @@ export async function ask(
       }),
     ]);
     settled = true;
-    if (!answer) {
-      const transcript = await sessions.transcript(sessionId);
-      const last = transcript.filter((message) => message.role === "assistant").at(-1);
-      answer = last?.content || "";
-      reasoning = String(last?.metadata?.reasoning_content || "");
+    const transcript = await sessions.transcript(sessionId);
+    const last = transcript.filter((message) => message.role === "assistant").at(-1);
+    if (!answer) answer = last?.content || "";
+    if (!reasoning) reasoning = String(last?.metadata?.reasoning_content || "");
+    if (last?.metadata?.web_search && typeof last.metadata.web_search === "object") {
+      webSearch = last.metadata.web_search as Record<string, unknown>;
     }
     return { session_id: sessionId, answer, reasoning, usage, provider_profile: providerProfile || summary.provider_profile || null,
       model: model || summary.model || null, last_sequence: eventClient.lastSequence, trace_id: traceId,
@@ -164,7 +189,7 @@ export async function ask(
       experiment_group: experimentGroup, action, policy_version: policyVersion,
       learner_estimate_status: learnerEstimateStatus, mastery, learner_evidence_count: learnerEvidenceCount,
       learner_updated_at: learnerUpdatedAt, learner_uncertainty: learnerUncertainty,
-      bkt_model_version: bktModelVersion, evidence_refs: evidenceRefs, streamed, events };
+      bkt_model_version: bktModelVersion, evidence_refs: evidenceRefs, web_search: webSearch, streamed, events };
   } finally {
     if (timeout) clearTimeout(timeout);
     if (abortListener) signal?.removeEventListener("abort", abortListener);

@@ -28,6 +28,8 @@ jobs:
         run: python -m evaluation.m2_acceptance
       - name: M3 Fake Provider offline acceptance
         run: python -m evaluation.m3_acceptance --run-id "m3-ci-${{ github.run_id }}-${{ github.run_attempt }}" --output-dir "${{ runner.temp }}/deepprof-m3-ci"
+      - name: Verify public experiment evidence
+        run: python scripts/build_public_evidence.py --check
 
   package:
     name: CLI package on ${{ matrix.os }}
@@ -47,12 +49,18 @@ jobs:
         with:
           python-version: "3.12"
       - run: npm ci --prefix apps/cli
+      - name: Resolve package version and prepare public evidence
+        id: package-meta
+        shell: bash
+        run: |
+          echo "version=$(node -p "require('./apps/cli/package.json').version")" >> "$GITHUB_OUTPUT"
+          python scripts/build_public_evidence.py --check --bundle
       - run: npm run typecheck --prefix apps/cli
       - run: npm run pack:release --prefix apps/cli
       - name: Run packaged CLI from the local npm cache
-        run: npm exec --yes --package=.release/deepprof-cli-0.6.2.tgz -- deepprof --version
+        run: npm exec --yes --package=.release/deepprof-cli-${{ steps.package-meta.outputs.version }}.tgz -- deepprof --version
       - name: Prepare Python and check the loopback Gateway
         run: |
-          npm exec --yes --package=.release/deepprof-cli-0.6.2.tgz -- deepprof doctor
+          npm exec --yes --package=.release/deepprof-cli-${{ steps.package-meta.outputs.version }}.tgz -- deepprof doctor
         env:
           DEEPPROF_HOME: ${{ runner.temp }}/deepprof-package-smoke

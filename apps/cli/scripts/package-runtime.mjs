@@ -9,6 +9,8 @@ const root = resolve(appRoot, "../..");
 const releaseRoot = resolve(process.env.DEEPPROF_RELEASE_ROOT || join(root, ".release"));
 const stage = join(releaseRoot, "deepprof-cli");
 const sourceManifest = JSON.parse(readFileSync(join(appRoot, "package.json"), "utf8"));
+const releaseTag = `v${sourceManifest.version}`;
+if (!/^\d+\.\d+\.\d+$/.test(sourceManifest.version)) throw new Error("Invalid package release version.");
 const pythonDirectories = [
   "api", "apps/replay", "apps/web", "config", "data/courses", "graph",
   "library", "models", "packages/contracts", "runtime", "skills", "tools",
@@ -99,19 +101,26 @@ if (packed.status !== 0) throw new Error(`npm pack failed: ${packed.stderr || pa
 const filename = `deepprof-cli-${sourceManifest.version}.tgz`;
 const artifact = join(releaseRoot, filename);
 const checksum = createHash("sha256").update(readFileSync(artifact)).digest("hex");
-writeFileSync(join(releaseRoot, "deepprof-cli-0.6.2.sha256"), `${checksum}  ${filename}\n`, "ascii");
+writeFileSync(join(releaseRoot, `deepprof-cli-${sourceManifest.version}.sha256`), `${checksum}  ${filename}\n`, "ascii");
+const reportRoot = join(root, `docs/experiments/${releaseTag}`);
+for (const [source, target] of [
+  ["M3-BKT-RAG-改进实验报告.pdf", "M3-BKT-RAG-report.pdf"],
+  ["M3-BKT-RAG-改进实验报告.md", "M3-BKT-RAG-report.zh-CN.md"],
+  ["delivery-manifest.json", `DEEPPROF-${releaseTag}-public-manifest.json`],
+]) cpSync(join(reportRoot, source), join(releaseRoot, target));
 const releaseAssets = [
   artifact,
-  join(root, "docs/experiments/M1-M3-experimental-report.pdf"),
-  join(root, "docs/experiments/M1-M3-实验报告.md"),
-  join(root, "docs/experiments/releases/M1-M3-evidence.zip"),
-  join(root, "docs/experiments/releases/M1-M3-SHA256SUMS.txt"),
+  join(releaseRoot, `deepprof-cli-${sourceManifest.version}.sha256`),
+  join(releaseRoot, `DEEPPROF-${releaseTag}-evidence.zip`),
+  join(releaseRoot, "M3-BKT-RAG-report.pdf"),
+  join(releaseRoot, "M3-BKT-RAG-report.zh-CN.md"),
+  join(releaseRoot, `DEEPPROF-${releaseTag}-public-manifest.json`),
 ];
 for (const file of releaseAssets) {
-  if (!existsSync(file)) throw new Error(`Required v0.6.2 release asset is missing: ${relative(root, file)}`);
+  if (!existsSync(file)) throw new Error(`Required ${releaseTag} release asset is missing: ${relative(root, file)}`);
 }
 const releaseSums = releaseAssets
-  .map((file) => `${createHash("sha256").update(readFileSync(file)).digest("hex")}  ${relative(root, file).replaceAll("\\", "/")}\n`)
+  .map((file) => `${createHash("sha256").update(readFileSync(file)).digest("hex")}  ${relative(releaseRoot, file).replaceAll("\\", "/")}\n`)
   .join("");
-writeFileSync(join(releaseRoot, "DEEPPROF-v0.6.2-SHA256SUMS.txt"), releaseSums, "utf8");
+writeFileSync(join(releaseRoot, `DEEPPROF-${releaseTag}-SHA256SUMS.txt`), releaseSums, "utf8");
 process.stdout.write(`${packed.stdout || ""}\n包位置：${artifact}\nSHA-256：${checksum}\n`);

@@ -1,0 +1,93 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='518.74pt' height='325.98pt' viewBox='0 0 518.74 325.98'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1MTguNzR8MC4wMHwzMjUuOTg='>
+    <rect x='0.00' y='0.00' width='518.74' height='325.98' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1MTguNzR8MC4wMHwzMjUuOTg=)'>
+<rect x='0.00' y='0.00' width='518.74' height='325.98' style='stroke-width: 0.78; stroke: #FFFFFF; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpMTAyLjU0fDUwNi43OHw2NS44NHwyNzIuMDI='>
+    <rect x='102.54' y='65.84' width='404.24' height='206.18' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMTAyLjU0fDUwNi43OHw2NS44NHwyNzIuMDI=)'>
+<rect x='102.54' y='65.84' width='404.24' height='206.18' style='stroke-width: 0.78; stroke: none; fill: #FFFFFF;' />
+<circle cx='379.73' cy='102.05' r='3.25' style='stroke-width: 0.52; stroke: none; fill: #8295A5;' />
+<circle cx='261.10' cy='151.14' r='3.25' style='stroke-width: 0.52; stroke: none; fill: #8295A5;' />
+<circle cx='339.50' cy='200.22' r='3.25' style='stroke-width: 0.52; stroke: none; fill: #8295A5;' />
+<circle cx='392.64' cy='249.31' r='3.25' style='stroke-width: 0.52; stroke: none; fill: #8295A5;' />
+<polygon points='383.74,83.50 388.11,91.07 379.37,91.07 ' style='stroke-width: 0.52; stroke: none; fill: #287D8E;' />
+<polygon points='262.85,132.59 267.22,140.16 258.48,140.16 ' style='stroke-width: 0.52; stroke: none; fill: #287D8E;' />
+<polygon points='345.32,181.68 349.70,189.25 340.95,189.25 ' style='stroke-width: 0.52; stroke: none; fill: #287D8E;' />
+<polygon points='396.51,230.77 400.88,238.34 392.14,238.34 ' style='stroke-width: 0.52; stroke: none; fill: #287D8E;' />
+<text x='387.31' y='105.00' style='font-size: 8.25px;fill: #8295A5; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.7508</text>
+<text x='268.68' y='154.09' style='font-size: 8.25px;fill: #8295A5; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.4248</text>
+<text x='347.08' y='203.18' style='font-size: 8.25px;fill: #8295A5; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.6402</text>
+<text x='400.22' y='252.27' style='font-size: 8.25px;fill: #8295A5; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.7863</text>
+<text x='391.32' y='91.50' style='font-size: 8.25px;fill: #287D8E; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.7618</text>
+<text x='270.43' y='140.59' style='font-size: 8.25px;fill: #287D8E; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.4296</text>
+<text x='352.90' y='189.68' style='font-size: 8.25px;fill: #287D8E; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.6563</text>
+<text x='404.09' y='238.77' style='font-size: 8.25px;fill: #287D8E; font-family: "Arial";' textLength='25.27px' lengthAdjust='spacingAndGlyphs'>0.7969</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1MTguNzR8MC4wMHwzMjUuOTg=)'>
+<polyline points='102.54,272.02 102.54,65.84 ' style='stroke-width: 0.78; stroke-linecap: square;' />
+<text x='98.95' y='245.43' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='73.42px' lengthAdjust='spacingAndGlyphs'>BGE reranker v2-m3</text>
+<text x='98.95' y='196.34' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='90.98px' lengthAdjust='spacingAndGlyphs'>BGE-M3 + BM25 RRF-60</text>
+<text x='98.95' y='147.25' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='20.92px' lengthAdjust='spacingAndGlyphs'>BM25</text>
+<text x='98.95' y='98.16' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='54.73px' lengthAdjust='spacingAndGlyphs'>BGE-M3 dense</text>
+<polyline points='100.55,242.56 102.54,242.56 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='100.55,193.48 102.54,193.48 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='100.55,144.39 102.54,144.39 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='100.55,95.30 102.54,95.30 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='102.54,272.02 506.78,272.02 ' style='stroke-width: 0.78; stroke-linecap: square;' />
+<polyline points='106.54,274.01 106.54,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='179.31,274.01 179.31,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='252.09,274.01 252.09,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='324.86,274.01 324.86,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='397.63,274.01 397.63,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='470.40,274.01 470.40,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<text x='106.54' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>0.0</text>
+<text x='179.31' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>0.2</text>
+<text x='252.09' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>0.4</text>
+<text x='324.86' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>0.6</text>
+<text x='397.63' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>0.8</text>
+<text x='470.40' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.12px' lengthAdjust='spacingAndGlyphs'>1.0</text>
+<text x='304.66' y='290.74' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='134.05px' lengthAdjust='spacingAndGlyphs'>Mean nDCG@5 over relevant queries</text>
+<rect x='216.45' y='32.62' width='176.42' height='25.25' style='stroke-width: 0.78; stroke: none; fill: #FFFFFF;' />
+<rect x='220.44' y='36.61' width='17.28' height='17.28' style='stroke-width: 0.78; stroke: none; fill: #FFFFFF;' />
+<circle cx='229.08' cy='45.25' r='3.25' style='stroke-width: 0.52; stroke: none; fill: #8295A5;' />
+<rect x='322.91' y='36.61' width='17.28' height='17.28' style='stroke-width: 0.78; stroke: none; fill: #FFFFFF;' />
+<polygon points='331.55,40.20 335.92,47.77 327.17,47.77 ' style='stroke-width: 0.52; stroke: none; fill: #287D8E;' />
+<text x='241.70' y='48.11' style='font-size: 8.00px; font-family: "Arial";' textLength='77.22px' lengthAdjust='spacingAndGlyphs'>Development (n=393)</text>
+<text x='344.17' y='48.11' style='font-size: 8.00px; font-family: "Arial";' textLength='44.72px' lengthAdjust='spacingAndGlyphs'>Test (n=920)</text>
+<text x='102.54' y='26.95' style='font-size: 8.00px; font-family: "Arial";' textLength='218.52px' lengthAdjust='spacingAndGlyphs'>All 3,770 queries and 37,599 available candidate pairs scored</text>
+<text x='102.54' y='15.13' style='font-size: 10.00px; font-weight: bold; font-family: "Arial";' textLength='212.08px' lengthAdjust='spacingAndGlyphs'>NoMIRACL Chinese: fixed-candidate ranking</text>
+<text x='102.54' y='301.43' style='font-size: 7.00px; font-family: "Arial";' textLength='254.25px' lengthAdjust='spacingAndGlyphs'>Dev: 393 relevant queries; test: 920. Four methods use the same candidate pools.</text>
+<text x='102.54' y='308.99' style='font-size: 7.00px; font-family: "Arial";' textLength='253.52px' lengthAdjust='spacingAndGlyphs'>95 absent qrels (35 positive) filtered; no queries excluded. Single snapshot; no CI.</text>
+<text x='102.54' y='316.55' style='font-size: 7.00px; font-family: "Arial";' textLength='234.38px' lengthAdjust='spacingAndGlyphs'>Candidate ranking is not corpus-wide Recall or generated-answer accuracy.</text>
+</g>
+</g>
+</svg>

@@ -36,7 +36,9 @@ def test_exporter_keeps_model_text_and_identifiers_local(tmp_path: Path) -> None
     _write(run_dir / "events" / "main-case-A.json", {"events": [
         {"type": "model.requested", "payload": {"model": "deepseek-flash"}},
         {"type": "model.failed", "payload": {"finish_reason": "length", "error": {
-            "code": "model_truncated", "details": {"usage": {
+            "code": "model_truncated", "details": {"kind": "connection_failed",
+                "http_status": 503, "cause_types": ["ConnectError"], "os_errno": 10061,
+                "body": marker, "usage": {
                 "prompt_tokens": 3, "completion_tokens": 513, "total_tokens": 516,
                 "prompt_cache_hit_tokens": 0, "prompt_cache_miss_tokens": 3}}}}},
         {"type": "model.stream.delta", "payload": {"text": marker}},
@@ -70,7 +72,8 @@ def test_truncation_fails_evaluation_even_when_application_terminal_completed(tm
     fixtures = [
         ("case-truncated", "A", "completed", [{"type": "model.requested", "payload": {}},
             {"type": "model.failed", "payload": {"error": {"code": "model_truncated",
-                "details": {"finish_reason": "length"}}}}]),
+                "details": {"finish_reason": "length", "kind": "connection_failed",
+                    "http_status": 503, "cause_types": ["ConnectError"], "os_errno": 10061}}}}]),
         ("case-stop", "B", "completed", [{"type": "model.requested", "payload": {}},
             {"type": "model.completed", "payload": {"finish_reason": "stop"}}]),
         ("case-policy", "C", "completed", []),
@@ -89,6 +92,10 @@ def test_truncation_fails_evaluation_even_when_application_terminal_completed(tm
 
     assert rows["case-truncated"]["terminal_status"] == "completed"
     assert rows["case-truncated"]["evaluation_status"] == "failed_truncated"
+    assert rows["case-truncated"]["provider_error_categories"] == "connection_failed"
+    assert rows["case-truncated"]["provider_http_statuses"] == "503"
+    assert rows["case-truncated"]["provider_transport_error_types"] == "ConnectError"
+    assert rows["case-truncated"]["provider_os_error_codes"] == "10061"
     assert rows["case-truncated"]["evaluation_failure_code"] == "model_truncated"
     assert rows["case-stop"]["evaluation_status"] == "completed"
     assert rows["case-policy"]["evaluation_status"] == "not_applicable"

@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from models.learner.attempt import Attempt
 from models.learner.bkt import DEFAULT_PARAMETERS, MIN_EVIDENCE, BKTParameters, binary_entropy, initial_mastery, update
 from runtime.core.events import new_id, utc_now
 from runtime.storage.migrations import connect
@@ -28,13 +29,28 @@ class SqliteLearnerStore:
                        correct: bool | None, hint_count: int, grading_source: str, confidence: float,
                        parameters: BKTParameters = DEFAULT_PARAMETERS, bkt_enabled: bool = True,
                        concept_unambiguous: bool = True) -> dict[str, Any]:
-        if not learner_id.strip() or not session_id.strip() or not item_id.strip():
-            raise ValueError("learner, session and item identifiers are required")
-        if not 0.0 <= float(confidence) <= 1.0:
-            raise ValueError("confidence must be between zero and one")
-        normalized_concepts = list(dict.fromkeys(
-            str(value).strip() for value in (concept_ids or [concept_id]) if str(value).strip()
-        ))
+        # Validate and normalize through the public Attempt contract before mapping it
+        # to SQLite columns. This keeps the DB row, event payload and DTO in sync.
+        attempt = Attempt(
+            attempt_id=attempt_id, learner_id=learner_id, session_id=session_id, trace_id=trace_id,
+            course_id=course_id, item_id=item_id, scored_concept_id=concept_id,
+            concept_ids=concept_ids or [concept_id], correct=correct,
+            question_bank_version=bank_version, grading_source=grading_source,
+            confidence=confidence, timestamp=utc_now(), hint_count=hint_count,
+        )
+        attempt_id = attempt.attempt_id
+        learner_id = attempt.learner_id
+        session_id = attempt.session_id
+        trace_id = attempt.trace_id
+        course_id = attempt.course_id
+        item_id = attempt.item_id
+        concept_id = attempt.scored_concept_id
+        bank_version = attempt.question_bank_version
+        correct = attempt.correct
+        hint_count = attempt.hint_count
+        grading_source = attempt.grading_source
+        confidence = attempt.confidence
+        normalized_concepts = attempt.concept_ids
         encoded_concepts = json.dumps(normalized_concepts, ensure_ascii=False, separators=(",", ":"))
         with self._lock:
             connection = self._conn
@@ -43,13 +59,14 @@ class SqliteLearnerStore:
                 existing = connection.execute("SELECT * FROM attempts WHERE attempt_id=?", (attempt_id,)).fetchone()
                 if existing is not None:
                     expected_correct = int(correct) if correct is not None else None
-                    identity = ("learner_id", "session_id", "course_id", "item_id", "scored_concept_id", "concept_ids",
-                                "bank_version", "is_correct", "hint_count", "grading_source")
+                    identity = ("learner_id", "session_id", "trace_id", "course_id", "item_id", "scored_concept_id",
+                                "concept_ids", "bank_version", "is_correct", "hint_count", "grading_source", "confidence")
                     expected = {"learner_id": learner_id, "session_id": session_id, "course_id": course_id,
+                                "trace_id": trace_id,
                                 "item_id": item_id, "scored_concept_id": concept_id, "concept_ids": encoded_concepts,
                                 "bank_version": bank_version,
                                 "is_correct": expected_correct, "hint_count": int(hint_count),
-                                "grading_source": grading_source}
+                                "grading_source": grading_source, "confidence": float(confidence)}
                     if any(existing[key] != expected[key] for key in identity):
                         raise ValueError("attempt_id_conflict")
                     result = self._attempt_dict(existing)
@@ -63,7 +80,7 @@ class SqliteLearnerStore:
                     correct=correct, grading_source=grading_source, confidence=confidence, bkt_enabled=bkt_enabled,
                     concept_unambiguous=concept_unambiguous)
                 eligible = not skip_reason
-                now = utc_now()
+                now = attempt.timestamp
                 connection.execute(
                     "INSERT INTO attempts (attempt_id,learner_id,session_id,trace_id,item_id,scored_concept_id,concept_ids,"
                     "is_correct,answer_value,hint_count,grading_source,confidence,bank_version,created_at,course_id,eligible,skip_reason) "
@@ -109,7 +126,8 @@ class SqliteLearnerStore:
                     "concept_ids": normalized_concepts,
                     "correct": bool(correct) if correct is not None else None,
                     "hint_count": int(hint_count), "grading_source": grading_source,
-                    "confidence": float(confidence), "eligible": eligible, "skip_reason": skip_reason,
+                    "confidence": float(confidence), "timestamp": now,
+                    "eligible": eligible, "skip_reason": skip_reason,
                     "predicted_correct": predicted, "learner_estimate": estimate, "replayed": False,
                 }
                 event_type = "pedagogy.attempt" if eligible else "pedagogy.attempt_skipped"
@@ -183,6 +201,78 @@ class SqliteLearnerStore:
                                     float(row["mastery"]), int(row["evidence_count"]), str(row["updated_at"]))
                 for row in rows]
 
+    def delete_session_data(self, session_id: str) -> dict[str, int]:
+        """Remove a session's learning records and replay affected estimates atomically."""
+        with self._lock:
+            connection = self._conn
+            connection.execute("BEGIN IMMEDIATE")
+            try:
+                affected = connection.execute(
+                    "SELECT DISTINCT a.learner_id,a.course_id,a.scored_concept_id "
+                    "FROM attempts a WHERE a.session_id=? AND a.eligible=1", (session_id,)
+                ).fetchall()
+                attempt_count = int(connection.execute(
+                    "SELECT COUNT(*) FROM attempts WHERE session_id=?", (session_id,)
+                ).fetchone()[0])
+                observation_count = int(connection.execute(
+                    "SELECT COUNT(*) FROM bkt_observations WHERE attempt_id IN "
+                    "(SELECT attempt_id FROM attempts WHERE session_id=?)", (session_id,)
+                ).fetchone()[0])
+                outbox_count = int(connection.execute(
+                    "SELECT COUNT(*) FROM learner_event_outbox WHERE session_id=?", (session_id,)
+                ).fetchone()[0])
+                snapshots: dict[tuple[str, str, str], list[sqlite3.Row]] = {}
+                for row in affected:
+                    key = (str(row["learner_id"]), str(row["course_id"]), str(row["scored_concept_id"]))
+                    snapshots[key] = connection.execute(
+                        "SELECT model_version,config_hash,parameters FROM learner_estimates "
+                        "WHERE learner_id=? AND course_id=? AND concept_id=?", key
+                    ).fetchall()
+                connection.execute("DELETE FROM bkt_observations WHERE attempt_id IN "
+                                    "(SELECT attempt_id FROM attempts WHERE session_id=?)", (session_id,))
+                connection.execute("DELETE FROM attempts WHERE session_id=?", (session_id,))
+                connection.execute("DELETE FROM learner_event_outbox WHERE session_id=?", (session_id,))
+
+                for (learner_id, course_id, concept_id), estimates in snapshots.items():
+                    for estimate in estimates:
+                        version, config_hash = str(estimate["model_version"]), str(estimate["config_hash"])
+                        parameters = BKTParameters(**json.loads(str(estimate["parameters"])))
+                        connection.execute(
+                            "DELETE FROM learner_estimates WHERE learner_id=? AND course_id=? AND concept_id=? "
+                            "AND model_version=? AND config_hash=?",
+                            (learner_id, course_id, concept_id, version, config_hash),
+                        )
+                        mastery = initial_mastery(parameters)
+                        evidence = 0
+                        attempts = connection.execute(
+                            "SELECT attempt_id,is_correct,created_at FROM attempts WHERE learner_id=? AND course_id=? "
+                            "AND scored_concept_id=? AND eligible=1 AND is_correct IS NOT NULL "
+                            "ORDER BY created_at,attempt_id", (learner_id, course_id, concept_id)
+                        ).fetchall()
+                        for attempt in attempts:
+                            before = mastery
+                            predicted, mastery = update(before, bool(attempt["is_correct"]), parameters)
+                            evidence += 1
+                            connection.execute(
+                                "UPDATE bkt_observations SET predicted_correct=?,mastery_before=?,mastery_after=?, "
+                                "evidence_count=? WHERE attempt_id=? AND model_version=? AND config_hash=?",
+                                (predicted, before, mastery, evidence, str(attempt["attempt_id"]), version, config_hash),
+                            )
+                        if evidence:
+                            connection.execute(
+                                "INSERT INTO learner_estimates (learner_id,course_id,concept_id,model_version,config_hash,parameters,mastery,evidence_count,updated_at) "
+                                "VALUES (?,?,?,?,?,?,?,?,?)",
+                                (learner_id, course_id, concept_id, version, config_hash,
+                                 json.dumps(parameters.to_dict(), ensure_ascii=False, sort_keys=True), mastery,
+                                 evidence, utc_now()),
+                            )
+                connection.commit()
+                return {"attempts_deleted": attempt_count, "observations_deleted": observation_count,
+                        "outbox_deleted": outbox_count, "estimates_replayed": sum(len(rows) for rows in snapshots.values())}
+            except BaseException:
+                connection.rollback()
+                raise
+
     def close(self) -> None:
         """Release the SQLite handle owned by this store."""
         with self._lock:
@@ -225,7 +315,8 @@ class SqliteLearnerStore:
                 "correct": bool(row["is_correct"]) if row["is_correct"] is not None else None,
                 "hint_count": int(row["hint_count"]),
                 "grading_source": row["grading_source"], "confidence": float(row["confidence"]),
-                "question_bank_version": row["bank_version"], "eligible": bool(row["eligible"]),
+                "question_bank_version": row["bank_version"], "timestamp": row["created_at"],
+                "eligible": bool(row["eligible"]),
                 "skip_reason": row["skip_reason"]}
 
 

@@ -1,0 +1,6 @@
+{
+  "schema_version": "deepprof-public-figure-data-v1",
+  "active_fulltext_batch": "m3-fulltext-rag-20261004-v4",
+  "original_manifest_sha256": "05eb28bcb1973dedeb5ae44be5e4b9af934ef0c55f4c308ca65b5be1a2c6e41b",
+  "note": "Public aggregate files and hashes are listed in ../delivery-manifest.json; private source lineage is retained locally."
+}

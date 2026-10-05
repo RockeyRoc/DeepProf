@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 
 CASE_VERSION = "ds-dev-cases-v1"
+M3_CASE_VERSION = "ds-m3-offline-v1"
 
 SCENARIOS = {
     "cold_start": (
@@ -113,6 +114,41 @@ def build_cases() -> dict:
         "human_subjects": False,
         "cases": categories,
     }
+
+
+def derive_m3_cases(source: dict) -> list[dict]:
+    """Pure construction of the fixed M3 fixture cases shared by checks and BKT."""
+    rows: list[dict] = []
+    for original in source["cases"]:
+        case = dict(original)
+        category = str(case.get("category") or "")
+        if category == "consecutive_errors":
+            outcomes = [False, False, False]
+        elif category == "hint_then_success":
+            outcomes = [True, True, False]
+        else:
+            outcomes = [True, False, True]
+        case.update({
+            "m3_case_version": M3_CASE_VERSION,
+            "source_case_version": source["version"],
+            "sample_type": "constructed_developer_fixture",
+            "attempt_history": [
+                {"item_id": f"{case['case_id']}-ATT-{index + 1}", "correct": correct,
+                 "hint_count": 0, "grading_source": "exact_normalized_match", "confidence": 1.0}
+                for index, correct in enumerate(outcomes)
+            ],
+            "retrieval_fixture": {
+                "document_id": f"fixture-doc-{case['concept_id']}",
+                "chunk_id": f"fixture-chunk-{case['case_id']}",
+                "page": int(case.get("repeat") or 1),
+                "chapter": "Constructed developer fixture",
+                "source": "constructed_fixture; not a textbook citation",
+                "text": f"Constructed evidence fixture for {case['concept_id']}; not source material.",
+            },
+            "allowed_variants": list(case.get("expected_action_family") or []),
+        })
+        rows.append(case)
+    return rows
 
 
 def write_cases(path: str | Path | None = None) -> Path:

@@ -1,0 +1,18 @@
+﻿domain,unit,count,split,status
+构造集（编程诊断）,序列,40,构造集,available
+构造集（编程诊断）,作答,120,构造集,available
+ASSISTments 2009–2010（数学）,训练学生,3202,development,historical_public_data
+ASSISTments 2009–2010（数学）,训练作答,184631,development,historical_public_data
+ASSISTments 2009–2010（数学）,测试学生,801,locked_test,historical_test_viewed
+ASSISTments 2009–2010（数学）,测试作答,51429,locked_test,historical_test_viewed
+Algebra I 2005–2006 KDD,官方步骤数,813661,registered download required,pending_full_master_access
+Algebra I 2006–2007 KDD,官方步骤数,2289726,registered download required,pending_full_master_access
+课程 RAG 旧题,问题,40,old benchmark,ai_reviewed_personnel_pending
+课程 RAG 新题,问题,80,development+sealed_test,ai_reviewed_personnel_pending
+NoMIRACL 中文,测试查询,2295,official test; fixed candidates,candidate_conditional_eval_complete
+NoMIRACL 中文,匹配候选文档,31826,official dev/test; judged candidates,candidate_qrel_missingness_reported
+MIRACL 中文全库,语料检索,,full corpus,not_run
+教材 OCR,PDF页,347,full textbook,ai_reviewed_personnel_pending
+全文 RAG 四条件,有效格,480,120 queries x 4 conditions,available
+NoMIRACL 中文,开发查询,1475,official dev; threshold selection,candidate_conditional_eval_complete
+NoMIRACL 中文,候选配对,37599,complete dev/test pairs,candidate_conditional_eval_complete

@@ -25,7 +25,7 @@ import {
 } from "./packaged_runtime.js";
 
 interface Options { json: boolean; apiUrl?: string; home?: string; command: string; args: string[]; }
-const RELEASE_URL = "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz";
+const RELEASE_URL = "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz";
 
 function parseArgs(argv: string[]): Options {
   let json = false;
@@ -115,7 +115,7 @@ function prepareRuntime(withOcr = false): string {
 }
 
 function printTopLevelHelp(): void {
-  console.log(`DeepProf CLI v0.6.2
+  console.log(`DeepProf CLI v0.6.4
 
 快速开始：deepprof （首次运行时自动准备本机环境）
   npm install --global "${RELEASE_URL}" 持久安装，之后可直接运行 deepprof
@@ -130,10 +130,12 @@ function printTopLevelHelp(): void {
   deepprof models list|add|delete        管理服务下已添加的模型
   deepprof sessions list|rename|delete   管理普通对话
   deepprof thinking <session_id> on|off  设置模型思考模式
+  deepprof web-search configure|status|test  配置、查看或测试模型厂商联网 API（Ollama 支持 --api-key-stdin/--clear）
+  deepprof web-search-mode <session_id> auto|on|off  设置会话联网方式
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
-环境变量：DEEPPROF_HOME、DEEPPROF_PYTHON、DEEPPROF_API_URL
+环境变量：DEEPPROF_HOME、DEEPPROF_PYTHON、DEEPPROF_API_URL、OLLAMA_API_KEY
 在 CLI 中运行 /help 查看学习、题库和会话命令。${isDeveloperRuntime(runtimeRoot()) ? "\n开发环境还提供 /report 与 /acceptance --live。" : ""}`);
 }
 
@@ -149,8 +151,8 @@ async function printDoctor(json: boolean): Promise<void> {
   }
   let installed = false;
   try {
-    const state = JSON.parse(readFileSync(join(home, "runtime", "0.6.2", "install-state.json"), "utf8")) as { runtimeHash?: string };
-    installed = Boolean(state.runtimeHash && existsSync(join(home, "runtime", "0.6.2", "venv")));
+    const state = JSON.parse(readFileSync(join(home, "runtime", "0.6.4", "install-state.json"), "utf8")) as { runtimeHash?: string };
+    installed = Boolean(state.runtimeHash && existsSync(join(home, "runtime", "0.6.4", "venv")));
   } catch { /* Setup has not completed. */ }
   const names = process.platform === "win32" ? ["deepprof.cmd", "deepprof.exe"] : ["deepprof"];
   const commandPath = (process.env.PATH || "").split(delimiter).flatMap((directory) => names.map((name) => join(directory, name)))
@@ -215,9 +217,9 @@ async function checkUpdate(json: boolean): Promise<void> {
   const release = await response.json() as { tag_name?: string; html_url?: string; prerelease?: boolean; draft?: boolean };
   const latest = String(release.tag_name || "").replace(/^v/, "");
   if (!latest || release.prerelease || release.draft) throw new Error("latest_stable_release_unavailable");
-  const current = "0.6.2", newer = latest.localeCompare(current, undefined, { numeric: true }) > 0;
+  const current = "0.6.4", newer = latest.localeCompare(current, undefined, { numeric: true }) > 0;
   if (json) jsonResult("update", { current, latest, update_available: newer, release: release.html_url || "" });
-  else console.log(newer ? `发现新版本 ${latest}（当前 ${current}）\n更新命令：npm install --global "${RELEASE_URL.replace("v0.6.2", `v${latest}`).replace("0.6.2.tgz", `${latest}.tgz`)}"` : `已是最新稳定版 ${current}。`);
+  else console.log(newer ? `发现新版本 ${latest}（当前 ${current}）\n更新命令：npm install --global "${RELEASE_URL.replace("v0.6.4", `v${latest}`).replace("0.6.4.tgz", `${latest}.tgz`)}"` : `已是最新稳定版 ${current}。`);
 }
 
 async function uninstall(args: string[]): Promise<void> {
@@ -545,8 +547,19 @@ async function manageModels(provider: ProviderClient, args: string[], json: bool
   if (!profile) throw new Error(`provider_not_found:${profileId}`);
   if (sub === "list") {
     const models = profile.models.length ? profile.models : (profile.default_model ? [profile.default_model] : []);
-    if (json) jsonResult("models.list", { profile_id: profileId, models, default_model: profile.default_model });
-    else console.log(models.map((model) => `${model === profile.default_model ? "* " : "  "}${model}`).join("\n"));
+    const catalog: Array<Record<string, unknown>> = await provider.modelCatalog(profileId)
+      .catch((): Array<Record<string, unknown>> => []);
+    const details = catalog.filter((item) => models.includes(String(item.id)));
+    if (json) jsonResult("models.list", { profile_id: profileId, models: details.length ? details : models.map((id) => ({ id })), default_model: profile.default_model });
+    else {
+      const rows: Array<Record<string, unknown>> = details.length ? details : models.map((id) => ({ id }));
+      console.log(rows.map((item) => {
+      const reasoning = String(item.reasoning_mode || "unknown");
+      const levels = Array.isArray(item.thinking_levels) && item.thinking_levels.length ? ` · 思考等级 ${item.thinking_levels.join("/")}` : "";
+      const budget = item.thinking_budget_parameter ? ` · 思考预算 ${String(item.thinking_budget_min || 1)}–${String(item.thinking_budget_max || 32768)}` : "";
+      return `${String(item.id) === profile.default_model ? "* " : "  "}${String(item.id)} · 思考 ${reasoning}${levels}${budget}`;
+      }).join("\n"));
+    }
     return;
   }
   if (sub === "add") {
@@ -582,6 +595,52 @@ async function manageModels(provider: ProviderClient, args: string[], json: bool
     return;
   }
   throw new Error(`unknown_models_command:${sub}`);
+}
+
+async function manageWebSearch(provider: ProviderClient, args: string[], json: boolean,
+  target: { profileId?: string; model?: string } = {}, allowPrompt = false): Promise<void> {
+  const sub = positionals(args)[0] || "status";
+  if (sub === "status") {
+    const status = await provider.webSearchStatus(target.profileId, target.model);
+    if (json) jsonResult("web-search.status", status);
+    else console.log(`${String(status.provider_name || status.provider || "当前服务")} · ${String(status.model || "未选择模型")} · ${String(status.message || status.status || "")}`);
+    return;
+  }
+  if (sub === "configure") {
+    let status = await provider.webSearchStatus(target.profileId, target.model);
+    if (status.requires_api_key) {
+      if (has(args, "--clear")) {
+        status = await provider.saveWebSearchCredential(String(status.profile_id || target.profileId || ""),
+          String(status.model || target.model || ""), { clear_key: true });
+      } else {
+        let apiKey = "";
+        if (has(args, "--api-key")) throw new Error("api_key_command_line_not_supported; use hidden prompt or --api-key-stdin");
+        if (has(args, "--api-key-stdin")) {
+          apiKey = await new Promise<string>((resolve) => {
+            let data = ""; input.setEncoding("utf8");
+            input.on("data", (chunk) => { data += chunk; });
+            input.on("end", () => resolve(data.trim()));
+          });
+        } else if (allowPrompt && input.isTTY && !json) {
+          apiKey = await hiddenQuestion("Ollama Web Search API Key (隐藏输入): ");
+        }
+        if (apiKey) status = await provider.saveWebSearchCredential(String(status.profile_id || target.profileId || ""),
+          String(status.model || target.model || ""), { api_key: apiKey });
+      }
+    }
+    if (json) jsonResult("web-search.configure", status);
+    else console.log(`${String(status.provider_name || status.provider || "当前模型服务")} · ${String(status.message || "")}` +
+      (status.requires_api_key && !status.configured ? "\n使用 deepprof web-search configure --api-key-stdin 配置密钥，或在网页联网设置中保存。" : ""));
+    return;
+  }
+  if (sub === "test") {
+    const status = await provider.webSearchStatus(target.profileId, target.model);
+    const result = await provider.probeWebSearch(String(status.profile_id || ""), String(status.model || ""));
+    if (json) jsonResult("web-search.test", result);
+    else console.log(`${String(result.message || "模型原生联网 API 请求完成")}${result.search_confirmed ? "（已返回来源）" : "（本次未返回可验证来源）"}`);
+    return;
+  }
+  throw new Error(`unknown_web_search_command:${sub}`);
 }
 
 async function manageSessions(sessions: ReturnType<typeof clients>["sessions"], args: string[], json: boolean,
@@ -629,13 +688,33 @@ async function runCommand(options: Options): Promise<void> {
     if (command === "models") {
       return await manageModels(provider, options.args, options.json);
     }
+    if (command === "web-search") {
+      const current = state.active_session_id ? await sessions.get(state.active_session_id).catch(() => null) : null;
+      return await manageWebSearch(provider, options.args, options.json,
+        current ? { profileId: current.provider_profile, model: current.model } : {}, true);
+    }
+    if (command === "web-search-mode") {
+      const values = positionals(options.args, ["--session"]);
+      const sessionId = flag(options.args, "--session") || values[0] || state.active_session_id || "";
+      const rawMode = values.find((item) => ["auto", "on", "off"].includes(item)) || "";
+      if (!sessionId || !rawMode) throw new Error("usage: deepprof web-search-mode <session_id> auto|on|off");
+      const result = await commands.send(commands.create("session.web.set", { mode: rawMode === "on" ? "always" : rawMode }, sessionId));
+      if (options.json) jsonResult("web-search.mode", result.result || {}, sessionId);
+      else console.log(`联网模式已设为 ${rawMode === "on" ? "始终搜索" : rawMode === "off" ? "关闭" : "自动"}`);
+      return;
+    }
     if (command === "sessions") return await manageSessions(sessions, options.args, options.json, state);
     if (command === "thinking") {
       const values = positionals(options.args, ["--session"]);
       const sessionId = flag(options.args, "--session") || values[0] || state.active_session_id || "";
       const mode = values.find((item) => item === "on" || item === "off") || "";
       if (!sessionId || !mode) throw new Error("usage: deepprof thinking <session_id> on|off");
-      const result = await sessions.setThinking(sessionId, mode === "on");
+      const budgetValue = flag(options.args, "--budget");
+      const budget = budgetValue === undefined ? undefined : Number(budgetValue);
+      if (budgetValue !== undefined && !Number.isInteger(budget)) throw new Error("thinking_budget_must_be_integer");
+      const level = flag(options.args, "--level");
+      const result = await sessions.setThinking(sessionId, mode === "on", {
+        ...(level ? { thinking_level: level } : {}), ...(budgetValue !== undefined ? { thinking_budget: budget as number } : {}) });
       if (options.json) jsonResult("thinking", result.result || {}, sessionId); else console.log(`深度思考已${mode === "on" ? "开启" : "关闭"}`);
       return;
     }
@@ -655,7 +734,10 @@ async function runCommand(options: Options): Promise<void> {
       const title = flag(options.args, "--title") || positionals(options.args, ["--group", "--course", "--mode", "--title"]).join(" ");
       const courseId = flag(options.args, "--course") || state.course_id;
       const id = await sessions.create(title || (sessionMode === "chat" ? "常规对话" : "学习会话"), group, courseId, sessionMode, false,
-        sessionMode === "chat" ? { provider_profile: flag(options.args, "--provider"), model: flag(options.args, "--model"), thinking_enabled: has(options.args, "--thinking") } : undefined);
+        sessionMode === "chat" ? { provider_profile: flag(options.args, "--provider"), model: flag(options.args, "--model"),
+          thinking_enabled: has(options.args, "--thinking"), thinking_level: flag(options.args, "--thinking-level"),
+          thinking_budget: flag(options.args, "--thinking-budget") ? Number(flag(options.args, "--thinking-budget")) : null,
+          web_search_mode: (flag(options.args, "--web") as "auto" | "always" | "off") || "auto" } : undefined);
       saveState({ ...state, active_session_id: id, experiment_group: group, course_id: courseId });
       return options.json ? jsonResult(command, {}, id) : console.log(id);
     }
@@ -732,13 +814,15 @@ async function runCommand(options: Options): Promise<void> {
         learner_estimate_status: result.learner_estimate_status, mastery: result.mastery,
         learner_evidence_count: result.learner_evidence_count, learner_updated_at: result.learner_updated_at,
         learner_uncertainty: result.learner_uncertainty, bkt_model_version: result.bkt_model_version,
-        evidence_refs: result.evidence_refs, trace_id: result.trace_id,
+        evidence_refs: result.evidence_refs, web_search: result.web_search,
+        sources: Array.isArray(result.web_search.results) ? result.web_search.results : [], trace_id: result.trace_id,
         sequence: result.last_sequence, last_sequence: result.last_sequence }, active);
       else {
         if (!result.streamed) process.stdout.write(result.answer);
         const turnLabel = result.turn_mode === "chat" ? "常规对话" : `${result.experiment_group} · ${result.action || "turn"}`;
         process.stdout.write(`\n${paint(`${turnLabel} · ${result.provider_profile || "no model"}/${result.model || "unconfigured"} · trace ${result.trace_id}`, "dim", true)}\n`);
         if (result.turn_mode === "study") { printLearningSummary(result); printSources(result.evidence_refs); }
+        else printWebSearch(result.web_search);
         saveState({ ...state, active_session_id: active });
       }
       return;
@@ -823,6 +907,38 @@ async function runCommand(options: Options): Promise<void> {
 function printSources(refs: Array<Record<string, unknown>>): void {
   if (!refs.length) { console.log("no citations"); return; }
   for (const ref of refs) console.log(`source ${String(ref.chapter || ref.section || "教材")} · PDF page ${String(ref.page)} · book page ${String(ref.printed_page ?? "unmapped")} · ${String(ref.chunk_id || "")}`);
+}
+
+function printWebSearch(search: Record<string, unknown>): void {
+  const status = String(search.status || "off");
+  if (status === "off") return;
+  if (status === "skipped") { console.log("模型判断本轮不需要联网。\n"); return; }
+  if (status === "unsupported") {
+    console.log("当前模型不支持已确认的原生联网搜索；本轮未联网。可运行 deepprof web-search status 查看详情。\n");
+    return;
+  }
+  if (status === "not_configured") {
+    console.log(search.requires_api_key
+      ? "Ollama Web Search API Key 尚未配置；本轮未联网。运行 deepprof web-search configure 或在网页联网设置中保存密钥。\n"
+      : "当前模型服务 API Key 尚未配置；本轮未联网。\n");
+    return;
+  }
+  if (status === "failed") {
+    const error = search.error && typeof search.error === "object" ? search.error as Record<string, unknown> : {};
+    console.log(`本轮未能联网：${String(error.message || "搜索服务失败")}。可重新发送问题重试。\n`);
+    return;
+  }
+  if (status === "searching") { console.log(`正在调用 ${String(search.provider || "模型")} 原生联网 API…`); return; }
+  if (status === "native_response") {
+    console.log(`已向 ${String(search.provider || "模型")} API 启用原生联网；本次响应未返回可验证来源。\n`);
+    return;
+  }
+  console.log(`联网 API 返回的来源 · ${String(search.provider || "模型 API")}`);
+  const sources = Array.isArray(search.results) ? search.results as Array<Record<string, unknown>> : [];
+  sources.slice(0, 5).forEach((source, index) => {
+    console.log(`[${index + 1}] ${String(source.title || "未命名来源")}\n    ${String(source.url || "")}`);
+    if (source.snippet) console.log(`    ${String(source.snippet)}`);
+  });
 }
 
 function printLearningSummary(result: Pick<AskResult, "experiment_group" | "policy_version" | "learner_estimate_status"
@@ -916,8 +1032,20 @@ async function repl(apiUrl?: string): Promise<void> {
       const parsed = parseInputLine(line);
       const parts = parsed.args;
       const command = parsed.command;
-      if (command === "help") { console.log("/login /providers search|list|delete /models list|add|delete /sessions list|rename|delete /thinking on|off /new [--mode chat|study] /chat <内容> /study <内容> /ask /hint /quiz /answer /learner /ocr <file> /feedback /course list|use|import|bank /sources /trace /export /resume /tree /fork /compact /doctor /quit"); continue; }
-      if (command === "ask") {
+      if (command === "help") { console.log("/login /providers search|list|delete /models list|add|delete /sessions list|rename|delete /thinking on|off|level|budget /web auto|on|off /web-search configure|status|test /new [--mode chat|study] /chat <内容> /study <内容> /ask /hint /quiz /answer /learner /ocr <file> /feedback /course list|use|import|bank /sources /trace /export /resume /tree /fork /compact /doctor /quit"); continue; }
+      if (command === "web") {
+        const requested = positionals(parts)[0];
+        const mode = requested === "on" ? "always" : requested;
+        if (!state.active_session_id || !["auto", "always", "off"].includes(mode || "")) throw new Error("usage: /web auto|on|off (requires an active chat)");
+        const result = await commands.send(commands.create("session.web.set", { mode }, state.active_session_id));
+        console.log(`联网模式已设为 ${mode === "always" ? "始终搜索" : mode === "off" ? "关闭" : "自动"}`);
+      } else if (command === "web-search") {
+        rl.close();
+        const current = state.active_session_id ? await sessions.get(state.active_session_id).catch(() => null) : null;
+        try { await manageWebSearch(new ProviderClient(status.baseUrl), parts, false,
+          current ? { profileId: current.provider_profile, model: current.model } : {}, true); }
+        finally { rl = createReadline(); }
+      } else if (command === "ask") {
         let active = state.active_session_id;
         if (!active) { active = await sessions.create("常规对话", "B", state.course_id, "chat"); state.active_session_id = active; saveState(state); }
         activeAbort = new AbortController();
@@ -938,6 +1066,7 @@ async function repl(apiUrl?: string): Promise<void> {
         const turnLabel = result.turn_mode === "chat" ? "常规对话" : `${result.experiment_group} · ${result.action}`;
         console.log(`\n${paint(`${turnLabel} · ${usageStatus(result.provider_profile, result.model, result.usage)} · ${summary.message_count} messages · trace ${result.trace_id}`, "dim", true)}`);
         if (result.turn_mode === "study") { printLearningSummary(result); printSources(result.evidence_refs); }
+        else printWebSearch(result.web_search);
       } else if (command === "new") {
         const { sessionMode, group } = newSessionOptions(flag(parts, "--mode"), flag(parts, "--group"));
         state.experiment_group = group;
@@ -965,6 +1094,7 @@ async function repl(apiUrl?: string): Promise<void> {
         if (!result.streamed) process.stdout.write(result.answer);
         console.log(`\n${result.turn_mode === "chat" ? "常规对话" : `${result.experiment_group} · ${result.action}`} · trace ${result.trace_id}`);
         if (result.turn_mode === "study") { printLearningSummary(result); printSources(result.evidence_refs); }
+        else printWebSearch(result.web_search);
       } else if (command === "hint") {
         let active = state.active_session_id;
         if (!active) { active = await sessions.create("学习会话", state.experiment_group, state.course_id, "study"); state.active_session_id = active; saveState(state); }
@@ -999,9 +1129,17 @@ async function repl(apiUrl?: string): Promise<void> {
         const values = positionals(parts, ["--session"]);
         const sessionId = flag(parts, "--session") || state.active_session_id;
         const mode = values.find((item) => item === "on" || item === "off");
-        if (!sessionId || !mode) throw new Error("usage: /thinking on|off");
-        const result = await sessions.setThinking(sessionId, mode === "on");
-        console.log(`深度思考已${mode === "on" ? "开启" : "关闭"}${result.result?.reasoning_mode ? `（${String(result.result.reasoning_mode)}）` : ""}`);
+        if (!sessionId) throw new Error("/thinking requires an active chat");
+        const current = await sessions.get(sessionId);
+        let result;
+        if (values[0] === "level" && values[1]) result = await sessions.setThinking(sessionId, Boolean(current.thinking_enabled), { thinking_level: values[1] });
+        else if (values[0] === "budget" && values[1]) {
+          const budget = Number(values[1]);
+          if (!Number.isInteger(budget)) throw new Error("thinking_budget_must_be_integer");
+          result = await sessions.setThinking(sessionId, Boolean(current.thinking_enabled), { thinking_budget: budget });
+        } else if (mode) result = await sessions.setThinking(sessionId, mode === "on");
+        else throw new Error("usage: /thinking on|off|level <default|level>|budget <tokens>");
+        console.log(`思考设置已更新${result.result?.reasoning_mode ? `（${String(result.result.reasoning_mode)}）` : ""}`);
       } else if (command === "doctor") {
         const selection = await new ProviderClient(status.baseUrl).defaultSelection(); console.log(await new ProviderClient(status.baseUrl).probe(selection.profile_id, selection.model));
       } else if (command === "login") {
@@ -1024,6 +1162,7 @@ async function repl(apiUrl?: string): Promise<void> {
         if (!state.active_session_id) throw new Error("session_id_required");
         const messages = await sessions.transcript(state.active_session_id); const last = messages.filter((item) => item.role === "assistant").at(-1);
         printSources(Array.isArray(last?.metadata?.evidence_refs) ? last.metadata.evidence_refs as Array<Record<string, unknown>> : []);
+        if (last?.metadata?.web_search && typeof last.metadata.web_search === "object") printWebSearch(last.metadata.web_search as Record<string, unknown>);
       } else if (command === "trace" || command === "export") {
         if (!state.active_session_id) throw new Error("session_id_required");
         const data = await new CourseClient(status.baseUrl).replay(state.active_session_id); console.log(JSON.stringify(data, null, 2));
@@ -1053,7 +1192,7 @@ async function repl(apiUrl?: string): Promise<void> {
         await runAcceptance(parts, status.baseUrl, false);
       } else if (command === "report") {
         if (isDeveloperRuntime(runtimeRoot())) await showReport(false);
-        else console.log("M1–M3 实验报告与复现数据见 https://github.com/RockeyRoc/DeepProf/releases/tag/v0.6.2");
+        else console.log("M1–M3 实验报告与复现数据见 https://github.com/RockeyRoc/DeepProf/releases/tag/v0.6.4");
       } else console.log(paint(`unknown command: /${command}`, "yellow", true));
       } catch (error) {
         const message = errorMessage(error);
@@ -1069,7 +1208,7 @@ if (options.home) process.env.DEEPPROF_HOME = resolve(options.home);
 const requestArgs = process.argv.slice(2);
 try {
   if (requestArgs.includes("--version") || options.command === "version") {
-    if (options.json) jsonResult("version", { version: "0.6.2" }); else console.log("DeepProf CLI 0.6.2");
+    if (options.json) jsonResult("version", { version: "0.6.4" }); else console.log("DeepProf CLI 0.6.4");
   } else if (requestArgs.includes("--help") || options.command === "help") {
     printTopLevelHelp();
   } else if (options.command === "doctor") {

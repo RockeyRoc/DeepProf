@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from typing import Any, Callable
 
 from runtime.tools.base import FunctionTool
@@ -49,14 +50,23 @@ def build_search_textbook_tool(
     async def handler(arguments: dict[str, Any], ctx: dict[str, Any]) -> dict[str, Any]:
         if searcher is None:
             return await search_textbook(arguments, ctx)
-        result = searcher(
-            str(arguments.get("query") or ""),
-            top_k=int(arguments.get("top_k") or 5),
-            course_id=str(arguments.get("course_id") or ""),
-            resource_type=str(arguments.get("resource_type") or ""),
-            tags=list(arguments.get("tags") or []),
-            owner_id=str(ctx.get("learner_id") or "local"),
-        )
+        kwargs = {
+            "top_k": int(arguments.get("top_k") or 5),
+            "course_id": str(arguments.get("course_id") or ""),
+            "resource_type": str(arguments.get("resource_type") or ""),
+            "tags": list(arguments.get("tags") or []),
+            "owner_id": str(ctx.get("learner_id") or "local"),
+        }
+        try:
+            signature = inspect.signature(searcher)
+            accepts_concepts = ("concept_ids" in signature.parameters or any(
+                parameter.kind is inspect.Parameter.VAR_KEYWORD
+                for parameter in signature.parameters.values()))
+        except (TypeError, ValueError):
+            accepts_concepts = True
+        if accepts_concepts:
+            kwargs["concept_ids"] = list(arguments.get("concept_ids") or [])
+        result = searcher(str(arguments.get("query") or ""), **kwargs)
         if hasattr(result, "__await__"):
             result = await result
         return dict(result or {})

@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='518.74pt' height='325.98pt' viewBox='0 0 518.74 325.98'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1MTguNzR8MC4wMHwzMjUuOTg='>
+    <rect x='0.00' y='0.00' width='518.74' height='325.98' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1MTguNzR8MC4wMHwzMjUuOTg=)'>
+<rect x='0.00' y='0.00' width='518.74' height='325.98' style='stroke-width: 0.78; stroke: #FFFFFF; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpOTcuNDN8NTA2Ljc4fDMyLjYyfDI3Mi4wMg=='>
+    <rect x='97.43' y='32.62' width='409.35' height='239.40' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpOTcuNDN8NTA2Ljc4fDMyLjYyfDI3Mi4wMg==)'>
+<rect x='97.43' y='32.62' width='409.35' height='239.40' style='stroke-width: 0.78; stroke: none; fill: #FFFFFF;' />
+<line x1='101.48' y1='97.91' x2='116.97' y2='97.91' style='stroke-width: 1.28; stroke: #BDCDD4; stroke-linecap: butt;' />
+<line x1='101.48' y1='206.73' x2='342.29' y2='206.73' style='stroke-width: 1.28; stroke: #BDCDD4; stroke-linecap: butt;' />
+<circle cx='116.97' cy='97.91' r='3.46' style='stroke-width: 0.52; stroke: #287D8E; fill: #287D8E;' />
+<circle cx='342.29' cy='206.73' r='3.46' style='stroke-width: 0.52; stroke: #287D8E; fill: #287D8E;' />
+<text x='126.99' y='100.97' style='font-size: 8.54px;fill: #19324D; font-family: "Arial";' textLength='66.80px' lengthAdjust='spacingAndGlyphs'>4.51% | 62 / 1375</text>
+<text x='352.93' y='209.78' style='font-size: 8.54px;fill: #19324D; font-family: "Arial";' textLength='70.91px' lengthAdjust='spacingAndGlyphs'>70.11% | 645 / 920</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1MTguNzR8MC4wMHwzMjUuOTg=)'>
+<polyline points='97.43,272.02 97.43,32.62 ' style='stroke-width: 0.78; stroke-linecap: square;' />
+<text x='93.85' y='209.59' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='76.08px' lengthAdjust='spacingAndGlyphs'>False rejection (FRR)</text>
+<text x='93.85' y='100.78' text-anchor='end' style='font-size: 8.00px; font-family: "Arial";' textLength='85.88px' lengthAdjust='spacingAndGlyphs'>False acceptance (FAR)</text>
+<polyline points='95.44,206.73 97.43,206.73 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='95.44,97.91 97.43,97.91 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='97.43,272.02 506.78,272.02 ' style='stroke-width: 0.78; stroke-linecap: square;' />
+<polyline points='101.48,274.01 101.48,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='170.18,274.01 170.18,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='238.87,274.01 238.87,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='307.57,274.01 307.57,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='376.26,274.01 376.26,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<polyline points='444.96,274.01 444.96,272.02 ' style='stroke-width: 0.78; stroke-linecap: butt;' />
+<text x='101.48' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='11.56px' lengthAdjust='spacingAndGlyphs'>0%</text>
+<text x='170.18' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='16.02px' lengthAdjust='spacingAndGlyphs'>20%</text>
+<text x='238.87' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='16.02px' lengthAdjust='spacingAndGlyphs'>40%</text>
+<text x='307.57' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='16.02px' lengthAdjust='spacingAndGlyphs'>60%</text>
+<text x='376.26' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='16.02px' lengthAdjust='spacingAndGlyphs'>80%</text>
+<text x='444.96' y='281.34' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='20.47px' lengthAdjust='spacingAndGlyphs'>100%</text>
+<text x='302.11' y='290.74' text-anchor='middle' style='font-size: 8.00px; font-family: "Arial";' textLength='206.45px' lengthAdjust='spacingAndGlyphs'>Fraction of questions in the corresponding relevance class</text>
+<text x='97.43' y='26.95' style='font-size: 8.00px; font-family: "Arial";' textLength='219.80px' lengthAdjust='spacingAndGlyphs'>Dev-only threshold 6.42379; test maximum-score AUC 0.8007</text>
+<text x='97.43' y='15.13' style='font-size: 10.00px; font-weight: bold; font-family: "Arial";' textLength='234.31px' lengthAdjust='spacingAndGlyphs'>NoMIRACL Chinese: frozen evidence gate on test</text>
+<text x='97.43' y='301.43' style='font-size: 7.00px; font-family: "Arial";' textLength='228.19px' lengthAdjust='spacingAndGlyphs'>Accept when the maximum reranker score is at least the frozen threshold.</text>
+<text x='97.43' y='308.99' style='font-size: 7.00px; font-family: "Arial";' textLength='295.88px' lengthAdjust='spacingAndGlyphs'>Dev FAR 4.99% (cap 5%); relevant-query acceptance 29.01%. Ties choose the lower threshold.</text>
+<text x='97.43' y='316.55' style='font-size: 7.00px; font-family: "Arial";' textLength='300.16px' lengthAdjust='spacingAndGlyphs'>Test: 1,375 non-relevant queries (FAR); 920 relevant queries (FRR). Fixed-candidate gate; no CI.</text>
+</g>
+</g>
+</svg>

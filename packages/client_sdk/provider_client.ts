@@ -24,6 +24,25 @@ export interface ProviderProfileInput {
 export class ProviderClient {
   constructor(private readonly baseUrl: string) {}
 
+  async webSearchStatus(profileId = "", model = ""): Promise<Record<string, unknown>> {
+    const query = `?profile_id=${encodeURIComponent(profileId)}&model=${encodeURIComponent(model)}`;
+    const response = await fetch(`${this.baseUrl}/settings/web-search${query}`);
+    return parseResponse<Record<string, unknown>>(response, "web_search_settings_failed");
+  }
+
+  async probeWebSearch(profileId = "", model = ""): Promise<Record<string, unknown>> {
+    const response = await fetch(`${this.baseUrl}/settings/web-search/probe`, { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify({ profile_id: profileId, model }) });
+    return parseResponse<Record<string, unknown>>(response, "web_search_probe_failed");
+  }
+
+  async saveWebSearchCredential(profileId: string, model: string, input: { api_key?: string; clear_key?: boolean }): Promise<Record<string, unknown>> {
+    const query = `?profile_id=${encodeURIComponent(profileId)}&model=${encodeURIComponent(model)}`;
+    const response = await fetch(`${this.baseUrl}/settings/web-search${query}`, { method: "PUT",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(input) });
+    return parseResponse<Record<string, unknown>>(response, "web_search_credential_save_failed");
+  }
+
   async list(): Promise<ProviderProfile[]> {
     const response = await fetch(`${this.baseUrl}/providers`);
     return parseResponse<ProviderProfile[]>(response, "providers_failed");
@@ -57,6 +76,11 @@ export class ProviderClient {
 
   async discoverModels(profileId: string): Promise<string[]> {
     return this.models(profileId);
+  }
+
+  async modelCatalog(profileId: string): Promise<Array<Record<string, unknown>>> {
+    const response = await fetch(`${this.baseUrl}/providers/${encodeURIComponent(profileId)}/model-catalog`);
+    return parseResponse<Array<Record<string, unknown>>>(response, "model_catalog_failed");
   }
 
   async updateModels(profileId: string, models: string[], defaultModel: string, modelCapabilities: Record<string, Record<string, unknown>> = {}): Promise<Record<string, unknown>> {

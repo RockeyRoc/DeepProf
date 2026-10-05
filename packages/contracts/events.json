@@ -1,5 +1,5 @@
 {
-  "contract_version": "1.7.0",
+  "contract_version": "1.9.0",
   "_source_of_truth": "shared/contracts 的 v0.5 内容迁移到 packages/contracts；与 runtime/core/events.py 的 EventType 保持一致（守卫见 tests/test_contract_consistency.py）。",
   "envelope": {
     "event_id": "string, 事件唯一标识；重复 event_id 视为幂等重放",
@@ -28,6 +28,10 @@
     "model.stream.reasoning.delta": { "payload": { "text": "string" } },
     "model.completed": { "payload": { "usage": "object", "model": "string" } },
     "model.failed": { "payload": { "error": { "code": "string", "message": "string", "details": "object" } } },
+    "web.search.started": { "payload": { "mode": "auto | always", "provider": "string", "model": "string", "native": "boolean" } },
+    "web.search.completed": { "payload": { "mode": "auto | always", "status": "completed | native_response | skipped", "provider": "string", "query": "string", "search_confirmed": "boolean", "sources": "array" } },
+    "web.search.failed": { "payload": { "mode": "auto | always", "provider": "string", "native": "boolean", "error": "object" } },
+    "research.progress": { "payload": { "report_id": "string", "status": "running | completed | cancelled | interrupted | failed", "phase": "string", "round": "integer", "search_count": "integer", "source_count": "integer", "provider": "string", "message": "string" } },
     "tool.requested": { "payload": { "tool": "string", "arguments": "object" } },
     "tool.approved": { "payload": { "tool": "string", "approved_by": "string" } },
     "tool.started": { "payload": { "tool": "string" } },
@@ -66,6 +70,7 @@
     "pedagogy.attempt": { "payload": { "attempt_id": "string", "course_id": "string", "item_id": "string", "scored_concept_id": "string", "concept_ids": "string[]", "correct": "boolean", "hint_count": "integer", "grading_source": "string", "confidence": "number", "predicted_correct": "number", "learner_estimate": "object | null" } },
     "pedagogy.attempt_skipped": { "payload": { "attempt_id": "string", "course_id": "string", "item_id": "string", "scored_concept_id": "string", "concept_ids": "string[]", "correct": "boolean | null", "eligible": "false", "skip_reason": "string" } },
     "document.converted": { "payload": { "status": "string", "source_sha256": "string", "page_count": "integer", "ocr_used": "boolean", "review_required": "boolean", "markdown_path": "string", "metadata_path": "string" } },
+    "media.image.stored": { "payload": { "media_id": "string", "mime": "string", "bytes": "integer", "sha256": "string" } },
     "message.edited": { "payload": { "index": "integer", "dropped": "integer" } },
     "message.regenerated": { "payload": { "index": "integer", "remaining": "integer" } },
     "message.deleted": { "payload": { "index": "integer", "role": "string", "remaining": "integer" } }
@@ -75,6 +80,10 @@
       "session.started",
       "model.stream.delta",
       "model.stream.reasoning.delta",
+      "web.search.started",
+      "web.search.completed",
+      "web.search.failed",
+      "research.progress",
       "pedagogy.decision",
       "teaching.decision",
       "teaching.turn.completed",
@@ -84,6 +93,7 @@
       "pedagogy.attempt",
       "pedagogy.attempt_skipped",
       "document.converted",
+      "media.image.stored",
       "message.edited",
       "message.regenerated",
       "message.deleted"

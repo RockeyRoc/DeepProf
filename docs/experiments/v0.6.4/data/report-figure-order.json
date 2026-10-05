@@ -1,0 +1,46 @@
+[
+  {
+    "figure_number": 1,
+    "path": "figures/figure-07-fulltext-matrix.png"
+  },
+  {
+    "figure_number": 2,
+    "path": "figures/figure-10-fulltext-ablation-decisions.png"
+  },
+  {
+    "figure_number": 3,
+    "path": "figures/figure-11-fulltext-ablation-paired.png"
+  },
+  {
+    "figure_number": 4,
+    "path": "figures/figure-08-fulltext-retrieval.png"
+  },
+  {
+    "figure_number": 5,
+    "path": "figures/figure-09-fulltext-citation.png"
+  },
+  {
+    "figure_number": 6,
+    "path": "figures/figure-12-nomiracl-ranking.png"
+  },
+  {
+    "figure_number": 7,
+    "path": "figures/figure-13-nomiracl-gate.png"
+  },
+  {
+    "figure_number": 8,
+    "path": "figures/figure-01-data-coverage.png"
+  },
+  {
+    "figure_number": 9,
+    "path": "figures/figure-02-bkt-stratified-differences.png"
+  },
+  {
+    "figure_number": 10,
+    "path": "figures/figure-03-calibration-and-convergence.png"
+  },
+  {
+    "figure_number": 11,
+    "path": "figures/figure-06-citation-rate-definitions.png"
+  }
+]

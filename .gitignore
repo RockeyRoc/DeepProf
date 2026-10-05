@@ -27,3 +27,22 @@ tmp/
 .env
 .env.local
 .test-run-home/
+
+# Local frozen research records; only reviewed versioned exports are public.
+autoresearch-results/
+docs/experiments/m3-abc-research/
+docs/experiments/bkt-rag-improvement-20260929/
+docs/experiments/bkt-rag-improvement-20261001/
+pytest-*/
+.pytest-tmp*/
+.codex-pytest*/
+.codex-qa-pytest/
+Rplots.pdf
+# Local source-read annotations and machine-specific report/OCR tools.
+scripts/local_citation_judgments.py
+scripts/annotate_fulltext_citations_codex.py
+scripts/review_citation_sources_local.py
+scripts/review_fulltext_ocr.py
+scripts/audit_fulltext_figure_geometry.py
+scripts/audit_historical_rag_resume.py
+scripts/build_bkt_rag_experiment_report.py

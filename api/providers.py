@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import re
 from typing import Any
 
@@ -14,6 +15,8 @@ from runtime.providers.openai_compatible import OpenAICompatibleProvider
 from runtime.providers.profiles import ProviderProfile
 from runtime.providers.registry import DEFAULT_ROLE
 from runtime.providers.secrets import InMemorySecretStore, env_var_for
+from runtime.model_options import model_options, resolve_model_options
+from runtime.web_search import native_search_capability
 from runtime.core.errors import ProviderError
 from runtime.service import RuntimeService
 from runtime.providers.factory import save_profiles, save_role_binding
@@ -62,20 +65,10 @@ def _to_out(profile: ProviderProfile, has_secret: bool) -> ProviderProfileOut:
     return ProviderProfileOut(**data, has_secret=has_secret)
 
 
-def _model_capabilities(vendor_id: str, model: str) -> dict[str, Any]:
-    vendor = vendor_id.lower()
-    name = model.lower()
-    if vendor == "deepseek" and any(token in name for token in ("reasoner", "deepseek-r1")):
-        return {"reasoning_mode": "always", "reasoning": True}
-    if vendor == "deepseek" and any(token in name for token in ("deepseek-v4-pro", "deepseek-v4-flash")):
-        return {"reasoning_mode": "toggle", "reasoning": True, "thinking_parameter": "thinking.type"}
-    if vendor == "qwen" and any(token in name for token in ("-thinking", "qwq")):
-        return {"reasoning_mode": "always", "reasoning": True}
-    if vendor == "qwen" and any(token in name for token in ("qwen3", "qwen3.8")):
-        return {"reasoning_mode": "toggle", "reasoning": True, "thinking_parameter": "enable_thinking"}
-    if vendor == "siliconflow" and any(token in name for token in ("deepseek-r1", "qwq", "reasoner", "thinking")):
-        return {"reasoning_mode": "toggle", "reasoning": True, "thinking_parameter": "enable_thinking"}
-    return {"reasoning_mode": "unknown", "reasoning": None}
+def _model_capabilities(vendor_id: str, model: str, api_mode: str = "auto") -> dict[str, Any]:
+    options = model_options(vendor_id, model)
+    options["native_web_search"] = native_search_capability(vendor_id, model, api_mode=api_mode)
+    return options
 
 
 def _normalize_base(vendor_id: str, base_url: str) -> str:
@@ -221,19 +214,47 @@ async def set_default_provider(payload: ProviderSelection, request: Request) -> 
 
 
 @router.get("/providers/{profile_id}/model-catalog")
-async def model_catalog(profile_id: str, request: Request) -> list[dict[str, Any]]:
+async def model_catalog(profile_id: str, request: Request,
+                        refresh: bool = Query(default=False)) -> list[dict[str, Any]]:
     service = _service(request)
     try:
         profile = service.router.profile(profile_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     try:
-        discovered = await service.router.get(profile_id).list_models()
-    except ProviderError:
+        catalog_loader = getattr(service.router, "list_model_catalog", None)
+        if callable(catalog_loader):
+            catalog_state = await catalog_loader(profile_id, refresh=refresh)
+            discovered = list(catalog_state.get("models") or [])
+            catalog_status = str(catalog_state.get("status") or "unverified")
+        else:
+            discovered = await service.router.get(profile_id).list_models()
+            catalog_status = "verified"
+    except Exception:
         discovered = []
+        catalog_status = "unavailable"
     all_models = list(dict.fromkeys([*profile.models, *discovered]))
-    return [{"id": item, **profile.model_capabilities.get(item, _model_capabilities(profile.vendor_id, item)), "selected": item in profile.models}
-            for item in all_models]
+    describe = getattr(service.router, "describe_model_options", None)
+    descriptions: dict[str, dict[str, Any]] = {}
+    if profile.vendor_id in {"ollama", "openrouter"} and callable(describe):
+        results = await asyncio.gather(*(describe(profile_id, model, refresh=refresh) for model in all_models),
+                                       return_exceptions=True)
+        descriptions = {model: result for model, result in zip(all_models, results)
+                        if isinstance(result, dict)}
+    rows: list[dict[str, Any]] = []
+    for item in all_models:
+        options = resolve_model_options(profile.vendor_id, item,
+                                        profile.model_capabilities.get(item))
+        options["native_web_search"] = native_search_capability(profile.vendor_id, item, api_mode=profile.api_mode)
+        options["catalog_status"] = catalog_status
+        discovered_options = descriptions.get(item) or {}
+        options.update(discovered_options)
+        if discovered_options.get("options_source") in {"ollama_api_show", "provider_model_metadata"}:
+            profile.model_capabilities[item] = options
+        rows.append({"id": item, **options, "selected": item in profile.models})
+    if profile.vendor_id in {"ollama", "openrouter"} and any(item in profile.model_capabilities for item in all_models):
+        save_profiles(service.router.profiles())
+    return rows
 
 
 @router.put("/providers/{profile_id}/models")
@@ -266,7 +287,7 @@ async def update_models(profile_id: str, payload: ModelsUpdateIn, request: Reque
     profile.models = models
     profile.default_model = default_model or (models[0] if models else "")
     profile.model_capabilities = {
-        model: dict(payload.model_capabilities.get(model) or _model_capabilities(profile.vendor_id, model))
+        model: dict(payload.model_capabilities.get(model) or _model_capabilities(profile.vendor_id, model, profile.api_mode))
         for model in models
     }
     service.router.add(profile)
@@ -383,7 +404,11 @@ async def delete_provider(profile_id: str, request: Request, payload: ProviderDe
         else:
             service.router.unset_role(DEFAULT_ROLE)
             save_role_binding(DEFAULT_ROLE, "", "")
-    service.router.remove(profile_id)
+    remove_and_close = getattr(service.router, "remove_and_close", None)
+    if callable(remove_and_close):
+        await remove_and_close(profile_id)
+    else:
+        service.router.remove(profile_id)
     refs_still_used = {item.api_key_ref for item in service.router.profiles() if item.api_key_ref}
     if profile.api_key_ref and profile.api_key_ref not in refs_still_used:
         service.router.secret_store.delete(profile.api_key_ref)
@@ -404,10 +429,15 @@ async def probe_provider(profile_id: str, payload: ProbeRequest, request: Reques
 
 
 @router.get("/providers/{profile_id}/models", response_model=list[str])
-async def list_models(profile_id: str, request: Request) -> list[str]:
+async def list_models(profile_id: str, request: Request,
+                      refresh: bool = Query(default=False)) -> list[str]:
     service = _service(request)
     try:
-        provider = service.router.get(profile_id)
+        service.router.profile(profile_id)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return await provider.list_models()
+    catalog_loader = getattr(service.router, "list_model_catalog", None)
+    if callable(catalog_loader):
+        result = await catalog_loader(profile_id, refresh=refresh)
+        return list(result.get("models") or [])
+    return await service.router.get(profile_id).list_models()

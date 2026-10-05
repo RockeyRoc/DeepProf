@@ -659,7 +659,7 @@ async def _generate_grounded(
         "role": params.get("role") or "tutor.default",
         "messages": messages,
         "model": params.get("model"),
-        "max_tokens": params.get("max_tokens"),
+        "max_tokens": params.get("max_tokens") or (ctx.get("generation_config") or {}).get("max_output_tokens"),
         "temperature": params.get("temperature"),
         "tools": list(params.get("tools") or []),
     }

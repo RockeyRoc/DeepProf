@@ -1,0 +1,9 @@
+﻿scope,method,median_ms,p95_ms,total_seconds,mean_ms_per_pair,n,note
+course 40-query frozen candidate pool,hash_dense_ms,91.161,96.4386,,,40,retrieval stage only; no generation; relevance labels pending
+course 40-query frozen candidate pool,bm25_ms,112.9305,115.81439999999999,,,40,retrieval stage only; no generation; relevance labels pending
+course 40-query frozen candidate pool,hash_rrf_ms,0.09,0.15039999999999998,,,40,retrieval stage only; no generation; relevance labels pending
+course 40-query frozen candidate pool,bge_dense_query_ms,201.936,228.41014999999985,,,40,retrieval stage only; no generation; relevance labels pending
+course 40-query frozen candidate pool,bge_rrf_merge_ms,0.133,0.15224999999999997,,,40,retrieval stage only; no generation; relevance labels pending
+course 40-query frozen candidate pool,bge_reranker_50_ms,14247.6345,15251.58605,,,40,retrieval stage only; no generation; relevance labels pending
+NoMIRACL Chinese fixed judged candidates,"NoMIRACL four-method scoring, ranking and metrics",,,2.405356400002347,,3770,total wall seconds for all four-method ranking/metrics; not a median
+NoMIRACL Chinese fixed judged candidates,NoMIRACL BGE reranker scoring,,,648.9039623999524,17.258543110187837,37599,separate total seconds and mean ms/pair; not a median

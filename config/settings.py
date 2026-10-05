@@ -72,6 +72,10 @@ class Settings:
     library_max_import_bytes: int = 50_000_000
     data_structures_pdf_path: str = ""
 
+    # 图片（交给多模态模型看的那条路）
+    media_image_max_bytes: int = 8 * 1024 * 1024
+    media_image_max_per_message: int = 4
+
     # 沙箱
     sandbox_allowlist: list[str] = field(default_factory=lambda: ["~/.deepprof"])
 
@@ -99,6 +103,8 @@ class Settings:
             library_chunk_overlap=_env_int("DEEPPROF_LIBRARY_CHUNK_OVERLAP", 120),
             library_max_import_bytes=_env_int("DEEPPROF_LIBRARY_MAX_IMPORT_BYTES", 50_000_000),
             data_structures_pdf_path=_env_str("DEEPPROF_DATA_STRUCTURES_PDF", ""),
+            media_image_max_bytes=_env_int("DEEPPROF_MEDIA_IMAGE_MAX_BYTES", 8 * 1024 * 1024),
+            media_image_max_per_message=_env_int("DEEPPROF_MEDIA_IMAGE_MAX_PER_MESSAGE", 4),
             sandbox_allowlist=_env_list("DEEPPROF_SANDBOX_ALLOWLIST", ["~/.deepprof"]),
             log_level=_env_str("DEEPPROF_LOG_LEVEL", "INFO"),
         )
@@ -116,6 +122,15 @@ class Settings:
     @property
     def resolved_library_dir(self) -> Path:
         return paths.expand(self.library_dir) if self.library_dir else paths.library_dir()
+
+    @property
+    def resolved_media_dir(self) -> Path:
+        """图片落盘目录。
+
+        刻意跟着 ``resolved_library_dir`` 的父目录走，而不是硬编码全局路径：
+        覆盖了数据根的部署（含测试）不会把图片写到另一个白名单之外的地方去。
+        """
+        return self.resolved_library_dir.parent / "media"
 
     @property
     def resolved_data_structures_pdf_path(self) -> Path | None:

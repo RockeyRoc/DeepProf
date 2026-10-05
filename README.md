@@ -6,7 +6,7 @@
 
 ### An evidence-grounded, adaptive teaching system you can run locally
 
-[English](README.md) · [简体中文](README.zh-CN.md) · [Website](https://rockeyroc.github.io/DeepProf/) · [Architecture](docs/DESIGNv0.6.2.md) · [Experiment report](docs/experiments/M1-M3-实验报告.md) · [Releases](https://github.com/RockeyRoc/DeepProf/releases)
+[English](README.md) · [简体中文](README.zh-CN.md) · [Website](https://rockeyroc.github.io/DeepProf/) · [Architecture](docs/DESIGNv0.6.2.md) · [Latest experiment report](docs/experiments/v0.6.4/M3-BKT-RAG-改进实验报告.md) · [Releases](https://github.com/RockeyRoc/DeepProf/releases)
 
 ![CI](https://img.shields.io/github/actions/workflow/status/RockeyRoc/DeepProf/ci.yml?branch=main&label=CI)
 ![Release](https://img.shields.io/github/v/release/RockeyRoc/DeepProf?label=release)
@@ -50,6 +50,8 @@ The pilot course is C-language data structures. Current published evidence cover
 
 ## What it does
 
+**v0.6.4** adds the browser workspace, document/image uploads, provider-aware reasoning and web-search controls, deep-research reports, and the latest BKT/RAG experiment export. See [release and API notes](docs/RELEASEv0.6.4.md).
+
 - **Separates chat from study.** Ordinary conversation and structured study sessions are different paths; only the study path runs the teaching policy.
 - **Anchors teaching in locatable evidence.** A versioned policy graph reads a locally indexed course and attaches page-level references to study turns.
 - **Gatekeeps what reaches the learner model.** Hinted retries, pending human grades, ambiguous knowledge points and unreliable scores never enter the BKT update. Group C shows mastery only after three reliable answers; groups A and B report the learner model as off.
@@ -61,7 +63,7 @@ The pilot course is C-language data structures. Current published evidence cover
 Install **Node.js 22+** and **Python 3.12+**, then:
 
 ```sh
-npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz
+npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz
 deepprof
 ```
 
@@ -69,7 +71,7 @@ First run needs access to a Python package index: it creates a version-isolated 
 
 The package ships its compiled CLI, SDK, Gateway source, course manifest, read-only replay page and browser chat — no Git or repository checkout required. Use npx only for temporary sessions; npx does not make `deepprof` available in later terminals.
 
-`deepprof web` opens the browser chat: a session list, provider and model pickers, streamed replies and a cancel button. It deliberately runs the **ordinary chat path only** — the teaching policy, evidence retrieval and BKT update are not reached from the browser, so nothing it does produces a study turn. To open a study session, use the CLI.
+`deepprof web` opens the browser workspace. Choose chat or study, manage sessions and models, stream and cancel replies, upload documents or images, and inspect sources. Browser study is explicitly marked **non-experiment**; it follows the teaching route, while BKT still requires eligible answer records and the configured group. Vision, reasoning and native web search depend on the selected provider/model. Deep research collects sources into a downloadable report and requires a configured search service.
 
 `deepprof check-update` checks for a newer stable release (`update` is an alias). `deepprof uninstall` removes the CLI and runtime while keeping your data; `deepprof uninstall --purge` clears user data after a confirmation, or add `--yes` to skip it.
 
@@ -81,20 +83,27 @@ The package ships its compiled CLI, SDK, Gateway source, course manifest, read-o
 `deepprof --help`:
 
 ```text
-DeepProf CLI v0.6.2
+DeepProf CLI v0.6.4
 
 快速开始：deepprof （首次运行时自动准备本机环境）
-  npm install --global "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz" 持久安装，之后可直接运行 deepprof
+  npm install --global "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz" 持久安装，之后可直接运行 deepprof
   deepprof setup [--ocr]    安装 DeepProf Runtime（可选安装扫描件 OCR）
   deepprof doctor            检查 Node.js、Python 与本地安装状态
   deepprof web               打开本机网页聊天
   deepprof check-update      检查稳定版更新（update 是别名）
   deepprof uninstall         卸载 CLI 和运行环境，保留用户数据
   deepprof uninstall --purge 清理用户数据（需确认，或加 --yes）
+  deepprof login [--provider 厂家] [--model 默认模型] [--models 模型1,模型2]
+  deepprof providers search|list|delete  搜索、查看或删除模型服务
+  deepprof models list|add|delete        管理服务下已添加的模型
+  deepprof sessions list|rename|delete   管理普通对话
+  deepprof thinking <session_id> on|off  设置模型思考模式
+  deepprof web-search configure|status|test  配置、查看或测试模型厂商联网 API（Ollama 支持 --api-key-stdin/--clear）
+  deepprof web-search-mode <session_id> auto|on|off  设置会话联网方式
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
-环境变量：DEEPPROF_HOME、DEEPPROF_PYTHON、DEEPPROF_API_URL
+环境变量：DEEPPROF_HOME、DEEPPROF_PYTHON、DEEPPROF_API_URL、OLLAMA_API_KEY
 在 CLI 中运行 /help 查看学习、题库和会话命令。
 ```
 
@@ -127,6 +136,10 @@ The command set printed by `/help`:
 
 </details>
 
+<img src="media/web-workspace-v0.6.4.png" alt="Actual v0.6.4 browser workspace in a narrow window, using the local Fake Provider; no external model request." width="720">
+
+Actual v0.6.4 browser workspace in a narrow window, using the local Fake Provider; no external model request.
+
 ## Architecture
 
 <img src="media/fig-architecture-en.png" alt="DeepProf architecture: the TypeScript CLI talks over local HTTP to a loopback Gateway, which validates commands and runs the teaching policy graph; the Runtime binds capabilities to course retrieval or the configured provider, and sessions and audit events are written to a local SQLite database that feeds a redacted, read-only replay." width="100%">
@@ -138,11 +151,11 @@ flowchart LR
   Decision --> Evidence[Versioned local course index]
   Decision --> Provider[Configured model provider]
   API --> Events[(Local sessions and audit events)]
-  Chat[Browser chat] -->|chat path only| API
+  Web[Browser workspace] -->|chat or study| API
   Replay[Read-only replay page] --> Events
 ```
 
-The diagram above traces the teaching path; the browser chat joins the Gateway but stops at the ordinary chat path, as described in [Quick start](#quick-start).
+The diagram above traces the teaching path. The browser workspace uses the same Gateway and selects chat or non-experiment study, as described in [Quick start](#quick-start).
 
 The policy graph returns a structured teaching decision and never calls the provider, database or filesystem directly. The Runtime binds allowed actions, calls the configured provider and records a replayable event trail. Student answer content and provider secrets are not included in the published experiment bundle.
 
@@ -150,7 +163,15 @@ The policy graph returns a structured teaching decision and never calls the prov
 
 ## Evidence: M1–M3
 
-Nine figures, redacted source data and the generation scripts ship with the repository. Every batch uses constructed development cases and synthetic attempts — **there were no human participants**, and engineering acceptance is not evidence of learning gain.
+The latest [public experiment package](docs/experiments/v0.6.4/README.md) includes the Chinese report, eleven figures, aggregate data, plotting sources and a byte-level manifest. It combines public ASSISTments/NoMIRACL benchmarks with a course-textbook ablation and AI annotation. **Genuine personnel review remains pending; no student learning gain is established.**
+
+| Latest evidence | Recorded result | Boundary |
+|---|---|---|
+| Full-text RAG v4 | 120 questions × 4 conditions = 480 valid cells; 347 OCR pages and 629 chunks | 13,710 retrieval, 1,595 citation and 120 answerability AI labels; personnel review pending |
+| NoMIRACL Chinese | 3,770 queries, 37,599 fixed-candidate pairs; test FAR 4.51%, FRR 70.11%, AUC 0.8007 | Ranking and evidence acceptance; not whole-corpus recall or generated-answer correctness |
+| BKT nested development OOF | Item-parameter candidate AUC 0.7324, log loss 0.5593; ECE point estimate worsened | Exploratory selection on public development data; runtime defaults unchanged |
+
+The following table retains the historical M1–M3 constructed-fixture records. Counts belong to different batches and must not be combined.
 
 | Batch | Observed engineering evidence | Boundary |
 |---|---|---|
@@ -176,12 +197,13 @@ Engineering runs end to end; the teaching claims are not yet supported. Stating 
 | | State |
 |---|---|
 | Local CLI → Gateway → policy graph → provider → replay | Working; M2 offline acceptance passed |
-| Browser chat front end | Working; ordinary chat path only — no study turn, no evidence chain |
+| Browser workspace | Chat and non-experiment study; uploads, model controls, sources and deep-research reports |
 | Versioned course index, page-locatable evidence, audit trail | Working |
 | M1 A/B live-provider run | Run recorded; 4 cells failed and were left unrevised |
 | M3 offline framework | 400 of 400 cells completed under a local fake provider |
-| M3 live-model pilot | 3 of 29 requests generated completely; truncation is the binding constraint |
-| BKT learner model | Implemented, **uncalibrated**; prediction worse than chance |
+| Historical M3 live-model pilot | 3 of 29 requests generated completely; the original truncations remain recorded |
+| Full-text RAG v4 / NoMIRACL | Completed engineering/benchmark batches; AI labels, personnel review pending |
+| BKT learner model | Runtime development defaults remain **uncalibrated**; public-data research candidates are separate |
 | Teacher review of question bank, page locators and policy | **Not done** |
 | Real-student learning outcomes | **Not attempted** — no recruitment, consent or ethics clearance has been sought |
 
@@ -191,7 +213,7 @@ Next gates, in order: teacher review and double-blind case rating → BKT parame
 
 ```
 apps/cli/            TypeScript CLI — keyboard-first entry point, REPL and session handling
-apps/web/            Browser chat front end, served by the Gateway at /web
+apps/web/            Browser chat/study workspace, served by the Gateway at /web
 apps/replay/         Read-only page for the recorded audit trail
 api/                 Loopback FastAPI Gateway — commands, sessions, providers, replay and web
 graph/education/     Teaching policy graph (LangGraph) returning PedagogicalDecision
@@ -237,11 +259,11 @@ This repository currently ships **no open-source license**. The code is publicly
   title        = {DeepProf: an evidence-grounded, adaptive teaching system},
   author       = {{DeepProf contributors}},
   year         = {2026},
-  version      = {v0.6.2},
+  version      = {v0.6.4},
   howpublished = {\url{https://github.com/RockeyRoc/DeepProf}},
   note         = {Engineering prototype; teacher review, BKT calibration and
                   real-student outcomes remain open.}
 }
 ```
 
-When citing the engineering state, pin the version and date — `v0.6.2`, released 2026-09-24 — rather than pointing at a moving `main`.
+When citing the engineering state, pin the version and date — `v0.6.4`, released 2026-10-05 — rather than pointing at a moving `main`.

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from graph.education.bindings import ACTION_BINDINGS, ACTION_CAPABILITIES
 from graph.education.builder import run_teaching_turn
-from graph.education.nodes import EVENT_DECISION
+from graph.education.nodes import EVENT_DECISION, IMAGE_REF_FIELDS, runtime_ctx
 from graph.education.policies import ACTION_ASK
 from runtime.testing import FakeRuntime, RecordingHost
 from skills.rag import RAGSkill
@@ -191,3 +191,24 @@ def test_node_scanner_excludes_docstrings(tmp_path):
     sample = tmp_path / "node.py"
     sample.write_text('"""本节点不调用 socratic / rag 能力。"""\nX = "safe"\n', encoding="utf-8")
     assert [value for _lineno, value in node_string_constants(sample)] == ["safe"]
+
+
+def test_runtime_ctx_carries_image_refs_and_nothing_heavier():
+    """图片以**引用**进 Runtime 上下文：定位信息上去，字节一个都不许过（§6.4）。
+
+    这是「学习会话也能带图」的地基：节点把引用放进 ctx，Runtime 侧凭引用读盘内联。
+    白名单之外的东西（本机路径、data URL、随便别的字段）即使被塞进状态也会在接缝上被丢掉，
+    所以这里不是断言「我们没塞」，而是断言「塞了也过不去」。
+    """
+    ref = {"media_id": "img_" + "0" * 32, "name": "推导.png", "mime": "image/png",
+           "bytes": 128, "sha256": "d" * 64,
+           "path": "/home/roc/secret.png", "data_url": "data:image/png;base64,AAAA",
+           "content": "图片原文不该出现在这里"}
+    ctx = runtime_ctx({"session_id": "s1", "images": [ref]})
+
+    assert ctx["images"] == [{key: ref[key] for key in IMAGE_REF_FIELDS}]
+    assert set(ctx["images"][0]) == {"media_id", "name", "mime", "bytes", "sha256"}
+    # 没带图时是一个空列表，而不是 None——下游不必到处写 or []
+    assert runtime_ctx({"session_id": "s1"})["images"] == []
+    # 形状不对的条目直接跳过，不会把半截东西递给能力层
+    assert runtime_ctx({"images": ["img_" + "0" * 32, None, 7]})["images"] == []

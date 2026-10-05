@@ -21,6 +21,8 @@ class BKTParameters:
     p_s: float = 0.10
     source: str = "development_initial_values; not fitted; teacher review pending"
     model_version: str = BKT_MODEL_VERSION
+    fitted: bool = False
+    teacher_review: str = "pending"
 
     def __post_init__(self) -> None:
         for name in ("p_l0", "p_t", "p_g", "p_s"):
@@ -35,7 +37,7 @@ class BKTParameters:
     def to_dict(self) -> dict[str, Any]:
         return {"p_l0": self.p_l0, "p_t": self.p_t, "p_g": self.p_g, "p_s": self.p_s,
                 "source": self.source, "model_version": self.model_version,
-                "fitted": False, "teacher_review": "pending"}
+                "fitted": self.fitted, "teacher_review": self.teacher_review}
 
     @property
     def config_hash(self) -> str:
@@ -43,7 +45,8 @@ class BKTParameters:
         return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-DEFAULT_PARAMETERS = BKTParameters()
+INITIAL_PARAMETERS = BKTParameters()
+DEFAULT_PARAMETERS = INITIAL_PARAMETERS
 
 
 def parameters_from_snapshot(value: dict[str, Any] | None) -> BKTParameters:
@@ -53,7 +56,9 @@ def parameters_from_snapshot(value: dict[str, Any] | None) -> BKTParameters:
     return BKTParameters(p_l0=float(snapshot["p_l0"]), p_t=float(snapshot["p_t"]),
                          p_g=float(snapshot["p_g"]), p_s=float(snapshot["p_s"]),
                          source=str(snapshot.get("source") or "snapshot"),
-                         model_version=str(snapshot.get("model_version") or BKT_MODEL_VERSION))
+                         model_version=str(snapshot.get("model_version") or BKT_MODEL_VERSION),
+                         fitted=bool(snapshot.get("fitted", False)),
+                         teacher_review=str(snapshot.get("teacher_review") or "pending"))
 
 
 def predict(mastery: float, parameters: BKTParameters = DEFAULT_PARAMETERS) -> float:
@@ -89,5 +94,5 @@ def _probability(value: float, label: str) -> None:
         raise ValueError(f"{label} must be a finite probability in [0, 1]")
 
 
-__all__ = ["BKT_MODEL_VERSION", "BKTParameters", "DEFAULT_PARAMETERS", "MIN_EVIDENCE", "binary_entropy",
+__all__ = ["BKT_MODEL_VERSION", "BKTParameters", "DEFAULT_PARAMETERS", "INITIAL_PARAMETERS", "MIN_EVIDENCE", "binary_entropy",
            "initial_mastery", "parameters_from_snapshot", "predict", "update"]
