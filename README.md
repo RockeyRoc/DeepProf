@@ -136,9 +136,9 @@ The command set printed by `/help`:
 
 </details>
 
-<img src="media/web-workspace-v0.6.4.png" alt="Actual v0.6.4 browser workspace in a narrow window, using the local Fake Provider; no external model request." width="720">
+<img src="media/web-workspace-v0.6.4.jpg" alt="High-resolution v0.6.4 browser workspace in a narrow window, using the local Fake Provider; no external model request." width="720">
 
-Actual v0.6.4 browser workspace in a narrow window, using the local Fake Provider; no external model request.
+High-resolution v0.6.4 browser workspace in a narrow window, using the local Fake Provider; no external model request.
 
 ## Architecture
 
