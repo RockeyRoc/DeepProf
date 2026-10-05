@@ -28,6 +28,8 @@ FIELD_TO_ENV = {
     "library_chunk_overlap": "DEEPPROF_LIBRARY_CHUNK_OVERLAP",
     "library_max_import_bytes": "DEEPPROF_LIBRARY_MAX_IMPORT_BYTES",
     "data_structures_pdf_path": "DEEPPROF_DATA_STRUCTURES_PDF",
+    "media_image_max_bytes": "DEEPPROF_MEDIA_IMAGE_MAX_BYTES",
+    "media_image_max_per_message": "DEEPPROF_MEDIA_IMAGE_MAX_PER_MESSAGE",
     "sandbox_allowlist": "DEEPPROF_SANDBOX_ALLOWLIST",
     "log_level": "DEEPPROF_LOG_LEVEL",
 }

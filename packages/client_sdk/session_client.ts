@@ -15,7 +15,7 @@ export class SessionClient {
   }
 
   async create(title = "学习会话", group = "B", courseId = "ds.c_language.v1", sessionMode: "chat" | "study" = "study", experimentRun = false,
-    selection?: { provider_profile?: string; model?: string; thinking_enabled?: boolean }): Promise<string> {
+    selection?: { provider_profile?: string; model?: string; thinking_enabled?: boolean; thinking_level?: string; thinking_budget?: number | null; web_search_mode?: "auto" | "always" | "off" }): Promise<string> {
     const payload: Record<string, unknown> = { title, session_mode: sessionMode };
     if (sessionMode === "study") Object.assign(payload, { group, course_id: courseId, experiment_run: experimentRun });
     else if (selection) Object.assign(payload, selection);
@@ -70,7 +70,11 @@ export class SessionClient {
     return this.commands.send(this.commands.create("session.delete", {}, sessionId));
   }
 
-  async setThinking(sessionId: string, enabled: boolean): Promise<CommandAccepted> {
-    return this.commands.send(this.commands.create("session.thinking.set", { enabled }, sessionId));
+  async setThinking(sessionId: string, enabled: boolean, options: { thinking_mode?: "default" | "on" | "off"; thinking_level?: string; thinking_budget?: number | null } = {}): Promise<CommandAccepted> {
+    return this.commands.send(this.commands.create("session.thinking.set", { enabled, ...options }, sessionId));
+  }
+
+  async setWebSearch(sessionId: string, mode: "auto" | "always" | "off"): Promise<CommandAccepted> {
+    return this.commands.send(this.commands.create("session.web.set", { mode }, sessionId));
   }
 }

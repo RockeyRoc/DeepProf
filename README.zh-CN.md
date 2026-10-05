@@ -6,7 +6,7 @@
 
 ### 在本机运行的、以课程证据为基础的自适应教学系统
 
-[简体中文](README.zh-CN.md) · [English](README.md) · [项目网站](https://rockeyroc.github.io/DeepProf/) · [架构设计](docs/DESIGNv0.6.2.md) · [实验报告](docs/experiments/M1-M3-实验报告.md) · [下载](https://github.com/RockeyRoc/DeepProf/releases)
+[简体中文](README.zh-CN.md) · [English](README.md) · [项目网站](https://rockeyroc.github.io/DeepProf/) · [架构设计](docs/DESIGNv0.6.2.md) · [最新实验报告](docs/experiments/v0.6.4/M3-BKT-RAG-改进实验报告.md) · [下载](https://github.com/RockeyRoc/DeepProf/releases)
 
 ![自动检查](https://img.shields.io/github/actions/workflow/status/RockeyRoc/DeepProf/ci.yml?branch=main&label=CI)
 ![最新版本](https://img.shields.io/github/v/release/RockeyRoc/DeepProf?label=%E6%9C%80%E6%96%B0%E7%89%88%E6%9C%AC)
@@ -50,6 +50,8 @@
 
 ## 功能
 
+**v0.6.4** 更新网页工作台、文档／图片上传、按模型能力配置思考与联网、深度研究报告，并发布最新 BKT/RAG 实验材料。详见[版本与 API 说明](docs/RELEASEv0.6.4.md)。
+
 - **区分聊天与教学。** 普通对话和结构化学习会话是两条路径，只有教学路径会运行教学策略图。
 - **把教学锚在可定位的证据上。** 版本化的策略图读取本地索引的课程，并把页码级引用挂到教学回合上。
 - **守住进入学情模型的门槛。** 提示后重试、待人工评分、模糊知识点与不可靠判分都不进入 BKT 更新。C 组至少要有 3 条合格作答证据才显示掌握度；A、B 组明确显示学情模型未启用。
@@ -61,7 +63,7 @@
 安装 **Node.js 22+** 与 **Python 3.12+**，然后：
 
 ```sh
-npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz
+npm install --global https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz
 deepprof
 ```
 
@@ -69,7 +71,7 @@ deepprof
 
 npm 包已包含编译后的 CLI、SDK、Gateway 源码、课程清单、只读回放页和网页聊天，不用先装 Git 或下载完整仓库。若要临时试用，可用 `npx --yes --package=<发布包地址> deepprof`；npx 不会把命令持久安装，之后直接输入 `deepprof` 请使用上面的全局安装。
 
-`deepprof web` 打开网页聊天：会话列表、Provider 与模型选择、流式回复和取消按钮。它**只走普通聊天路径**——教学策略、证据检索与 BKT 更新都不会从浏览器进入，所以它产生的任何内容都不是教学回合。要开教学会话请用 CLI。
+`deepprof web` 打开网页工作台，可选择聊天或学习、管理会话和模型、流式接收与取消回复、上传文档或图片、查看来源。网页学习明确标为**非实验**，进入教学路径；BKT 仍受实验组和合格作答记录条件约束。视觉、思考和原生联网能力取决于所选 Provider／模型。深度研究收集来源并生成可下载报告，需要先配置搜索服务。
 
 `deepprof check-update` 检查稳定版更新（`update` 是别名）。`deepprof uninstall` 卸载 CLI 与运行环境、保留个人数据；`deepprof uninstall --purge` 在确认后清除个人数据，加 `--yes` 可跳过确认。
 
@@ -81,20 +83,27 @@ npm 包已包含编译后的 CLI、SDK、Gateway 源码、课程清单、只读�
 `deepprof --help`：
 
 ```text
-DeepProf CLI v0.6.2
+DeepProf CLI v0.6.4
 
 快速开始：deepprof （首次运行时自动准备本机环境）
-  npm install --global "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz" 持久安装，之后可直接运行 deepprof
+  npm install --global "https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz" 持久安装，之后可直接运行 deepprof
   deepprof setup [--ocr]    安装 DeepProf Runtime（可选安装扫描件 OCR）
   deepprof doctor            检查 Node.js、Python 与本地安装状态
   deepprof web               打开本机网页聊天
   deepprof check-update      检查稳定版更新（update 是别名）
   deepprof uninstall         卸载 CLI 和运行环境，保留用户数据
   deepprof uninstall --purge 清理用户数据（需确认，或加 --yes）
+  deepprof login [--provider 厂家] [--model 默认模型] [--models 模型1,模型2]
+  deepprof providers search|list|delete  搜索、查看或删除模型服务
+  deepprof models list|add|delete        管理服务下已添加的模型
+  deepprof sessions list|rename|delete   管理普通对话
+  deepprof thinking <session_id> on|off  设置模型思考模式
+  deepprof web-search configure|status|test  配置、查看或测试模型厂商联网 API（Ollama 支持 --api-key-stdin/--clear）
+  deepprof web-search-mode <session_id> auto|on|off  设置会话联网方式
   deepprof --version         显示 CLI 版本
   deepprof --help            显示本帮助
 
-环境变量：DEEPPROF_HOME、DEEPPROF_PYTHON、DEEPPROF_API_URL
+环境变量：DEEPPROF_HOME、DEEPPROF_PYTHON、DEEPPROF_API_URL、OLLAMA_API_KEY
 在 CLI 中运行 /help 查看学习、题库和会话命令。
 ```
 
@@ -127,6 +136,10 @@ ds.c_language.v1 · group B · 模型未配置 · 使用 /login 配置 Provider
 
 </details>
 
+<img src="media/web-workspace-v0.6.4.png" alt="v0.6.4 网页工作台的实际窄窗口截图，使用本地 Fake Provider；没有外部模型请求。" width="720">
+
+v0.6.4 网页工作台的实际窄窗口截图，使用本地 Fake Provider；没有外部模型请求。
+
 ## 架构
 
 <img src="media/fig-architecture-zh.png" alt="DeepProf 架构：TypeScript CLI 经本机 HTTP 连接环回 Gateway，Gateway 做命令校验并运行教学策略图；Runtime 按显式绑定调用课程检索或用户配置的模型，会话与审计事件写入本机 SQLite，再经字段白名单供只读回放。" width="100%">
@@ -138,11 +151,11 @@ flowchart LR
   Decision --> Evidence[版本化本地课程索引]
   Decision --> Provider[用户配置的模型]
   API --> Events[(本机会话和审计事件)]
-  Chat[网页聊天] -->|只走聊天路径| API
+  Web[网页工作台] -->|聊天或学习| API
   Replay[只读回放页] --> Events
 ```
 
-上图走的是教学链路；网页聊天接在同一个 Gateway 上，但只到普通聊天路径为止，详见[快速开始](#快速开始)。
+上图走的是教学链路；网页工作台通过同一个 Gateway 选择普通聊天或非实验学习路径，详见[快速开始](#快速开始)。
 
 教学策略图返回结构化决策，且不直接调用 Provider、数据库或文件系统。Runtime 按显式绑定执行能力、调用已配置的 Provider，并记录可回放的事件轨迹。公开实验包不含学生答案正文或 Provider 密钥。
 
@@ -150,7 +163,15 @@ flowchart LR
 
 ## 实验证据
 
-整合报告连同九组图表、脱敏源数据与生成脚本一并发布。全部批次使用构造开发案例与合成 Attempt——**没有真人参与者**，工程验收不等于学习效果。
+最新[公开实验包](docs/experiments/v0.6.4/README.md)包含中文报告、十一张图、汇总数据、绘图源码和文件哈希，涵盖 ASSISTments／NoMIRACL 公开基准与课程全文消融。**真实人员复核仍待提交，尚无学生学习增益结论。**
+
+| 最新证据 | 实测结果 | 边界 |
+|---|---|---|
+| 全文 RAG v4 | 120 题 × 4 条件 = 480 个有效格；347 页 OCR、629 分块 | AI 标注检索 13,710 条、引用 1,595 条、可答性 120 题；人员复核待提交 |
+| NoMIRACL 中文 | 3,770 题、37,599 个固定候选配对；测试 FAR 4.51%、FRR 70.11%、AUC 0.8007 | 评估排序与证据接受，不等同于全库召回或生成答案正确率 |
+| BKT 开发集嵌套 OOF | 题目参数候选 AUC 0.7324、Log loss 0.5593；ECE 点估计恶化 | 公开开发数据上的探索候选，运行时默认参数保持原值 |
+
+下表保留历史 M1–M3 构造样本批次，计数与新批次分别记录。
 
 | 批次 | 工程运行证据 | 结论边界 |
 |---|---|---|
@@ -176,12 +197,12 @@ BKT 的开发参数（`P(L₀)=0.20`、`P(T)=0.10`、`P(G)=0.20`、`P(S)=0.10`�
 | | 状态 |
 |---|---|
 | 本机 CLI → Gateway → 策略图 → Provider → 回放 | 可用；M2 离线验收通过 |
-| 网页聊天前端 | 可用；只走普通聊天路径——不产生教学回合，不接证据链 |
+| 网页工作台 | 聊天与非实验学习、文档／图片上传、模型控制、来源与深度研究报告 |
 | 版本化课程索引、页码可定位证据、审计轨迹 | 可用 |
 | M1 A/B 真实 Provider 运行 | 已有记录；4 格失败，未改写 |
 | M3 离线框架 | 本地 Fake Provider 下 400/400 格完成 |
 | M3 真实模型试跑 | 29 次请求中 3 次完整生成；截断是硬约束 |
-| BKT 学情模型 | 已实现、**未校准**；预测低于随机 |
+| BKT 学情模型 | 运行时开发参数仍**未校准**；公开数据研究候选单独报告 |
 | 题库、页码与策略的教师审核 | **未完成** |
 | 真实学生学习效果 | **未开展**——没有招募、同意或伦理审批 |
 
@@ -191,7 +212,7 @@ BKT 的开发参数（`P(L₀)=0.20`、`P(T)=0.10`、`P(G)=0.20`、`P(S)=0.10`�
 
 ```
 apps/cli/            TypeScript CLI —— 键盘优先入口、REPL 与会话处理
-apps/web/            网页聊天前端，由 Gateway 在 /web 提供
+apps/web/            网页聊天／学习工作台，由 Gateway 在 /web 提供
 apps/replay/         审计轨迹的只读回放页
 api/                 环回 FastAPI Gateway —— 命令、会话、Provider、回放与网页
 graph/education/     教学策略图（LangGraph），返回 PedagogicalDecision
@@ -237,11 +258,11 @@ python -m pytest
   title        = {DeepProf: an evidence-grounded, adaptive teaching system},
   author       = {{DeepProf contributors}},
   year         = {2026},
-  version      = {v0.6.2},
+  version      = {v0.6.4},
   howpublished = {\url{https://github.com/RockeyRoc/DeepProf}},
   note         = {Engineering prototype; teacher review, BKT calibration and
                   real-student outcomes remain open.}
 }
 ```
 
-引用工程的交付状态时，请带上版本与日期——`v0.6.2`、2026-09-24——不要指向一个移动中的 `main`。
+引用工程的交付状态时，请带上版本与日期——`v0.6.4`、2026-10-05——不要指向一个移动中的 `main`。

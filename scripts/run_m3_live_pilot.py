@@ -22,7 +22,7 @@ import uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -33,7 +33,7 @@ from evaluation.dev_cases import CASE_VERSION
 from api.sessions import _concept_for_text, _concept_name
 from graph.education.bindings import ACTION_BINDINGS
 from graph.education.contracts import POLICY_VERSION
-from models.learner.bkt import DEFAULT_PARAMETERS
+from models.learner.bkt import DEFAULT_PARAMETERS, BKTParameters, parameters_from_snapshot
 from models.learner.store import SqliteLearnerStore
 from runtime.core.session import Session
 from runtime.storage.sqlite_store import SqliteSessionStore
@@ -45,6 +45,7 @@ GROUPS = ("A", "B", "C")
 PLANNED_CASES = 12
 PLANNED_CELLS = PLANNED_CASES * len(GROUPS)
 MAX_MODEL_CALLS = PLANNED_CELLS
+MAX_EXPERIMENT_CASES = 40
 INPUT_USD_PER_MILLION_PEAK = 0.30  # current official DeepSeek Flash cache-miss peak rate
 OUTPUT_USD_PER_MILLION_PEAK = 1.20
 
@@ -62,6 +63,18 @@ def _write_json(path: Path, value: Any) -> None:
 
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def normalize_m3_evidence_options(options: dict[str, bool] | None) -> dict[str, bool]:
+    result = {"retrieval_enabled": True, "evidence_constraint": True, **(options or {})}
+    if any(type(value) is not bool for value in result.values()) or set(result) != {
+            "retrieval_enabled", "evidence_constraint"}:
+        raise ValueError("m3_evidence_options_must_be_boolean_retrieval_and_constraint_flags")
+    return result
+
+
+def expected_provider_calls_per_cell(options: dict[str, bool]) -> int:
+    return int(not (not options["retrieval_enabled"] and options["evidence_constraint"]))
 
 
 def request_json(base: str, path: str, *, method: str = "GET", payload: Any = None,
@@ -107,10 +120,17 @@ def select_cases(cases: list[dict[str, Any]], count: int = PLANNED_CASES) -> lis
     return selected
 
 
-def live_cases() -> tuple[dict[str, Any], list[dict[str, Any]]]:
+def live_cases(count: int = PLANNED_CASES, case_ids: list[str] | None = None) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     source = json.loads(SOURCE_CASES.read_text(encoding="utf-8"))
     derived = _derived_cases(source)
-    chosen = select_cases(derived)
+    if case_ids:
+        indexed = {str(case["case_id"]): case for case in derived}
+        missing = sorted(set(case_ids) - set(indexed))
+        if missing:
+            raise ValueError("unknown_case_ids:" + ",".join(missing))
+        chosen = [indexed[case_id] for case_id in case_ids]
+    else:
+        chosen = select_cases(derived, count=count)
     for case in chosen:
         case["m3_case_version"] = LIVE_CASE_VERSION
         case["attempt_history"] = [dict(item) for item in case.get("attempt_history") or []]
@@ -118,7 +138,7 @@ def live_cases() -> tuple[dict[str, Any], list[dict[str, Any]]]:
 
 
 def _attempt_history(store: SqliteLearnerStore, case: dict[str, Any], *, run_id: str,
-                     learner_id: str, session_id: str) -> list[dict[str, Any]]:
+                     learner_id: str, session_id: str, parameters: BKTParameters) -> list[dict[str, Any]]:
     observations = []
     for index, attempt in enumerate(case.get("attempt_history") or []):
         result = store.record_attempt(
@@ -129,7 +149,7 @@ def _attempt_history(store: SqliteLearnerStore, case: dict[str, Any], *, run_id:
             concept_id=str(case["concept_id"]), bank_version=LIVE_CASE_VERSION,
             correct=bool(attempt["correct"]), hint_count=0,
             grading_source="exact_normalized_match", confidence=1.0,
-            parameters=DEFAULT_PARAMETERS, bkt_enabled=True, concept_unambiguous=True,
+            parameters=parameters, bkt_enabled=True, concept_unambiguous=True,
         )
         observations.append({"predicted_correct": result.get("predicted_correct"),
             "correct": result.get("correct"), "eligible": result.get("eligible"),
@@ -160,6 +180,73 @@ def _failure(events: list[dict[str, Any]], trace_id: str) -> str:
         kind = str(details.get("kind") or error.get("kind") or "")
         return kind if kind in safe else str(error.get("code") or "provider_error")
     return "turn_failed"
+
+
+def _provider_diagnostics(events: list[dict[str, Any]], trace_id: str) -> dict[str, Any]:
+    """Return an allow-listed Provider trace; omit messages and response bodies."""
+    outcomes: list[dict[str, Any]] = []
+    requests: list[dict[str, str]] = []
+    requested = 0
+    safe_kinds = {"auth_failed", "region_or_permission_blocked", "rate_limited", "timeout",
+                  "connection_failed", "upstream_error", "not_found", "missing_credential",
+                  "capability_missing", "unknown", "model_truncated", "empty_model_response"}
+    for event in events:
+        if event.get("trace_id") != trace_id:
+            continue
+        kind = str(event.get("type") or "")
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        if kind == "model.requested":
+            requested += 1
+            profile = str(payload.get("provider_profile") or "")
+            model = str(payload.get("model") or "")
+            requests.append({"provider_profile": profile[:64], "model": model[:128]})
+        if kind not in {"model.completed", "model.failed"}:
+            continue
+        error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+        details = error.get("details") if isinstance(error.get("details"), dict) else {}
+        failure_kind = str(details.get("kind") or error.get("kind") or "")
+        status_code = details.get("http_status", details.get("status_code"))
+        if isinstance(status_code, bool) or not isinstance(status_code, int) or not 100 <= status_code <= 599:
+            status_code = None
+        finish_reason = str(payload.get("finish_reason") or details.get("finish_reason") or "")
+        usage = payload.get("usage") if isinstance(payload.get("usage"), dict) else details.get("usage")
+        usage = usage if isinstance(usage, dict) else {}
+        safe_usage = {key: int(usage[key]) for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+                      if isinstance(usage.get(key), (int, float)) and not isinstance(usage.get(key), bool)
+                      and usage[key] >= 0}
+        types = details.get("cause_types")
+        cause_types = ([str(value)[:64] for value in types[:4]
+                        if isinstance(value, str) and value.replace("_", "").isalnum()]
+                       if isinstance(types, list) else [])
+        detail = str(details.get("detail") or "")
+        if not cause_types and detail and detail.isascii() and detail.replace("_", "").isalnum():
+            cause_types = [detail[:64]]
+        os_errno = details.get("os_errno")
+        if isinstance(os_errno, bool) or not isinstance(os_errno, int) or not 0 <= os_errno <= 65535:
+            os_errno = None
+        outcome = {"status": "completed" if kind == "model.completed" else "failed",
+                   "failure_kind": failure_kind if failure_kind in safe_kinds else "",
+                   "http_status": status_code, "finish_reason": finish_reason[:48],
+                   "cause_types": cause_types, "os_errno": os_errno, "usage": safe_usage}
+        outcomes.append(outcome)
+    return {"request_count": requested, "requests": requests, "outcomes": outcomes}
+
+
+def _no_generation_reason(events: list[dict[str, Any]], trace_id: str) -> str:
+    for event in reversed(events):
+        if event.get("trace_id") != trace_id or event.get("type") not in {
+                "pedagogy.decision", "teaching.decision"}:
+            continue
+        payload = event.get("payload") if isinstance(event.get("payload"), dict) else {}
+        if payload.get("generation_skipped") or payload.get("capability_status") == "insufficient_evidence":
+            return "insufficient_evidence"
+        if payload.get("question_source") == "policy_template":
+            return "deterministic_policy_fallback"
+        if payload.get("action"):
+            return "policy_selected_no_generation"
+    return "unclassified_no_generation" if not any(
+        event.get("trace_id") == trace_id and event.get("type") == "model.requested"
+        for event in events) else ""
 
 
 def _usage(events: list[dict[str, Any]], trace_id: str) -> tuple[dict[str, int], int, list[str]]:
@@ -225,11 +312,11 @@ def _locator_counts(events: list[dict[str, Any]], trace_id: str) -> tuple[int, i
 
 
 def _counts(cells: list[dict[str, Any]]) -> dict[str, Any]:
-    rows = [cell for cell in cells if cell.get("phase") == "main"]
+    rows = list(cells)
     groups = {}
     for group in GROUPS:
         members = [row for row in rows if row.get("group") == group]
-        groups[group] = {"planned": PLANNED_CASES,
+        groups[group] = {"planned": max((int(row.get("planned_cases") or PLANNED_CASES) for row in members), default=PLANNED_CASES),
             "completed": sum(row.get("status") == "completed" for row in members),
             "failed": sum(row.get("status") == "failed" for row in members),
             "blocked": sum(row.get("status") == "blocked" for row in members),
@@ -246,12 +333,13 @@ def _counts(cells: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _summary(run_id: str, config: dict[str, Any], cells: list[dict[str, Any]]) -> dict[str, Any]:
     groups = _counts(cells)
-    rows = [cell for cell in cells if cell.get("phase") == "main"]
+    rows = list(cells)
     prompt_tokens = sum(row["prompt_tokens"] for row in groups.values())
     completion_tokens = sum(row["completion_tokens"] for row in groups.values())
     model_calls = sum(row["model_calls"] for row in groups.values())
     usage_missing_calls = sum(bool(row.get("usage_missing")) for row in rows)
-    computed_cells = [row for row in rows if row.get("application_status", row.get("status")) == "completed"]
+    computed_cells = [row for row in rows if row.get("application_status", row.get("status")) == "completed"
+                      and row.get("developer_expected_action_applicable", True)]
     matched = sum(bool(row.get("action_family_match")) for row in computed_cells)
     decisions = [row for row in rows if row.get("action")]
     total_observed = len(rows)
@@ -261,7 +349,8 @@ def _summary(run_id: str, config: dict[str, Any], cells: list[dict[str, Any]]) -
     if model_calls and not usage_missing_calls:
         estimated_cost = round(prompt_tokens * INPUT_USD_PER_MILLION_PEAK / 1_000_000
                                + completion_tokens * OUTPUT_USD_PER_MILLION_PEAK / 1_000_000, 8)
-    planned = PLANNED_CELLS
+    planned = int(config.get("planned_cells") or PLANNED_CELLS)
+    case_count = int(config.get("planned_cases") or PLANNED_CASES)
     evaluation_counts = {key: sum(row.get("evaluation_status") == key for row in rows)
                          for key in ("completed", "truncated", "provider_failed", "incomplete", "not_applicable", "unknown")}
     app_completed = sum(row.get("application_status", row.get("status")) == "completed" for row in rows)
@@ -272,7 +361,7 @@ def _summary(run_id: str, config: dict[str, Any], cells: list[dict[str, Any]]) -
             row.get("status") != "completed" for row in rows) else "completed_with_failures" if total_observed == planned else "incomplete",
         "provider_profile": config.get("provider_profile"), "model": config.get("model"),
         "sample_type": "constructed_developer_fixture", "human_subjects": False,
-        "case_count": PLANNED_CASES, "planned_cells": planned, "observed_cells": total_observed,
+        "case_count": case_count, "planned_cells": planned, "observed_cells": total_observed,
         "completed_cells": sum(row.get("status") == "completed" for row in rows),
         "failed_cells": sum(row.get("status") == "failed" for row in rows),
         "application_terminal": {"completed": app_completed, "failed": app_failed,
@@ -319,10 +408,14 @@ def _summary(run_id: str, config: dict[str, Any], cells: list[dict[str, Any]]) -
 
 def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: Path,
           stores: tuple[SqliteSessionStore, SqliteLearnerStore], database: Path,
-          current_calls: int) -> tuple[dict[str, Any], int]:
+          current_calls: int, parameters: BKTParameters, provider_profile: str, model: str,
+          max_output_tokens: int, phase: str, planned_cases: int,
+          m3_evidence_options: dict[str, bool],
+          experiment_config_sha256: str | None = None,
+          prompt_sha256_override: str | None = None) -> tuple[dict[str, Any], int]:
     sessions, learners = stores
     case_id = str(case["case_id"])
-    cell_id = f"main-{case_id}-{group}"
+    cell_id = f"{phase}-{case_id}-{group}"
     cell_path = run_dir / "cells" / f"{cell_id}.json"
     if cell_path.exists():
         prior = json.loads(cell_path.read_text(encoding="utf-8"))
@@ -339,7 +432,13 @@ def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: 
             "command_id": command_id, "client_id": "m3-live-pilot", "surface": "cli",
             "learner_id": learner_id, "type": "session.new", "payload": {
                 "session_mode": "study", "group": group, "course_id": "ds.c_language.v1",
-                "experiment_run": True, "title": f"M3 live {case_id} {group}"}})
+                "experiment_run": True, "title": f"M3 live {case_id} {group}",
+                "provider_profile": provider_profile, "model": model,
+                "thinking_enabled": False,
+                "thinking_mode": "off",
+                "require_explicit_thinking_mode": True,
+                "max_output_tokens": max_output_tokens, "bkt_parameters": parameters.to_dict(),
+                "m3_evidence_options": m3_evidence_options}})
         session_id = str(accepted.get("session_id") or "")
         if not session_id:
             raise RuntimeError("session_id_missing")
@@ -353,9 +452,13 @@ def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: 
         raise RuntimeError("session_not_found_in_isolated_database")
     state = _case_state(case)
     session.metadata.update(state)
+    if experiment_config_sha256:
+        experiment = dict(session.metadata.get("experiment") or {})
+        experiment["experiment_config_sha256"] = experiment_config_sha256
+        session.metadata["experiment"] = experiment
     sessions.save(session)
     bkt_observations = _attempt_history(learners, case, run_id=run_id,
-                                        learner_id=learner_id, session_id=session_id) if group == "C" else []
+        learner_id=learner_id, session_id=session_id, parameters=parameters) if group == "C" else []
     if group == "C":
         learner_view = request_json(base, f"/sessions/{urllib.parse.quote(session_id, safe='')}/learner?concept_id={urllib.parse.quote(str(case['concept_id']), safe='')}")
         returned = (learner_view.get("estimates") or [{}])[0]
@@ -371,7 +474,8 @@ def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: 
         start_sequence_events = request_json(base, f"/replay/sessions/{urllib.parse.quote(session_id, safe='')}/events")
         before_sequence = max((int(event.get("sequence") or 0) for event in start_sequence_events), default=0)
         pending.update({"command_id": command_id, "before_sequence": before_sequence,
-                        "state": "turn_pending", "turn_started_at": pending.get("turn_started_at") or _now()})
+                        "state": "turn_pending", "request_budget_reservation": 1,
+                        "turn_started_at": pending.get("turn_started_at") or _now()})
         _write_json(pending_path, pending)
         accepted = request_json(base, "/commands", method="POST", timeout=30, payload={
             "command_id": command_id, "client_id": "m3-live-pilot", "surface": "cli",
@@ -405,6 +509,18 @@ def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: 
                 "type": "turn.cancel", "payload": {}})
         except Exception:
             pass
+        cancel_deadline = time.monotonic() + 30
+        while time.monotonic() < cancel_deadline:
+            all_events = request_json(base, f"/replay/sessions/{urllib.parse.quote(session_id, safe='')}/events?from_sequence={before_sequence + 1}")
+            turn_events = [event for event in all_events if event.get("trace_id") == trace_id]
+            terminal = next((event for event in reversed(turn_events) if event.get("type") == "agent.turn.completed"), None)
+            if terminal:
+                break
+            time.sleep(0.5)
+        if terminal is None:
+            pending.update({"state": "cancellation_unconfirmed", "cancel_requested_at": _now()})
+            _write_json(pending_path, pending)
+            raise RuntimeError("turn_cancellation_not_confirmed; resume will inspect the same command")
     else:
         status = "completed" if (terminal.get("payload") or {}).get("status") == "ok" else "failed"
         failure = "" if status == "completed" else _failure(turn_events, trace_id)
@@ -426,24 +542,38 @@ def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: 
     _, _, event_action = _locator_counts(turn_events, trace_id)
     action = str(assistant_metadata.get("action") or event_action or (actions[-1] if actions else ""))
     frozen = dict(session.metadata.get("experiment") or {})
+    runtime_prompt_fingerprint = _prompt_fingerprint()
     case_row = {
-        "cell_id": cell_id, "phase": "main", "case_id": case_id, "case_version": LIVE_CASE_VERSION,
+        "cell_id": cell_id, "phase": phase, "planned_cases": planned_cases,
+        "case_id": case_id, "case_version": LIVE_CASE_VERSION,
         "category": case.get("category"), "sample_type": "constructed_developer_fixture", "group": group,
         "session_id": session_id, "learner_id": learner_id, "trace_id": trace_id,
         "status": status, "application_status": application_status,
         "evaluation_status": evaluation_status, "elapsed_ms": elapsed_ms, "model_calls": model_calls,
         "usage": usage, "usage_missing": model_calls > 0 and not usage,
         "action": action, "developer_expected_action_family": list(case.get("allowed_variants") or []),
+        "developer_expected_action_applicable": bool(case.get("allowed_variants")),
+        "split": case.get("split", "historical"),
         "action_family_match": action in list(case.get("allowed_variants") or []),
         "locatable_references": locator_count, "reference_count": reference_count,
         "bkt_observations": bkt_observations, "learner_estimate": learner_view,
         "frozen_config": {"provider_profile": frozen.get("provider_profile"), "model": frozen.get("model"),
             "policy_version": frozen.get("policy_version"), "bkt_config_hash": frozen.get("bkt_config_hash"),
+            "experiment_config_sha256": frozen.get("experiment_config_sha256"),
             "question_bank_version": frozen.get("question_bank_version"), "retrieval": frozen.get("retrieval"),
+            "m3_evidence_options": frozen.get("m3_evidence_options"),
             "sampling": frozen.get("sampling"), "case_version": LIVE_CASE_VERSION,
-            "prompt_version": PROMPT_VERSION, "prompt_sha256": _prompt_fingerprint(),
+            "prompt_version": PROMPT_VERSION,
+            "prompt_sha256": prompt_sha256_override or runtime_prompt_fingerprint,
+            **({"prompt_runtime_fingerprint_sha256": runtime_prompt_fingerprint}
+               if prompt_sha256_override else {}),
             "source_fingerprint": repository_fingerprint(ROOT)},
         "failure_reason": failure, "application_failure_reason": application_failure,
+        "provider_diagnostics": _provider_diagnostics(turn_events, trace_id),
+        "no_generation_reason": _no_generation_reason(turn_events, trace_id) if not model_calls else "",
+        "rating_context": {"learner_message": str((case.get("user_turns") or [""])[0]),
+            "learning_goal": str(case.get("learning_goal") or _concept_name(
+                str(case.get("concept_id") or ""), "ds.c_language.v1"))},
         "response_text": assistant,
     }
     _write_json(run_dir / "events" / f"{cell_id}.json", {"cell_id": cell_id, "events": _safe_events(turn_events, trace_id)})
@@ -456,7 +586,19 @@ def _cell(run_id: str, case: dict[str, Any], group: str, *, base: str, run_dir: 
 
 def run(*, api_url: str, run_id: str | None = None, resume: bool = False,
         output_root: Path | None = None, library_index_from: Path | None = None,
-        supersedes_run_id: str | None = None) -> dict[str, Any]:
+        supersedes_run_id: str | None = None, case_count: int = PLANNED_CASES,
+        case_ids: list[str] | None = None, phase: str = "main",
+        provider_profile: str | None = None, model: str | None = None,
+        max_output_tokens: int = 4096, request_budget: int | None = None,
+        bkt_snapshot: dict[str, Any] | None = None, groups: tuple[str, ...] = GROUPS,
+        m3_evidence_options: dict[str, bool] | None = None,
+        stop_on_failed_cell: bool = False,
+        experiment_config_sha256: str | None = None,
+        allow_source_fingerprint_change_on_resume: bool = False,
+        prompt_sha256_override: str | None = None,
+        cases_file: Path | None = None,
+        retrieval_strategy: str = "dense",
+        cell_guard: Callable[[], None] | None = None) -> dict[str, Any]:
     base = api_url.rstrip("/")
     host = urllib.parse.urlsplit(base).hostname
     if host not in {"127.0.0.1", "localhost", "::1"}:
@@ -464,19 +606,52 @@ def run(*, api_url: str, run_id: str | None = None, resume: bool = False,
     home = Path(os.environ.get("DEEPPROF_HOME", "~/.deepprof")).expanduser().resolve()
     database = Path(os.environ.get("DEEPPROF_SQLITE_PATH", str(home / "sessions.sqlite"))).expanduser().resolve()
     output = (output_root or home / "experiments" / "m3-live-pilot" / "runs").resolve()
-    source, cases = live_cases()
+    maximum = 120 if cases_file else MAX_EXPERIMENT_CASES
+    if case_count < 1 or case_count > maximum:
+        raise ValueError(f"case_count_must_be_between_1_and_{maximum}")
+    if max_output_tokens not in {4096, 8192}:
+        raise ValueError("max_output_tokens_must_be_4096_or_8192")
+    if not groups or len(set(groups)) != len(groups) or any(group not in GROUPS for group in groups):
+        raise ValueError("groups_must_be_a_nonempty_subset_of_A_B_C")
+    evidence_options = normalize_m3_evidence_options(m3_evidence_options)
+    if cases_file:
+        source = json.loads(cases_file.read_text(encoding="utf-8"))
+        cases = source.get("cases") or []
+        ids = [str(case.get("case_id") or "") for case in cases]
+        if (len(set(ids)) != len(ids) or not all(ids) or len(cases) > 120
+                or any(not case.get("concept_id") or not case.get("user_turns") for case in cases)):
+            raise ValueError("invalid_external_cases")
+        if case_ids:
+            lookup = {case["case_id"]: case for case in cases}
+            if set(case_ids) - set(lookup):
+                raise ValueError("unknown_external_case_ids")
+            cases = [lookup[key] for key in case_ids]
+        elif len(cases) != case_count:
+            raise ValueError("external_case_count_mismatch")
+    else:
+        source, cases = live_cases(case_count, case_ids)
+    case_count = len(cases)
+    planned_cells = case_count * len(groups)
+    budget = planned_cells if request_budget is None else int(request_budget)
+    if budget < 0 or budget > planned_cells:
+        raise ValueError("request_budget_must_be_between_zero_and_planned_cells")
+    parameters = parameters_from_snapshot(bkt_snapshot)
     case_bytes = json.dumps(cases, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     health = request_json(base, "/health")
     selection = request_json(base, "/providers/default")
     profiles = request_json(base, "/providers")
-    profile = next((row for row in profiles if row.get("profile_id") == selection.get("profile_id")), None)
-    if not profile or profile.get("protocol") not in {"openai_compatible", "native"} or not profile.get("has_secret"):
+    selected_profile = provider_profile or str(selection.get("profile_id") or "")
+    profile = next((row for row in profiles if row.get("profile_id") == selected_profile), None)
+    if not profile or not profile.get("enabled", True) or profile.get("protocol") not in {"openai_compatible", "native"} or not profile.get("has_secret"):
         raise RuntimeError("provider_profile_or_secret_unavailable; no model request sent")
     if selection.get("profile_id") in {"mock", "fake", "offline"}:
         raise RuntimeError("live_pilot_rejects_fake_provider")
     if not database.is_file():
         raise RuntimeError("isolated_gateway_database_missing")
-    run_id = run_id or "m3-live-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
+    selected_model = model or str(selection.get("model") or profile.get("default_model") or "")
+    if profile.get("models") and selected_model not in profile["models"]:
+        raise RuntimeError("selected_model_not_configured_on_provider_profile")
+    run_id = run_id or "m3-live-" + phase + "-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:8]
     run_dir = output / run_id
     manifest_path = run_dir / "manifest.json"
     if manifest_path.exists() and not resume:
@@ -490,43 +665,53 @@ def run(*, api_url: str, run_id: str | None = None, resume: bool = False,
                         else _library_index_snapshot(database))
     if not library_snapshot["active_course_textbooks"]:
         raise RuntimeError("no_active_course_textbook_index; no model request sent")
-    frozen_retrieval = _freeze_retrieval_results(base, cases)
+    frozen_retrieval = (_freeze_retrieval_results(base, cases)
+                        if evidence_options["retrieval_enabled"] else {})
     bkt_source = DEFAULT_PARAMETERS.to_dict()
     corpus_hash = _corpus_fingerprint(home / "library")
     config = {
         "schema_version": "deepprof-m3-live-pilot-config-v1", "run_id": run_id,
-        "started_at": _now(), "status": "running", "provider_profile": selection.get("profile_id"),
-        "model": selection.get("model"), "fake_provider_used": False, "paid_model_used": True,
+        "started_at": _now(), "status": "running", "provider_profile": selected_profile,
+        "model": selected_model, "fake_provider_used": False, "paid_model_used": True,
         "provider_probe_performed": False, "provider_has_secret": True,
         "case_version": LIVE_CASE_VERSION, "source_case_version": source.get("version", CASE_VERSION),
-        "source_case_sha256": _sha256(SOURCE_CASES), "selected_cases_sha256": hashlib.sha256(case_bytes).hexdigest(),
+        "source_case_sha256": _sha256(cases_file or SOURCE_CASES), "selected_cases_sha256": hashlib.sha256(case_bytes).hexdigest(),
         "selected_cases": [{"case_id": case["case_id"], "category": case.get("category")} for case in cases],
         "selection_method": "deterministic category round-robin; first user turn per case",
         "sample_type": "constructed_developer_fixture", "human_subjects": False,
-        "groups": list(GROUPS), "planned_cells": PLANNED_CELLS,
+        "groups": list(groups), "phase": phase, "planned_cases": case_count,
+        "planned_cells": planned_cells,
         "supersedes_run_id": supersedes_run_id,
         "course_id": "ds.c_language.v1", "question_bank_version": "", "question_bank_sha256": None,
-        "policy_version": POLICY_VERSION, "bkt_parameters": bkt_source,
-        "bkt_config_hash": DEFAULT_PARAMETERS.config_hash,
+        "policy_version": POLICY_VERSION, "bkt_parameters": parameters.to_dict(),
+        "bkt_config_hash": parameters.config_hash,
+        "experiment_config_sha256": experiment_config_sha256,
         "strategy_bindings_sha256": hashlib.sha256(json.dumps(ACTION_BINDINGS, ensure_ascii=False,
             sort_keys=True, separators=(",", ":")).encode("utf-8")).hexdigest(),
-        "prompt_version": PROMPT_VERSION, "prompt_sha256": _prompt_fingerprint(),
-        "sampling": {"temperature": 0.3}, "generation_limit": {"max_output_tokens": int(os.environ.get("DEEPPROF_LLM_MAX_TOKENS", "4096")),
-            "max_retries": int(os.environ.get("DEEPPROF_LLM_MAX_RETRIES", "2"))},
+        "prompt_version": PROMPT_VERSION,
+        "prompt_sha256": prompt_sha256_override or _prompt_fingerprint(),
+        "sampling": {"temperature": 0.3, "max_output_tokens": max_output_tokens},
+        "generation_limit": {"max_output_tokens": max_output_tokens, "max_retries": 0},
         "retrieval": {"top_k": 5, "chunk_size": 800, "chunk_overlap": 120,
+            "strategy": retrieval_strategy, "candidate_k": 50, "rrf_constant": 60,
+            **evidence_options,
             "corpus_dir_sha256": corpus_hash, "uses_local_retrieval": True,
             "index_sha256": library_snapshot["sha256"],
             "indexed_resource_count": library_snapshot["resource_count"],
             "indexed_chunk_count": library_snapshot["chunk_count"],
             "active_course_textbooks": library_snapshot["active_course_textbooks"],
             "fixed_result_signatures": frozen_retrieval},
-        "call_budget": {"planned_cells": PLANNED_CELLS, "hard_stop_before_cell_when_calls_reach": MAX_MODEL_CALLS,
-            "one_turn_per_cell": True, "stop_run_if_any_cell_uses_multiple_model_calls": True},
+        "call_budget": {"planned_cells": planned_cells, "authorized_provider_requests": budget,
+            "hard_stop_before_cell_when_calls_reach": budget, "one_turn_per_cell": True,
+            "stop_run_if_any_cell_uses_multiple_model_calls": True,
+            "request_reservation_before_turn_submission": True},
         "price_configured": False, "reported_token_cost_estimate_only": True,
         "environment": {"python": sys.version.split()[0], "os": sys.platform},
         "source_fingerprint": repository_fingerprint(ROOT), "database_path": str(database),
         "run_dir": str(run_dir), "raw_response_policy": "local_only; aggregate repository output redacted",
     }
+    if prompt_sha256_override:
+        config["prompt_runtime_fingerprint_sha256"] = _prompt_fingerprint()
     bank_path = home / "course" / "question_bank.json"
     if bank_path.is_file():
         bank = json.loads(bank_path.read_text(encoding="utf-8"))
@@ -535,10 +720,19 @@ def run(*, api_url: str, run_id: str | None = None, resume: bool = False,
     if manifest_path.exists():
         existing = json.loads(manifest_path.read_text(encoding="utf-8"))
         keys = set(config) - {"started_at", "status"}
-        changed = sorted(key for key in keys if existing.get(key) != config.get(key))
+        changed = sorted(key for key in keys if existing.get(key) != config.get(key)
+                         and not (allow_source_fingerprint_change_on_resume and key == "source_fingerprint"))
         if changed:
             raise ValueError("resume_config_mismatch:" + ",".join(changed))
         config = existing
+        if allow_source_fingerprint_change_on_resume and config.get("source_fingerprint") != repository_fingerprint(ROOT):
+            history = list(config.get("source_fingerprint_history") or [config.get("source_fingerprint")])
+            current_fingerprint = repository_fingerprint(ROOT)
+            if current_fingerprint not in history:
+                history.append(current_fingerprint)
+            config["source_fingerprint_history"] = history
+            config["source_fingerprint"] = current_fingerprint
+            _write_json(manifest_path, config)
     else:
         _write_json(run_dir / "cases.json", {"version": LIVE_CASE_VERSION,
             "source_version": source.get("version"), "sample_type": "constructed_developer_fixture",
@@ -562,24 +756,58 @@ def run(*, api_url: str, run_id: str | None = None, resume: bool = False,
     current_calls = 0
     try:
         for case in cases:
-            for group in GROUPS:
-                cell_id = f"main-{case['case_id']}-{group}"
+            for group in groups:
+                cell_id = f"{phase}-{case['case_id']}-{group}"
+                calls_before_cell = current_calls
                 target = cells_dir / f"{cell_id}.json"
                 if target.exists():
                     existing = json.loads(target.read_text(encoding="utf-8"))
                     current_calls += int(existing.get("model_calls") or 0)
                     continue
-                if current_calls >= MAX_MODEL_CALLS:
+                if cell_guard is not None:
+                    cell_guard()
+                pending_path = run_dir / "pending" / f"{cell_id}.json"
+                if pending_path.is_file():
+                    pending = json.loads(pending_path.read_text(encoding="utf-8"))
+                    if pending.get("state") not in {"terminal", "cancelled"}:
+                        current_calls += int(pending.get("request_budget_reservation") or 0)
+                expected_call = expected_provider_calls_per_cell(evidence_options)
+                if current_calls + expected_call > budget:
+                    config["status"] = "stopped_call_budget_guard"
+                    config["stop_reason"] = "authorized_provider_request_budget_reached"
                     break
                 row, current_calls = _cell(run_id, case, group, base=base, run_dir=run_dir,
-                    stores=(sessions, learners), database=database, current_calls=current_calls)
-                print(f"[{len(list(cells_dir.glob('*.json'))):02d}/{PLANNED_CELLS}] {row['case_id']} {group}: {row['status']} · calls {current_calls}", flush=True)
+                    stores=(sessions, learners), database=database, current_calls=calls_before_cell,
+                    parameters=parameters, provider_profile=selected_profile, model=selected_model,
+                    max_output_tokens=max_output_tokens, phase=phase, planned_cases=case_count,
+                    m3_evidence_options=evidence_options,
+                    experiment_config_sha256=experiment_config_sha256,
+                    prompt_sha256_override=prompt_sha256_override)
+                print(f"[{len(list(cells_dir.glob('*.json'))):02d}/{planned_cells}] {row['case_id']} {group}: {row['status']} · calls {current_calls}", flush=True)
                 if int(row.get("model_calls") or 0) > 1:
                     config["status"] = "stopped_call_budget_guard"
                     config["stop_reason"] = "cell_used_multiple_model_calls"
                     _write_json(manifest_path, config)
                     break
-            if current_calls >= MAX_MODEL_CALLS or config.get("status") == "stopped_call_budget_guard":
+                if stop_on_failed_cell:
+                    diagnostic = row.get("provider_diagnostics") or {}
+                    outcomes = diagnostic.get("outcomes") or []
+                    generation_failed = (
+                        row.get("evaluation_status") not in {"completed", "not_applicable"}
+                        or (outcomes and any(
+                            outcome.get("status") != "completed"
+                            or outcome.get("finish_reason") != "stop"
+                            for outcome in outcomes
+                        ))
+                    )
+                    if (row.get("status") != "completed"
+                            or row.get("application_status") != "completed"
+                            or generation_failed):
+                        config["status"] = "stopped_after_failed_cell"
+                        break
+            next_requires_call = bool(expected_provider_calls_per_cell(evidence_options))
+            if ((current_calls >= budget and next_requires_call)
+                    or config.get("status") in {"stopped_call_budget_guard", "stopped_after_failed_cell"}):
                 break
     finally:
         sessions.close()
@@ -738,15 +966,28 @@ def main() -> int:
     parser.add_argument("--output-root", type=Path)
     parser.add_argument("--library-index-from", type=Path)
     parser.add_argument("--supersedes-run-id", default="")
+    parser.add_argument("--case-count", type=int, default=PLANNED_CASES)
+    parser.add_argument("--case-id", action="append", dest="case_ids")
+    parser.add_argument("--phase", choices=("preflight", "main"), default="main")
+    parser.add_argument("--provider-profile", default="")
+    parser.add_argument("--model", default="")
+    parser.add_argument("--max-output-tokens", type=int, default=4096)
+    parser.add_argument("--request-budget", type=int)
+    parser.add_argument("--bkt-parameters", type=Path)
     args = parser.parse_args()
     if not args.live:
         print("Pass --live to confirm this real Provider pilot.", file=sys.stderr)
         return 2
     try:
+        snapshot = json.loads(args.bkt_parameters.read_text(encoding="utf-8")) if args.bkt_parameters else None
         summary = run(api_url=args.api_url, run_id=args.run_id or None,
                       resume=args.resume, output_root=args.output_root,
                       library_index_from=args.library_index_from,
-                      supersedes_run_id=args.supersedes_run_id or None)
+                      supersedes_run_id=args.supersedes_run_id or None,
+                      case_count=args.case_count, case_ids=args.case_ids, phase=args.phase,
+                      provider_profile=args.provider_profile or None, model=args.model or None,
+                      max_output_tokens=args.max_output_tokens, request_budget=args.request_budget,
+                      bkt_snapshot=snapshot)
     except Exception as exc:
         print(f"M3 live pilot did not complete: {type(exc).__name__}:{exc}", file=sys.stderr)
         return 1

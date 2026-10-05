@@ -1,0 +1,18 @@
+{
+  "source_batch": "m3-abc-bkt-20260928T134542Z-a216df",
+  "note": "Public metric-only golden fixture extracted from the archived historical calibration report.",
+  "source_data": {
+    "path": "evaluation/dev_cases.json",
+    "sha256": "b833e457533e1e517a89d017ac42f7a27351bc44f0e6162aae82b32da130abc6"
+  },
+  "fold_count": 5,
+  "out_of_fold": {
+    "fitted_parameters": {
+      "auc": 0.29314285714285715,
+      "log_loss": 0.6825043849805019
+    },
+    "constant_baseline": {
+      "auc": 0.4177142857142857
+    }
+  }
+}

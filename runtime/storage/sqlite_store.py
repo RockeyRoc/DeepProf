@@ -63,20 +63,23 @@ class SqliteEventStore:
             return event
 
     def replay(self, session_id: str, from_sequence: int = 0) -> list[RuntimeEvent]:
-        rows = self._conn.execute(
-            "SELECT * FROM events WHERE session_id = ? AND sequence > ? ORDER BY sequence",
-            (session_id, from_sequence),
-        ).fetchall()
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT * FROM events WHERE session_id = ? AND sequence > ? ORDER BY sequence",
+                (session_id, from_sequence),
+            ).fetchall()
         return [_row_to_event(row) for row in rows]
 
     def last_sequence(self, session_id: str) -> int:
-        row = self._conn.execute(
-            "SELECT MAX(sequence) AS seq FROM events WHERE session_id = ?", (session_id,)
-        ).fetchone()
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT MAX(sequence) AS seq FROM events WHERE session_id = ?", (session_id,)
+            ).fetchone()
         return int(row["seq"] or 0)
 
     def close(self) -> None:
-        self._conn.close()
+        with self._lock:
+            self._conn.close()
 
 
 class SqliteSessionStore:

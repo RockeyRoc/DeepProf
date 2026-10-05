@@ -71,7 +71,15 @@ export interface SessionSummary {
   provider_profile?: string;
   model?: string;
   thinking_enabled?: boolean;
+  thinking_mode?: "default" | "on" | "off" | string;
   reasoning_mode?: "toggle" | "always" | "unsupported" | "unknown" | string;
+  thinking_level?: string;
+  thinking_budget?: number | null;
+  web_search_mode?: "auto" | "always" | "off" | string;
+  research_status?: Record<string, unknown> | null;
+  active_turn_status?: string;
+  active_turn_trace_id?: string;
+  active_turn_sequence?: number;
 }
 
 export interface SessionMessage {

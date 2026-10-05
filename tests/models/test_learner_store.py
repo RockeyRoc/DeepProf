@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from models.learner.attempt import Attempt
 from models.learner.store import SqliteLearnerStore
 from runtime.storage.migrations import connect
 
@@ -28,9 +29,18 @@ def test_first_unhinted_reliable_attempt_updates_once_and_records_skip_reasons(t
     assert first["eligible"] is True
     assert first["predicted_correct"] == pytest.approx(0.34)
     assert first["learner_estimate"]["status"] == "insufficient_data"
+    dto = Attempt.model_validate({key: first[key] for key in Attempt.model_fields})
+    stored = store._conn.execute(
+        "SELECT bank_version,created_at,is_correct FROM attempts WHERE attempt_id='first'"
+    ).fetchone()
+    assert dto.question_bank_version == stored["bank_version"] == "bank-v1"
+    assert dto.timestamp == stored["created_at"] == first["timestamp"]
+    assert dto.correct is True and stored["is_correct"] == 1
 
     replay = _attempt(store, "first")
     assert replay["replayed"] is True
+    with pytest.raises(ValueError, match="attempt_id_conflict"):
+        _attempt(store, "first", confidence=0.5)
     retry = _attempt(store, "retry")
     hinted = _attempt(store, "hinted", item="q2", hint=1)
     pending = _attempt(store, "pending", item="q3", correct=None, grading="manual_pending", confidence=0)
@@ -97,6 +107,35 @@ def test_outbox_failure_rolls_back_attempt_and_estimate(tmp_path):
         raise AssertionError("outbox failure did not abort the transaction")
     assert store._conn.execute("SELECT COUNT(*) FROM attempts").fetchone()[0] == 0
     assert store._conn.execute("SELECT COUNT(*) FROM learner_estimates").fetchone()[0] == 0
+
+
+def test_session_learning_data_deletion_replays_surviving_estimate_atomically(tmp_path):
+    store = SqliteLearnerStore.open(tmp_path / "delete-session.sqlite")
+    for index, (session, correct) in enumerate((("remove", True), ("keep", False), ("keep", True))):
+        store.record_attempt(attempt_id=f"d{index}", learner_id="student", session_id=session,
+            trace_id=f"t{index}", course_id="course-v1", item_id=f"item{index}", concept_id="concept-1",
+            bank_version="bank-v1", correct=correct, hint_count=0,
+            grading_source="exact_normalized_match", confidence=1.0)
+    before = store._conn.execute(
+        "SELECT predicted_correct,mastery_before,mastery_after,evidence_count FROM bkt_observations "
+        "WHERE attempt_id='d1'"
+    ).fetchone()
+
+    outcome = store.delete_session_data("remove")
+
+    assert outcome == {"attempts_deleted": 1, "observations_deleted": 1, "outbox_deleted": 1,
+                       "estimates_replayed": 1}
+    estimate = store.get_estimate("student", "course-v1", "concept-1")
+    assert estimate["evidence_count"] == 2
+    assert estimate["status"] == "insufficient_data"
+    after = store._conn.execute(
+        "SELECT predicted_correct,mastery_before,mastery_after,evidence_count FROM bkt_observations "
+        "WHERE attempt_id='d1'"
+    ).fetchone()
+    assert after["evidence_count"] == 1
+    assert after["mastery_before"] != before["mastery_before"]
+    assert store._conn.execute("SELECT COUNT(*) FROM attempts WHERE session_id='remove'").fetchone()[0] == 0
+    assert store._conn.execute("SELECT COUNT(*) FROM learner_event_outbox WHERE session_id='remove'").fetchone()[0] == 0
 
 
 def test_old_attempt_schema_migrates_to_support_unscored_manual_attempt(tmp_path):

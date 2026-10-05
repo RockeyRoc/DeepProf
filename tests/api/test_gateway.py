@@ -31,7 +31,7 @@ def client():
 def test_health_reports_assembly_state(client):
     payload = client.get("/health").json()
     assert payload["status"] == "ok"
-    assert payload["contract_version"] == "1.7.0"
+    assert payload["contract_version"] == "1.9.0"
     assert payload["action_bindings"] == {"hint": "render_template", "teach": "render_template"}
     assert payload["providers"][0]["profile_id"] == "fake"
 
@@ -61,6 +61,46 @@ def test_new_session_command(client):
     summary = client.get(f"/sessions/{session_id}").json()
     assert summary["title"] == "线性代数"
     assert summary["learner_id"] == "L1"
+
+
+def test_experiment_session_freezes_rag_ablation_options_and_rejects_untyped_flags(client):
+    response = client.post("/commands", json={
+        "command_id": "rag-ablation-session", "client_id": "m3", "surface": "cli",
+        "learner_id": "m3-learner", "type": "session.new", "payload": {
+            "session_mode": "study", "course_id": "ds.c_language.v1", "experiment_run": True,
+            "thinking_enabled": False, "require_explicit_thinking_mode": True,
+            "m3_evidence_options": {"retrieval_enabled": False, "evidence_constraint": False},
+        },
+    })
+
+    assert response.status_code == 200
+    session = client.app_state_service.get_session(response.json()["session_id"])
+    assert session.metadata["experiment"]["m3_evidence_options"] == {
+        "retrieval_enabled": False, "evidence_constraint": False,
+    }
+    assert session.metadata["thinking_enabled"] is False
+    assert session.metadata["experiment"]["sampling"]["thinking_enabled"] is False
+    assert session.metadata["experiment"]["require_explicit_thinking_mode"] is True
+
+    invalid = client.post("/commands", json={
+        "command_id": "rag-ablation-invalid", "client_id": "m3", "surface": "cli",
+        "learner_id": "m3-learner", "type": "session.new", "payload": {
+            "session_mode": "study", "course_id": "ds.c_language.v1", "experiment_run": True,
+            "m3_evidence_options": {"retrieval_enabled": "false", "evidence_constraint": True},
+        },
+    })
+    assert invalid.status_code == 422
+    assert invalid.json()["error"]["code"] == "invalid_experiment_evidence_options"
+
+    thinking_invalid = client.post("/commands", json={
+        "command_id": "study-thinking-invalid", "client_id": "m3", "surface": "cli",
+        "learner_id": "m3-learner", "type": "session.new", "payload": {
+            "session_mode": "study", "course_id": "ds.c_language.v1",
+            "experiment_run": True, "thinking_enabled": True,
+        },
+    })
+    assert thinking_invalid.status_code == 422
+    assert thinking_invalid.json()["error"]["code"] == "study_thinking_must_be_explicitly_disabled"
 
 
 def test_web_chat_page_is_served_by_gateway(client):
@@ -199,7 +239,7 @@ async def test_sse_replays_history_then_streams_live():
 
     frames = sse_frames(service, session.session_id, heartbeat_seconds=0.05)
     first = await anext(frames)
-    assert first.startswith("event: session.started\n")
+    assert first.startswith("id: 1\nevent: session.started\n")
     assert json.loads(first.split("data: ", 1)[1])["sequence"] == 1
 
     # 新事件应实时到达
@@ -207,7 +247,7 @@ async def test_sse_replays_history_then_streams_live():
         {"type": "pedagogy.decision", "payload": {"action": "x"}, "session_id": session.session_id, "trace_id": "t1"}
     )
     second = await anext(frames)
-    assert second.startswith("event: pedagogy.decision\n")
+    assert second.startswith("id: 2\nevent: pedagogy.decision\n")
     assert json.loads(second.split("data: ", 1)[1])["sequence"] == 2
 
     await frames.aclose()
@@ -261,7 +301,7 @@ def test_encode_sse_shape():
     from api.events import encode_sse
 
     frame = encode_sse({"type": "model.stream.delta", "payload": {"text": "你"}, "sequence": 1})
-    assert frame.startswith("event: model.stream.delta\n")
+    assert frame.startswith("id: 1\nevent: model.stream.delta\n")
     assert frame.endswith("\n\n")
 
 
@@ -274,6 +314,41 @@ def test_events_for_unknown_session_is_404(client):
     response = client.get("/sessions/ghost/events")
     assert response.status_code == 404
     assert response.json()["error"]["details"]["kind"] == "session_not_found"
+
+
+def test_events_reject_invalid_last_event_id_and_negative_query_cursor(client):
+    session_id = client.post("/commands", json={
+        "command_id": "sse-cursor-new", "client_id": "cli", "surface": "cli",
+        "learner_id": "L1", "type": "session.new", "payload": {"session_mode": "chat"},
+    }).json()["session_id"]
+
+    bad_header = client.get(f"/sessions/{session_id}/events", headers={"Last-Event-ID": "-1"})
+    bad_query = client.get(f"/sessions/{session_id}/events?from_sequence=-1")
+
+    assert bad_header.status_code == 422
+    assert bad_header.json()["error"]["code"] == "invalid_event_cursor"
+    assert bad_query.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_last_event_id_header_takes_precedence_over_legacy_query_cursor():
+    from starlette.requests import Request
+
+    from api.events import stream_events
+
+    service = make_service()
+    session = service.new_session()
+    for index in range(3):
+        await service.emit({"type": "model.stream.delta", "payload": {"text": str(index)},
+                            "session_id": session.session_id, "trace_id": "sse-test"})
+    app = create_app(service=service)
+    request = Request({"type": "http", "method": "GET", "path": "/", "query_string": b"",
+                       "headers": [(b"last-event-id", b"2")], "app": app})
+
+    response = await stream_events(session.session_id, request, from_sequence=0)
+    first = await anext(response.body_iterator)
+    assert first.startswith("id: 3\nevent: model.stream.delta\n")
+    await response.body_iterator.aclose()
 
 
 # ---- Provider Settings ----

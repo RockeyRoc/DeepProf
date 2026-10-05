@@ -1,0 +1,56 @@
+{
+  "primary_summary": "citation-audit-summary.json",
+  "primary_reason": "its 119 semantic pairs and judgment counts match the raw AI-reviewed worksheet's 119 claim_citation_pair rows",
+  "raw_pair_rows": 119,
+  "primary_semantic": {
+    "numerator": 82,
+    "denominator": 119,
+    "rate": 0.6890756302521008,
+    "judgment_counts": {
+      "完整支持": 82,
+      "部分支持": 22,
+      "无支持": 15,
+      "矛盾": 0,
+      "无法判定": 0
+    },
+    "semantically_judged_pairs": 119,
+    "determinate_pair_coverage": 1.0,
+    "unreferenced_claims_counted_as_pairs": false,
+    "status": "AI-assisted, source-grounded, uncalibrated; complete support only is numerator"
+  },
+  "secondary_summary": "citation-audit-ai-review-summary.json",
+  "secondary_semantic": {
+    "numerator": 57,
+    "denominator": 67,
+    "rate": 0.8507462686567164,
+    "judgment_counts": {
+      "完整支持": 57,
+      "部分支持": 9,
+      "无支持": 1,
+      "矛盾": 0,
+      "无法判定": 0
+    },
+    "semantically_judged_pairs": 67,
+    "determinate_pair_coverage": 1.0,
+    "unreferenced_claims_counted_as_pairs": false,
+    "status": "AI-assisted, source-grounded, uncalibrated; complete support only is numerator"
+  },
+  "secondary_claim_coverage": {
+    "fully_supported_claims": 58,
+    "factual_claim_candidates": 252,
+    "rate": 0.23015873015873015,
+    "judgment_counts": {
+      "完整支持": 58,
+      "部分支持": 2,
+      "无支持": 192,
+      "矛盾": 0,
+      "无法判定": 0
+    },
+    "unreferenced_factual_claim_candidates": 192,
+    "determinate_claim_coverage": 1.0,
+    "status": "AI-reviewed cited claims plus deterministic no-citation candidates; candidate extraction may include residual non-claims",
+    "claim_support_definition": "Full only when the cited evidence, individually or jointly, covers the claim's material content and conditions; claims without an answer-visible citation count as unsupported evidence coverage."
+  },
+  "status": "conflicting_legacy_summary_preserved_but_not_combined",
+  "note": "The secondary summary reports 67 semantic pairs and 252 claim candidates, which do not match the 119 pair rows and 261 claim candidates in the raw worksheet / primary summary. The discrepancy remains explicit for manual audit."
+}

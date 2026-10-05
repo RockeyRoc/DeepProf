@@ -1,0 +1,5 @@
+# Public evidence is hashed as exact bytes on every release runner.
+docs/experiments/v0.6.4/** -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
+*.pdf binary
+# Historical constructed-data lineage uses the original file's SHA-256.
+evaluation/dev_cases.json -text

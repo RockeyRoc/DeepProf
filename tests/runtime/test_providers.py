@@ -27,6 +27,7 @@ from runtime.providers.base import (
 from runtime.providers.openai_compatible import OpenAICompatibleProvider
 from runtime.providers.profiles import ProviderProfile
 from runtime.providers.secrets import InMemorySecretStore
+from runtime.testing import make_service
 
 BASE_URL = "https://example.invalid/v1"
 
@@ -75,6 +76,116 @@ async def test_generate_maps_response():
     assert result["content"] == "你好"
     assert result["finish_reason"] == "stop"
     assert result["usage"]["prompt_tokens"] == 3
+
+
+async def test_qwen_native_search_uses_bailian_chat_completions_fields():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": "已搜索。"}, "finish_reason": "stop"}],
+            "search_info": {"search_results": [{"title": "官方来源", "url": "https://example.com/source",
+                                                    "content": "搜索摘要"}]},
+        })
+
+    provider = make_provider(handler, vendor_id="qwen")
+    result = await provider.generate({"model": "qwen-plus", "messages": [{"role": "user", "content": "最新信息"}],
+        "native_web_search": {"body": {"enable_search": True, "search_options": {"forced_search": True}}}}, {})
+    assert seen["enable_search"] is True
+    assert seen["search_options"] == {"forced_search": True}
+    assert result["web_search_sources"] == [{"title": "官方来源", "url": "https://example.com/source",
+        "snippet": "搜索摘要", "published_at": "", "provider": "qwen"}]
+
+
+async def test_glm_native_search_uses_only_zhipu_websearchprime_mcp():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.update(json.loads(request.content))
+        return httpx.Response(200, json={
+            "choices": [{"message": {"content": "已调用智谱原生搜索。"}, "finish_reason": "stop"}],
+        })
+
+    provider = make_provider(handler, vendor_id="glm")
+    await provider.generate({"model": "glm-4.6", "messages": [{"role": "user", "content": "最新信息"}],
+        "tools": [{"type": "mcp", "mcp": {"server_label": "mcp code",
+            "transport_type": "streamable-http", "allowed_tools": ["webSearchPrime"]}}],
+        "native_web_search": {"body": {}, "tool_choice": "auto"}}, {})
+    assert seen["tools"][0]["type"] == "mcp"
+    assert seen["tools"][0]["mcp"]["allowed_tools"] == ["webSearchPrime"]
+    assert seen["tool_choice"] == "auto"
+    assert "enable_search" not in seen
+
+
+async def test_bailian_responses_search_parses_reasoning_answer_usage_and_sources():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        return httpx.Response(200, json={
+            "id": "resp_1", "status": "completed", "model": "glm-5.2",
+            "output": [
+                {"type": "reasoning", "summary": [{"type": "summary_text", "text": "先核对来源。"}]},
+                {"type": "web_search_call", "action": {"sources": [{
+                    "title": "百炼官方说明", "url": "https://help.aliyun.com/zh/model-studio/web-search",
+                    "snippet": "Responses API search source",
+                }]}},
+                {"type": "message", "content": [{"type": "output_text", "text": "已按官方来源回答。"}]},
+            ], "usage": {"input_tokens": 23, "output_tokens": 12},
+        })
+
+    provider = make_provider(handler, vendor_id="qwen")
+    result = await provider.generate({
+        "model": "glm-5.2", "messages": [{"role": "user", "content": "今天的更新是什么？"}],
+        "thinking_enabled": True, "thinking_level": "max", "max_tokens": 4096,
+        "native_web_search": {"api_mode": "responses", "tools": [{"type": "web_search"}], "body": {}},
+    }, {})
+
+    assert seen["path"] == "/v1/responses"
+    assert seen["body"]["input"] == [{"role": "user", "content": "今天的更新是什么？"}]
+    assert seen["body"]["tools"] == [{"type": "web_search"}]
+    assert seen["body"]["reasoning"] == {"effort": "max"}
+    assert "messages" not in seen["body"] and "max_tokens" not in seen["body"]
+    assert result["content"] == "已按官方来源回答。"
+    assert result["reasoning_content"] == "先核对来源。"
+    assert result["usage"]["input_tokens"] == 23
+    assert result["web_search_sources"][0]["url"].endswith("web-search")
+
+
+async def test_ark_responses_search_stream_emits_text_thinking_and_sources():
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        events = [
+            {"type": "response.reasoning_summary_text.delta", "delta": "核查实时信息。"},
+            {"type": "response.output_text.delta", "delta": "方舟搜索已执行。"},
+            {"type": "response.output_item.done", "item": {"type": "web_search_call", "action": {
+                "sources": [{"title": "方舟说明", "url": "https://docs.volcengine.com/docs/ark/online-content-plugin-guide"}],
+            }}},
+            {"type": "response.completed", "response": {"status": "completed", "usage": {"output_tokens": 19}}},
+            "[DONE]",
+        ]
+        body = "".join(("data: " + (item if isinstance(item, str) else json.dumps(item)) + "\n\n") for item in events)
+        return httpx.Response(200, text=body, headers={"content-type": "text/event-stream"})
+
+    provider = make_provider(handler, vendor_id="volcengine")
+    frames = [frame async for frame in provider.stream({
+        "model": "doubao-seed-2-1-pro-260628", "messages": [{"role": "user", "content": "查询新闻"}],
+        "thinking_enabled": True, "thinking_level": "high", "max_tokens": 4096,
+        "native_web_search": {"api_mode": "responses", "tools": [{"type": "web_search"}], "body": {}},
+    }, {})]
+    assert seen["path"] == "/v1/responses"
+    assert seen["body"]["tools"] == [{"type": "web_search"}]
+    assert seen["body"]["thinking"] == {"type": "enabled"}
+    assert seen["body"]["reasoning"] == {"effort": "high"}
+    assert [frame["type"] for frame in frames] == ["reasoning_delta", "delta", "usage", "web_search_sources", "finish"]
+    assert frames[0]["text"] == "核查实时信息。"
+    assert frames[1]["text"] == "方舟搜索已执行。"
+    assert frames[3]["sources"][0]["provider"] == "volcengine"
 
 
 async def test_generate_parses_tool_calls():
@@ -155,6 +266,74 @@ async def test_thinking_parameters_are_provider_and_model_capability_specific():
     unknown = make_provider(lambda _: httpx.Response(200, json={}), vendor_id="glm")
     body = unknown._body({"messages": [], "thinking_enabled": True}, stream=False)
     assert "thinking" not in body and "enable_thinking" not in body and "reasoning" not in body
+
+
+async def test_thinking_model_default_omits_overrides_and_explicit_on_uses_declared_default():
+    deepseek = make_provider(lambda _: httpx.Response(200, json={}), vendor_id="deepseek",
+        model_capabilities={"deepseek-flash": {"reasoning_mode": "toggle", "thinking_parameter": "reasoning_effort",
+            "thinking_default": "high", "thinking_levels": ["low", "high", "max"]}})
+    default = deepseek._body({"model": "deepseek-flash", "messages": [], "thinking_mode": "default",
+                              "thinking_enabled": None, "thinking_level": "", "thinking_budget": None}, stream=False)
+    assert "reasoning_effort" not in default
+    enabled = deepseek._body({"model": "deepseek-flash", "messages": [], "thinking_mode": "on",
+                              "thinking_enabled": True, "thinking_level": ""}, stream=False)
+    assert enabled["reasoning_effort"] == "high"
+    disabled = deepseek._body({"model": "deepseek-flash", "messages": [], "thinking_mode": "off",
+                               "thinking_enabled": False}, stream=False)
+    assert disabled["reasoning_effort"] == "none"
+
+
+@pytest.mark.asyncio
+async def test_provider_model_catalog_cache_refresh_and_stale_fallback():
+    service = make_service()
+    provider = service.router.get("fake")
+    calls = 0
+    fail = False
+
+    async def list_models():
+        nonlocal calls
+        calls += 1
+        if fail:
+            raise ProviderError("temporary catalog failure")
+        return ["first", "second", "first"]
+
+    provider.list_models = list_models
+    first = await service.router.list_model_catalog("fake")
+    cached = await service.router.list_model_catalog("fake")
+    assert first == {"models": ["first", "second"], "status": "verified"}
+    assert cached == {"models": ["first", "second"], "status": "cached"}
+    assert calls == 1
+
+    refreshed = await service.router.list_model_catalog("fake", refresh=True)
+    assert refreshed["status"] == "verified"
+    assert calls == 2
+    fail = True
+    stale = await service.router.list_model_catalog("fake", refresh=True)
+    assert stale["status"] == "stale"
+    assert stale["models"] == ["first", "second"]
+
+    fail = False
+    profile = service.router.profile("fake")
+    service.router.add(profile, provider)
+    invalidated = await service.router.list_model_catalog("fake")
+    assert invalidated["status"] == "verified"
+    assert calls == 4
+
+
+async def test_study_context_disables_deepseek_thinking_in_the_actual_request():
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        assert body["thinking"] == {"type": "disabled"}
+        assert body["max_tokens"] == 4096
+        return httpx.Response(200, headers={"content-type": "text/event-stream"},
+            content=sse(delta("ok"), {"choices": [{"delta": {}, "finish_reason": "stop"}]}))
+
+    provider = make_provider(handler, vendor_id="deepseek",
+        model_capabilities={"deepseek-flash": {"reasoning_mode": "toggle",
+            "thinking_parameter": "thinking.type", "max_output_tokens": 4096}})
+    frames = [frame async for frame in provider.stream({"model": "deepseek-flash",
+        "max_tokens": 4096, "messages": []}, {"thinking_enabled": False})]
+    assert frames[-1] == {"type": "finish", "finish_reason": "stop"}
 
 
 async def test_reasoning_sse_frames_are_separate_from_answer_frames():

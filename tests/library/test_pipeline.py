@@ -73,6 +73,42 @@ def test_no_evidence_is_explicit(tmp_path: Path) -> None:
     assert result["evidence"] == []
 
 
+def test_search_rejects_a_vector_dimension_mismatch(tmp_path: Path) -> None:
+    class FourDimensionalEmbedder:
+        name = "test-four-dim"
+        model_version = "test-v1"
+        dimension = 4
+
+        def embed(self, texts):
+            return [[1.0, 0.0, 0.0, 0.0] for _ in texts]
+
+        @staticmethod
+        def similarity(left, right):
+            if len(left) != len(right):
+                return 0.0
+            return sum(a * b for a, b in zip(left, right))
+
+    library = ResourceLibrary(SqliteResourceStore(connect_memory()), library_root=tmp_path / "lib",
+                              embedder=FourDimensionalEmbedder())
+    source = tmp_path / "lesson.md"
+    source.write_text("# 栈\n栈按后进先出的顺序工作。", encoding="utf-8")
+    library.import_path(source, metadata={"course_id": "ds", "license": "CC0"}, activate=True)
+    library.store._conn.execute("UPDATE library_chunks SET vector = ?", ('[1.0,0.0,0.0]',))
+    result = library.search("栈 后进先出", course_id="ds")
+    assert result["status"] == "index_configuration_mismatch"
+    assert "retrieval_index_dimension_mismatch" in result["warnings"][0]
+
+
+def test_hybrid_mode_uses_bm25_rrf_and_auditable_stage_scores(tmp_path: Path) -> None:
+    library = make_library(tmp_path)
+    source = tmp_path / "stack.md"
+    source.write_text("# 栈\n栈按后进先出的原则进行修改，也叫 LIFO 结构。", encoding="utf-8")
+    library.import_path(source, metadata={"course_id": "ds", "license": "CC0"}, activate=True)
+    result = library.search("后进先出 栈", course_id="ds", retrieval_strategy="hybrid_rrf")
+    assert result["status"] == "ok"
+    assert {"dense", "bm25", "rrf"} <= set(result["evidence"][0]["retrieval_stage_scores"])
+
+
 def test_real_search_tool_is_injectable(tmp_path: Path) -> None:
     library = make_library(tmp_path)
     path = tmp_path / "source.md"

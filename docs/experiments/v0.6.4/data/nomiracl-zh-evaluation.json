@@ -1,0 +1,166 @@
+{
+  "schema_version": "deepprof-nomiracl-zh-candidate-eval-v2",
+  "status": "completed",
+  "dataset_id": "miracl/nomiracl",
+  "dataset_revision": "ecd08778d0426a5ca28ac99763b0c9ddc2c78e68",
+  "model_revisions": {
+    "BAAI/bge-m3": "5617a9f61b028005a4858fdac845db406aefb181",
+    "BAAI/bge-reranker-v2-m3": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
+  },
+  "config_sha256": "dcedb895a8ea629bacb94b48903db5a344d34d7eb96094649179ef5cf54fd0f9",
+  "inference_precision": "float32; TF32 disabled",
+  "device": {
+    "documents": "cuda",
+    "queries": "cuda",
+    "reranker": "cuda"
+  },
+  "embedding_batch_size": 2,
+  "reranker_batch_size": 4,
+  "external_model_requests": 0,
+  "candidate_pool_note": "All available officially judged candidates across every dev/test query; 95 absent corpus qrels disclosed, no query excluded. Conditional ranking/gate, not corpus-wide retrieval or generated-answer accuracy.",
+  "counts": {
+    "queries_total": 3770,
+    "candidate_documents_unique": 31826,
+    "candidate_pairs": 37599,
+    "identical_duplicate_corpus_rows": 5773,
+    "dev_queries": 1475,
+    "test_queries": 2295,
+    "dev_relevant": 393,
+    "dev_non_relevant": 1082,
+    "test_relevant": 920,
+    "test_non_relevant": 1375,
+    "source_topics_by_split_subset": {
+      "dev.relevant": 393,
+      "dev.non_relevant": 1082,
+      "test.relevant": 920,
+      "test.non_relevant": 1375
+    },
+    "missing_qrel_rows_by_split_subset": {
+      "dev.relevant": 32,
+      "dev.non_relevant": 0,
+      "test.relevant": 63,
+      "test.non_relevant": 0
+    },
+    "missing_positive_qrel_rows_by_split_subset": {
+      "dev.relevant": 13,
+      "dev.non_relevant": 0,
+      "test.relevant": 22,
+      "test.non_relevant": 0
+    },
+    "excluded_queries_without_present_positive_by_split_subset": {
+      "dev.relevant": 0,
+      "dev.non_relevant": 0,
+      "test.relevant": 0,
+      "test.non_relevant": 0
+    }
+  },
+  "threshold_selection": {
+    "threshold": 6.423789024353027,
+    "development_false_accept_rate": 0.04990757855822551,
+    "development_relevant_accept_rate": 0.2900763358778626,
+    "target_false_accept_rate": 0.05,
+    "selection_rule": "maximize dev relevant acceptance subject to FAR <=5%; ties choose lower threshold",
+    "development_rows_sha256": "38afde300f64b18cef7e8136d4b600af5e0a31e19acf6360f05c70b9b458526d",
+    "config_sha256": "dcedb895a8ea629bacb94b48903db5a344d34d7eb96094649179ef5cf54fd0f9"
+  },
+  "threshold_frozen_sha256": "c73a29199a924ae4fd1b39fc1fc46ffed2acc43d34faff1b98107c045fc024a2",
+  "test_evidence_gate": {
+    "false_accepts": 62,
+    "non_relevant_queries": 1375,
+    "false_accept_rate": 0.04509090909090909,
+    "false_rejections": 645,
+    "relevant_queries": 920,
+    "false_rejection_rate": 0.7010869565217391,
+    "reranker_max_score_auc": 0.8006537549407114
+  },
+  "ranking_metrics": {
+    "dev:BGE-M3 dense": {
+      "relevant_query_count": 393,
+      "mean_nDCG_at_5": 0.7508232156095835,
+      "candidate_conditional": true
+    },
+    "dev:BM25": {
+      "relevant_query_count": 393,
+      "mean_nDCG_at_5": 0.4247826027747887,
+      "candidate_conditional": true
+    },
+    "dev:BGE-M3 + BM25 RRF-60": {
+      "relevant_query_count": 393,
+      "mean_nDCG_at_5": 0.6402465383208267,
+      "candidate_conditional": true
+    },
+    "dev:BGE reranker v2-m3": {
+      "relevant_query_count": 393,
+      "mean_nDCG_at_5": 0.7862877386055414,
+      "candidate_conditional": true
+    },
+    "test:BGE-M3 dense": {
+      "relevant_query_count": 920,
+      "mean_nDCG_at_5": 0.7618345097399376,
+      "candidate_conditional": true
+    },
+    "test:BM25": {
+      "relevant_query_count": 920,
+      "mean_nDCG_at_5": 0.4295878097672513,
+      "candidate_conditional": true
+    },
+    "test:BGE-M3 + BM25 RRF-60": {
+      "relevant_query_count": 920,
+      "mean_nDCG_at_5": 0.6562523775683199,
+      "candidate_conditional": true
+    },
+    "test:BGE reranker v2-m3": {
+      "relevant_query_count": 920,
+      "mean_nDCG_at_5": 0.7969353640204592,
+      "candidate_conditional": true
+    }
+  },
+  "latency_seconds": {
+    "bge_m3_document_encode": 589.9377186999918,
+    "bge_m3_query_encode": 25.15477829999145,
+    "bge_m3_query_candidate_scoring": 2.405356400002347,
+    "bge_reranker_pair_scoring": 648.9039623999524,
+    "current_orchestration_wall": 1338.6980976000013
+  },
+  "latency_milliseconds": {
+    "reranker_mean_per_candidate_pair": 17.258543110187837
+  },
+  "stages": {
+    "documents": {
+      "status": "completed",
+      "pid": 69292,
+      "stage": "documents",
+      "device": "cuda",
+      "rows": 31826,
+      "stage_sha256": "882e5fce3d923a2bfff683e9bc03cb0ca6c8e13ffba10b52c9af327746a5e097",
+      "invocation_seconds": 619.7943368000015,
+      "new_chunks": 125
+    },
+    "queries": {
+      "status": "completed",
+      "pid": 65692,
+      "stage": "queries",
+      "device": "cuda",
+      "rows": 3770,
+      "stage_sha256": "d76d9eb8581f3079123eef30be955f5b829441e13e9a23279e60774781207453",
+      "invocation_seconds": 41.04426890000104,
+      "new_chunks": 15
+    },
+    "reranker": {
+      "status": "completed",
+      "pid": 81988,
+      "stage": "reranker",
+      "device": "cuda",
+      "rows": 37599,
+      "stage_sha256": "8c618f8a02c5317398e2d1769980b4227de3e7e4299bc2e8547103d11cfff263",
+      "invocation_seconds": 665.8194263000005,
+      "new_chunks": 147
+    }
+  },
+  "download_manifest_sha256": "651141c20e2c2c1564bb81a0a9ee7bd3dd34d67d23ac5c022c14f09c5117a56e",
+  "model_manifest_sha256": "5022cca3cf84e7b878e335f2a37dbc37286275fcd1fa2147195cf1984f9a62cd",
+  "output_sha256": {
+    "nomiracl-zh-per-query.csv": "c8943c82fd6deda460c0987c0eb47a0f2091e5b55ab4d1261d95ae886dedd28d",
+    "nomiracl-zh-candidate-ranks.csv": "e869b92667ae1a15558254f1938bf8a49ef95e7bebd73da8f53d4883e462269a"
+  }
+}

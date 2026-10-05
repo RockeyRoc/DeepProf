@@ -15,7 +15,6 @@ from runtime.core.errors import (
     ProviderError,
     classify_external_failure,
 )
-from runtime.providers.capabilities import CAP_STREAM, normalize_capabilities
 
 PROBE_PROMPT = "Reply with the single word: pong"
 PROBE_MAX_TOKENS = 512
@@ -100,8 +99,15 @@ async def probe_provider(
 
     content = str(result.get("content", "")).strip()
     finish_reason = str(result.get("finish_reason", ""))
-    capabilities = normalize_capabilities(result.get("capabilities") or provider.capabilities())
-    capabilities[CAP_STREAM] = bool(capabilities.get(CAP_STREAM, False))
+    # generate() is deliberately non-streaming, so its success says nothing about
+    # stream support. Preserve only explicit profile declarations here; adapters
+    # that do not expose a profile may still report their own observed capabilities.
+    profile_capabilities = getattr(getattr(provider, "profile", None), "capabilities", None)
+    if isinstance(profile_capabilities, dict):
+        capabilities = {str(key): bool(value) for key, value in profile_capabilities.items()}
+    else:
+        reported = result.get("capabilities") or provider.capabilities()
+        capabilities = {str(key): bool(value) for key, value in reported.items() if value}
 
     if content:
         return {

@@ -1,0 +1,61 @@
+{
+  "schema_version": "deepprof-course-rag-offline-eval-v1",
+  "source_database_sha256": "cd86216823ecb32a3063fd28f7eb1223ffc34de2863d210c49fa213dc3a24dde",
+  "model_revisions": {
+    "BAAI/bge-m3": "5617a9f61b028005a4858fdac845db406aefb181",
+    "BAAI/bge-reranker-v2-m3": "953dc6f6f85a1b2dbfca4c34a2796e7dde08d41e"
+  },
+  "embedding_dimension": 1024,
+  "index_config_id": "2e8eb0dd5d91b523ac3d0fd493fbe14748f1d70212d21506ee9fd7dfd27c5376",
+  "device": "CPU (offline fallback)",
+  "chunking": {
+    "version": "page-char-overlap-v1:size=800:overlap=120",
+    "chunk_size": 800,
+    "chunk_overlap": 120
+  },
+  "fixed_queries": 40,
+  "frozen_chunk_count": 682,
+  "per_stage_recall_k": 50,
+  "rrf_constant": 60,
+  "rrf_candidate_limit": 100,
+  "rerank_candidates": 50,
+  "return_top_k": 5,
+  "reranker_precision": "float32",
+  "reranker_batch_size": 4,
+  "retrieval_pool_note": "candidate rankings retained through top 50/100 for human relevance review; not corpus-level judged recall yet",
+  "quality_metrics": {
+    "Recall@20": "N/A; human relevance labels pending",
+    "nDCG@5": "N/A; human relevance labels pending",
+    "no_evidence_false_accept_rate": "N/A; human-confirmed answerability and gate threshold pending"
+  },
+  "latency_ms_summary": {
+    "hash_dense_ms": {
+      "median": 91.161,
+      "p95": 96.4386
+    },
+    "bm25_ms": {
+      "median": 112.9305,
+      "p95": 115.81439999999999
+    },
+    "hash_rrf_ms": {
+      "median": 0.09,
+      "p95": 0.15039999999999998
+    },
+    "bge_dense_query_ms": {
+      "median": 201.936,
+      "p95": 228.41014999999985
+    },
+    "bge_rrf_merge_ms": {
+      "median": 0.133,
+      "p95": 0.15224999999999997
+    },
+    "bge_reranker_50_ms": {
+      "median": 14247.6345,
+      "p95": 15251.58605
+    }
+  },
+  "index_build_seconds": 206.66033949999996,
+  "index_vectors_sha256": "be5b8897313bb64a71212db765dd5056da8c9b567ece03f978b967b963b9d545",
+  "private_candidate_file_sha256": "c33040b0b6ec16f85d927e58c6f645cbfdd0bb2ec4ea070d93e0b8e7b799f345",
+  "status": "offline_pretrained_model_ranking_complete; semantic quality awaits human annotations"
+}

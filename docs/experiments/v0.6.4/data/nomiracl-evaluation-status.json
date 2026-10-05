@@ -1,0 +1,12 @@
+{
+  "status": "completed",
+  "run_id": "nomiracl-zh-full-20261004-v2",
+  "queries": 3770,
+  "candidate_pairs": 37599,
+  "method_ranking_rows": 150396,
+  "validation_sha256": "5ce1210dc7c302d95545bcba92f27e792e88f9115c2e7045051f3408c90fe0a7",
+  "config_sha256": "dcedb895a8ea629bacb94b48903db5a344d34d7eb96094649179ef5cf54fd0f9",
+  "external_model_requests": 0,
+  "prior_stopped_run_retained_in_archive": true,
+  "personnel_review_status": "pending"
+}

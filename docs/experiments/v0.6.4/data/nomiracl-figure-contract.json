@@ -1,0 +1,26 @@
+{
+  "backend": "r",
+  "archetype": "quantitative grid; one plot area per figure",
+  "claim": "Compare four methods on all fixed judged candidates; quantify the held-out gate tradeoff after dev-only threshold selection.",
+  "ranking_role": "External fixed-candidate method comparison, relevant-query mean nDCG@5 on dev and test.",
+  "gate_role": "Test false acceptance and false rejection with their distinct question denominators.",
+  "dimensions_mm": [
+    183,
+    115
+  ],
+  "minimum_glyph_pt": 5,
+  "exports": [
+    "SVG",
+    "PDF",
+    "600-dpi PNG"
+  ],
+  "uncertainty": "Single fixed snapshot; descriptive aggregates, no seeds, confidence intervals or significance claims.",
+  "exclusions": "95 absent corpus qrels (35 positive); no question excluded; complete usable candidate pool.",
+  "alignment_gate": "Not applicable: each export contains one plot area, no comparable panel rectangles.",
+  "threshold": 6.423789024353027,
+  "dev_far": 0.04990757855822551,
+  "dev_relevant_acceptance": 0.2900763358778626,
+  "test_auc": 0.8006537549407114,
+  "source_sha256": "3e278caa972e546dd8724b39aa0b04f84d8c79bab8fa73161a1f177438a5d484",
+  "config_sha256": "dcedb895a8ea629bacb94b48903db5a344d34d7eb96094649179ef5cf54fd0f9"
+}

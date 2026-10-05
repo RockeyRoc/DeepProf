@@ -273,6 +273,16 @@ def test_session_thinking_toggle_requires_confirmed_model_capability():
     session = _chat_session(("user", "问题"), title="思考开关")
     service.save_session(session)
     with TestClient(create_app(service=service)) as client:
+        # 恢复“模型默认”不要求能力已知，也会清空自定义等级和预算。
+        session.metadata.update({"thinking_level": "high", "thinking_budget": 512})
+        response = _command(client, "think-default-unknown", "session.thinking.set", session_id=session.session_id,
+                            payload={"thinking_mode": "default", "thinking_level": "high", "thinking_budget": 512})
+        assert response.status_code == 200
+        assert response.json()["result"] == {"enabled": False, "thinking_mode": "default",
+            "reasoning_mode": "unknown", "thinking_level": "", "thinking_budget": None}
+        assert session.metadata["thinking_level"] == ""
+        assert session.metadata["thinking_budget"] is None
+
         # fake 模型没声明 reasoning_mode，开启思考必须被拒绝，而不是默默生效。
         response = _command(client, "think-on", "session.thinking.set", session_id=session.session_id,
                             payload={"enabled": True})
@@ -284,12 +294,24 @@ def test_session_thinking_toggle_requires_confirmed_model_capability():
         response = _command(client, "think-on-toggle", "session.thinking.set", session_id=session.session_id,
                             payload={"enabled": True})
         assert response.status_code == 200
-        assert response.json()["result"] == {"enabled": True, "reasoning_mode": "toggle"}
+        assert response.json()["result"] == {"enabled": True, "thinking_mode": "on", "reasoning_mode": "toggle",
+            "thinking_level": "", "thinking_budget": None}
 
         response = _command(client, "think-off-toggle", "session.thinking.set", session_id=session.session_id,
                             payload={"enabled": False})
         assert response.status_code == 200
-        assert response.json()["result"] == {"enabled": False, "reasoning_mode": "toggle"}
+        assert response.json()["result"] == {"enabled": False, "thinking_mode": "off", "reasoning_mode": "toggle",
+            "thinking_level": "", "thinking_budget": None}
+
+        # 关闭后再点“模型默认”也是一个完整设置动作，不依赖先打开思考开关。
+        session.metadata.update({"thinking_level": "high", "thinking_budget": 256})
+        response = _command(client, "think-default-after-off", "session.thinking.set", session_id=session.session_id,
+                            payload={"thinking_mode": "default", "enabled": False,
+                                     "thinking_level": "high", "thinking_budget": 256})
+        assert response.status_code == 200
+        assert response.json()["result"]["thinking_mode"] == "default"
+        assert response.json()["result"]["thinking_level"] == ""
+        assert response.json()["result"]["thinking_budget"] is None
 
         # 固定思考的模型关不掉，但打开时会稳定为 True。
         profile.model_capabilities = {"fake-model": {"reasoning_mode": "always"}}
@@ -299,7 +321,7 @@ def test_session_thinking_toggle_requires_confirmed_model_capability():
         assert response.json()["error"]["code"] == "thinking_always_on"
 
         response = _command(client, "think-on-always", "session.thinking.set", session_id=session.session_id,
-                            payload={"enabled": True})
+                            payload={"thinking_mode": "on"})
         assert response.status_code == 200
         assert response.json()["result"]["enabled"] is True
 

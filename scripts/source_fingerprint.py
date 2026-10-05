@@ -31,7 +31,8 @@ EXCLUDED_EXACT = {
     "docs/experiments/releases/M1-M3-evidence.zip",
     "docs/experiments/releases/M1-M3-SHA256SUMS.txt",
 }
-EXCLUDED_PREFIXES = ("docs/experiments/figures/", "docs/experiments/m3-offline/")
+EXCLUDED_PREFIXES = ("docs/experiments/figures/", "docs/experiments/m3-offline/",
+                     "docs/experiments/m3-abc-research/", "autoresearch-results/")
 GIT_EXCLUDES = (
     ":(exclude)docs/experiments/source-data/experiment-snapshot.json",
     ":(exclude)docs/experiments/source-data/figure-data.csv",
@@ -58,6 +59,8 @@ GIT_EXCLUDES = (
     ":(exclude)docs/experiments/releases/M1-M3-SHA256SUMS.txt",
     ":(exclude)docs/experiments/figures/**",
     ":(exclude)docs/experiments/m3-offline/**",
+    ":(exclude)docs/experiments/m3-abc-research/**",
+    ":(exclude)autoresearch-results/**",
 )
 
 

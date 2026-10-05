@@ -27,6 +27,9 @@ export interface RuntimeSupervisorOptions {
   apiUrl?: string;
 }
 
+const GATEWAY_START_TIMEOUT_MS = 30_000;
+const GATEWAY_HEALTH_POLL_MS = 100;
+
 export class RuntimeSupervisor {
   private process: ChildProcess | null = null;
   private ownerToken = "";
@@ -63,13 +66,14 @@ export class RuntimeSupervisor {
       this.process = null;
       if (this.current.state !== "STOPPED") this.current = { ...this.current, state: "UNHEALTHY" };
     });
-    for (let attempt = 0; attempt < 40; attempt += 1) {
+    const startDeadline = Date.now() + GATEWAY_START_TIMEOUT_MS;
+    while (Date.now() < startDeadline) {
       if (await gatewayHealthy(baseUrl)) {
         writeGateway({ protocol_version: "1", base_url: baseUrl, pid: this.process?.pid || process.pid, owner: this.options.owner, started_at: new Date().toISOString(), owner_token: this.ownerToken });
         this.current = { ...this.current, state: "READY" };
         return this.status;
       }
-      await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, GATEWAY_HEALTH_POLL_MS));
     }
     this.current = { ...this.current, state: "UNHEALTHY" };
     this.stop();

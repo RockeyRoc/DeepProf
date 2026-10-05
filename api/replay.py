@@ -25,7 +25,7 @@ _FIELDS: dict[str, tuple[str, ...]] = {
     "pedagogy.decision": (
         "node", "action", "reason", "policy_version", "reason_codes", "evidence_sufficient",
         "evidence_count", "attempt_count", "wrong_streak", "hint_level", "turn_count",
-        "max_turns", "capability", "capability_status", "answer_leaked",
+        "max_turns", "capability", "answer_leaked",
         "bkt_model_version", "bkt_config_hash", "mastery", "learner_evidence_count",
     ),
     "pedagogy.node.exited": ("node", "action", "response_chars", "citation_count"),
@@ -147,9 +147,34 @@ def _safe_event(event: dict[str, Any]) -> dict[str, Any]:
         usage = _safe_usage(details.get("usage") or raw.get("usage"))
         if usage:
             payload["usage"] = usage
+        safe_details: dict[str, Any] = {}
+        status = details.get("http_status", details.get("status_code"))
+        if isinstance(status, int) and not isinstance(status, bool) and 100 <= status <= 599:
+            safe_details["http_status"] = status
+        cause_types = details.get("cause_types")
+        if isinstance(cause_types, list):
+            safe_types = [value[:64] for value in cause_types[:4]
+                          if isinstance(value, str) and value.isascii() and value.isalnum()]
+            if safe_types:
+                safe_details["cause_types"] = safe_types
+        os_errno = details.get("os_errno")
+        if isinstance(os_errno, int) and not isinstance(os_errno, bool) and 0 <= os_errno <= 65535:
+            safe_details["os_errno"] = os_errno
+        if safe_details:
+            payload["error"]["details"] = safe_details
         finish_reason = details.get("finish_reason") or raw.get("finish_reason")
         if isinstance(finish_reason, str) and finish_reason:
             payload["finish_reason"] = finish_reason if finish_reason in _SAFE_FINISH_REASONS else "other"
+    if event_type in {"pedagogy.decision", "teaching.decision"}:
+        if isinstance(raw.get("generation_skipped"), bool):
+            payload["generation_skipped"] = raw["generation_skipped"]
+        question_source = raw.get("question_source")
+        if question_source in {"skill", "policy_template"}:
+            payload["question_source"] = question_source
+        capability_status = raw.get("capability_status")
+        if capability_status in {"success", "insufficient_evidence", "no_binding",
+                                 "capability_not_found", "invalid_request", "error", "skipped"}:
+            payload["capability_status"] = capability_status
     # New records use evidence_refs. Historic `citations`/`sources` are accepted
     # on read, then projected to the same locator-only shape.
     refs = raw.get("evidence_refs") or raw.get("citations") or raw.get("sources")

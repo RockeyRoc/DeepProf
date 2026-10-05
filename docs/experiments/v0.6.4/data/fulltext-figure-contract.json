@@ -1,0 +1,22 @@
+{
+  "backend": "R",
+  "archetype": "quantitative grid; three independent single-panel charts",
+  "batch_id": "m3-fulltext-rag-20261004-v4",
+  "batch_status": "completed",
+  "conclusions": {
+    "07": "show 480 eligible and 480 observed cells of 480 planned",
+    "08": "show available conditional judged-pool metrics; missing judgments remain N/A",
+    "09": "show available pair support and claim coverage with distinct denominators"
+  },
+  "panel_alignment": "not applicable; each chart has one plot area",
+  "unit": "constructed questions, citation pairs or extracted factual claims; no human learners",
+  "uncertainty": "descriptive AI point estimates; no seed replicates or inferential intervals claimed",
+  "missing_data": "all source rows retained; N/A points not drawn; zero denominators remain undefined",
+  "human_review": "not completed",
+  "export": "183 x 115 mm, SVG/PDF and 600 dpi PNG",
+  "source_data_sha256": {
+    "fulltext-citation.csv": "a35ef521fc0064a7d5db9a93fec973ec6f0e0bb3f3e557286072ca9957dd3f3d",
+    "fulltext-matrix.csv": "1f3e267af1e9349ecf7d15405e22c58b519c3cd0968122903a761ddfc34129fb",
+    "fulltext-retrieval.csv": "3967c3449e88ef837f6dc18168125d54eba110ab625ccf29094f219cff304985"
+  }
+}

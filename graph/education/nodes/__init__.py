@@ -34,11 +34,22 @@ from ..state import PedagogyState
 # ======================================================================
 
 
+#: 允许进 Runtime 上下文的图片引用字段：与 api/media.image_ref 的返回**逐个对齐**。
+#: 多出来的一律丢掉——图片引用是唯一允许跨过 WHAT/HOW 接缝的「非正文」，所以这里用一个
+#: 白名单把它锁死在「定位信息」上：路径、base64、字节都不在名单里，写进来也过不去。
+IMAGE_REF_FIELDS: tuple[str, ...] = ("media_id", "name", "mime", "bytes", "sha256")
+
+
 def runtime_ctx(state: PedagogyState) -> dict[str, Any]:
     """构造端口调用上下文（dict 形态）。
 
     只带关联标识与来源，不携带任何正文——Runtime 侧凭 session_id/trace_id
     把模型、工具、记忆事件串到同一条轨迹上（§18.2）。
+
+    唯一的例外是 ``images``，而且是**带着纪律**的例外：里面只有引用
+    （media_id / 名字 / 类型 / 字节数 / 摘要），经过 IMAGE_REF_FIELDS 白名单，
+    没有字节、没有 base64、没有本机路径。字节由网关在组模型请求的那一刻读盘内联
+    （见 api/media.py 的 ``image_data_url``），因此「不放大文本」仍成立（§6.4）。
     """
     return {
         "session_id": str(state.get("session_id") or ""),
@@ -48,7 +59,14 @@ def runtime_ctx(state: PedagogyState) -> dict[str, Any]:
         "model": str(state.get("model") or ""),
         "freeze_model": bool(state.get("freeze_model", True)),
         "generation_config": dict(state.get("generation_config") or {}),
+        "thinking_enabled": state.get("thinking_enabled"),
+        "thinking_mode": str(state.get("thinking_mode") or "off"),
+        "require_explicit_thinking_mode": bool(state.get("require_explicit_thinking_mode")),
+        "experiment_run": bool(state.get("experiment_run")),
+        "allow_provider_fallback": bool(state.get("allow_provider_fallback", True)),
         "m3_evidence_options": dict(state.get("m3_evidence_options") or {}),
+        "images": [{key: item[key] for key in IMAGE_REF_FIELDS if item.get(key) is not None}
+                   for item in (state.get("images") or []) if isinstance(item, dict)],
         "source": GRAPH_SOURCE,
         "metadata": {
             "graph": "education",
@@ -190,6 +208,7 @@ __all__ = [
     "EVENT_NODE_ENTERED",
     "EVENT_NODE_EXITED",
     "GRAPH_SOURCE",
+    "IMAGE_REF_FIELDS",
     "dispatch",
     "emit_decision",
     "emit_entered",

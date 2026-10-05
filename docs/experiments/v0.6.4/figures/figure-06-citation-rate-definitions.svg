@@ -1,0 +1,72 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='538.58pt' height='325.98pt' viewBox='0 0 538.58 325.98'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1MzguNTh8MC4wMHwzMjUuOTg='>
+    <rect x='0.00' y='0.00' width='538.58' height='325.98' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1MzguNTh8MC4wMHwzMjUuOTg=)'>
+<rect x='0.00' y='0.00' width='538.58' height='325.98' style='stroke-width: 1.02; stroke: none; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpODQuNjh8NTI4LjYyfDQwLjY4fDI5MS41OQ=='>
+    <rect x='84.68' y='40.68' width='443.94' height='250.91' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpODQuNjh8NTI4LjYyfDQwLjY4fDI5MS41OQ==)'>
+<polyline points='104.86,291.59 104.86,40.68 ' style='stroke-width: 1.02; stroke: #EBEBEB; stroke-linecap: butt;' />
+<polyline points='160.52,291.59 160.52,40.68 ' style='stroke-width: 1.02; stroke: #EBEBEB; stroke-linecap: butt;' />
+<polyline points='216.19,291.59 216.19,40.68 ' style='stroke-width: 1.02; stroke: #EBEBEB; stroke-linecap: butt;' />
+<polyline points='271.86,291.59 271.86,40.68 ' style='stroke-width: 1.02; stroke: #EBEBEB; stroke-linecap: butt;' />
+<polyline points='327.52,291.59 327.52,40.68 ' style='stroke-width: 1.02; stroke: #EBEBEB; stroke-linecap: butt;' />
+<polyline points='383.19,291.59 383.19,40.68 ' style='stroke-width: 1.02; stroke: #EBEBEB; stroke-linecap: butt;' />
+<line x1='104.86' y1='76.52' x2='383.19' y2='76.52' style='stroke-width: 2.56; stroke: #C4D2DA; stroke-linecap: butt;' />
+<line x1='104.86' y1='136.26' x2='383.19' y2='136.26' style='stroke-width: 2.56; stroke: #C4D2DA; stroke-linecap: butt;' />
+<line x1='104.86' y1='196.00' x2='296.65' y2='196.00' style='stroke-width: 2.56; stroke: #C4D2DA; stroke-linecap: butt;' />
+<line x1='104.86' y1='255.75' x2='196.57' y2='255.75' style='stroke-width: 2.56; stroke: #C4D2DA; stroke-linecap: butt;' />
+<circle cx='383.19' cy='76.52' r='3.54' style='stroke-width: 0.68; stroke: #287D8E; fill: #287D8E;' />
+<circle cx='383.19' cy='136.26' r='3.54' style='stroke-width: 0.68; stroke: #287D8E; fill: #287D8E;' />
+<circle cx='296.65' cy='196.00' r='3.54' style='stroke-width: 0.68; stroke: #287D8E; fill: #287D8E;' />
+<circle cx='196.57' cy='255.75' r='3.54' style='stroke-width: 0.68; stroke: #287D8E; fill: #287D8E;' />
+<text x='390.15' y='79.75' style='font-size: 8.54px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='79.09px' lengthAdjust='spacingAndGlyphs'>540 / 540  (100.0%)</text>
+<text x='390.15' y='139.49' style='font-size: 8.54px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='69.09px' lengthAdjust='spacingAndGlyphs'>92 / 92  (100.0%)</text>
+<text x='303.61' y='199.23' style='font-size: 8.54px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='69.09px' lengthAdjust='spacingAndGlyphs'>82 / 119  (68.9%)</text>
+<text x='203.53' y='258.97' style='font-size: 8.54px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='69.09px' lengthAdjust='spacingAndGlyphs'>86 / 261  (33.0%)</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1MzguNTh8MC4wMHwzMjUuOTg=)'>
+<text x='79.97' y='258.77' text-anchor='end' style='font-size: 8.00px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='72.00px' lengthAdjust='spacingAndGlyphs'>事实主张证据覆盖率</text>
+<text x='79.97' y='199.03' text-anchor='end' style='font-size: 8.00px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='56.00px' lengthAdjust='spacingAndGlyphs'>语义完整支持率</text>
+<text x='79.97' y='139.29' text-anchor='end' style='font-size: 8.00px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='64.00px' lengthAdjust='spacingAndGlyphs'>来源实际可定位率</text>
+<text x='79.97' y='79.55' text-anchor='end' style='font-size: 8.00px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='48.00px' lengthAdjust='spacingAndGlyphs'>字段可解析率</text>
+<text x='104.86' y='302.65' text-anchor='middle' style='font-size: 8.40px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='12.39px' lengthAdjust='spacingAndGlyphs'>0%</text>
+<text x='160.52' y='302.65' text-anchor='middle' style='font-size: 8.40px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='17.31px' lengthAdjust='spacingAndGlyphs'>20%</text>
+<text x='216.19' y='302.65' text-anchor='middle' style='font-size: 8.40px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='17.31px' lengthAdjust='spacingAndGlyphs'>40%</text>
+<text x='271.86' y='302.65' text-anchor='middle' style='font-size: 8.40px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='17.31px' lengthAdjust='spacingAndGlyphs'>60%</text>
+<text x='327.52' y='302.65' text-anchor='middle' style='font-size: 8.40px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='17.31px' lengthAdjust='spacingAndGlyphs'>80%</text>
+<text x='383.19' y='302.65' text-anchor='middle' style='font-size: 8.40px;fill: #34495E; font-family: "Microsoft YaHei";' textLength='22.23px' lengthAdjust='spacingAndGlyphs'>100%</text>
+<text x='306.65' y='315.34' text-anchor='middle' style='font-size: 10.50px; font-weight: bold;fill: #34495E; font-family: "Microsoft YaHei";' textLength='21.00px' lengthAdjust='spacingAndGlyphs'>比例</text>
+<text x='84.68' y='33.16' style='font-size: 9.00px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='399.34px' lengthAdjust='spacingAndGlyphs'>分母各不相同：字段格式、可定位引用、主张—引用配对、事实性主张。AI 辅助判定，未人工校准。</text>
+<text x='84.68' y='17.81' style='font-size: 13.00px; font-weight: bold;fill: #19324D; font-family: "Microsoft YaHei";' textLength='78.00px' lengthAdjust='spacingAndGlyphs'>引用指标拆分</text>
+</g>
+</g>
+</svg>

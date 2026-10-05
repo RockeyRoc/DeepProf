@@ -45,6 +45,11 @@ def library_dir() -> Path:
     return deepprof_home() / "library"
 
 
+def media_dir() -> Path:
+    """交给多模态模型看的图片。与资料库同级，仍在数据根内（沙箱白名单覆盖得到）。"""
+    return deepprof_home() / "media"
+
+
 def course_data_dir() -> Path:
     return deepprof_home() / "course"
 
@@ -82,6 +87,6 @@ def expand(path: str | os.PathLike[str]) -> Path:
 def ensure_layout() -> Path:
     """创建用户数据根及必需子目录，返回数据根。"""
     home = deepprof_home()
-    for directory in (home, logs_dir(), temp_dir(), library_dir(), course_data_dir(), experiment_runs_dir()):
+    for directory in (home, logs_dir(), temp_dir(), library_dir(), media_dir(), course_data_dir(), experiment_runs_dir()):
         directory.mkdir(parents=True, exist_ok=True)
     return home

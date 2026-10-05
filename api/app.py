@@ -14,8 +14,9 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 import asyncio
+import os
 
-from api import courses, events, health, library as library_api, providers, replay, sessions, web
+from api import courses, documents, events, health, library as library_api, media, providers, replay, sessions, web, web_search
 from config.settings import Settings
 from graph.education.bindings import ACTION_BINDINGS
 from library.service import ResourceLibrary
@@ -71,6 +72,7 @@ def build_service_with_bindings(
         register_default_skills(service.skills)
         service.tools.register(build_search_textbook_tool(service.library.search))
         _attach_m2_services(service)
+    _attach_image_reader(service)
     return service
 
 
@@ -83,6 +85,7 @@ def create_app(
     app = FastAPI(title="DeepProf Gateway", version="0.6.2")
     app.state.service = service or build_service_with_bindings(settings=settings, bindings=bindings)
     _attach_library(app.state.service)
+    _attach_image_reader(app.state.service)
     app.state.command_store = SqliteCommandStore.open(str(app.state.service.settings.resolved_sqlite_path))
     _attach_m2_services(app.state.service)
     app.state.learner_store = getattr(app.state.service, "learner_store", None)
@@ -90,6 +93,18 @@ def create_app(
     app.state.active_turns = set()
     app.state.turn_tasks = {}
     app.state.turn_lock = asyncio.Lock()
+
+    @app.on_event("shutdown")
+    async def _close_gateway_resources() -> None:
+        tasks = list(app.state.turn_tasks.values())
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        close = getattr(app.state.service, "aclose", None)
+        if callable(close):
+            await close()
 
     @app.exception_handler(RuntimeFailure)
     async def _runtime_failure_handler(request: Request, exc: RuntimeFailure) -> JSONResponse:
@@ -131,6 +146,9 @@ def create_app(
 
     app.include_router(health.router)
     app.include_router(providers.router)
+    app.include_router(web_search.router)
+    app.include_router(documents.router)
+    app.include_router(media.router)
     app.include_router(sessions.router)
     app.include_router(events.router)
     app.include_router(library_api.router)
@@ -138,6 +156,19 @@ def create_app(
     app.include_router(replay.router)
     app.include_router(web.router)
     return app
+
+
+def _attach_image_reader(service: RuntimeService) -> None:
+    """把「读一张图的字节」这件事从网关借给 Runtime。
+
+    会话与教学图状态里都只存媒体引用；真正读盘、拼 ``data:`` URL 的能力属于网关
+    （`api/media.py` 持有沙箱与数据目录）。Runtime 因此不认识图片落在哪，
+    只拿到一个 ``ref -> data URL`` 的可调用对象——这样它既不用 import api，
+    也不会在别处偷偷自己拼一条读盘路径（§4.4 的依赖方向不变）。
+    """
+    if callable(getattr(service, "image_reader", None)):
+        return
+    service.image_reader = lambda ref: media.image_data_url(service, ref)
 
 
 def _attach_library(service: RuntimeService) -> None:
@@ -152,6 +183,7 @@ def _attach_library(service: RuntimeService) -> None:
         chunk_overlap=settings.library_chunk_overlap,
         max_import_bytes=settings.library_max_import_bytes,
         path_allowed=service.sandbox.is_path_allowed,
+        default_retrieval_strategy=os.environ.get("DEEPPROF_RETRIEVAL_STRATEGY", "dense"),
     )
 
 

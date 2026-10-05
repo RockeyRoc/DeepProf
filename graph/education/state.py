@@ -48,11 +48,18 @@ class PedagogyState(TypedDict, total=False):
     learner_id: str
     trace_id: str
     user_input: str  # 本轮学生输入（短文本，随会话落盘，不放完整历史）
+    images: list[dict]  # 本轮随消息带的图片**引用**（media_id/名字/类型/字节数），不含字节与 base64
     course_id: str
     provider_profile: str
     model: str
     freeze_model: bool
     generation_config: dict[str, Any]
+    thinking_enabled: bool | None
+    thinking_mode: str
+    require_explicit_thinking_mode: bool
+    experiment_run: bool
+    allow_provider_fallback: bool
+    m3_evidence_options: dict[str, bool]
     requested_action: str
 
     # ---------- 本轮输出（§16.3：向前端输出文本、教学动作和情感标签） ----------
@@ -97,11 +104,18 @@ DEFAULT_STATE: dict[str, Any] = {
     "learner_id": "",
     "trace_id": "",
     "user_input": "",
+    "images": [],
     "course_id": "",
     "provider_profile": "",
     "model": "",
     "freeze_model": True,
     "generation_config": {},
+    "thinking_enabled": False,
+    "thinking_mode": "off",
+    "require_explicit_thinking_mode": False,
+    "experiment_run": False,
+    "allow_provider_fallback": True,
+    "m3_evidence_options": {},
     "requested_action": "",
     "action": "",
     "response_text": "",

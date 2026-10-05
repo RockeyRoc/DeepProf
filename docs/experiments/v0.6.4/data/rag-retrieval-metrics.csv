@@ -1,0 +1,12 @@
+﻿scope,split,method,metric,value,n,note
+NoMIRACL Chinese fixed judged candidates,dev,BGE-M3 dense,mean_nDCG@5,0.7508232156095835,393,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,dev,BM25,mean_nDCG@5,0.4247826027747887,393,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,dev,BGE-M3 + BM25 RRF-60,mean_nDCG@5,0.6402465383208267,393,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,dev,BGE reranker v2-m3,mean_nDCG@5,0.7862877386055414,393,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,test,BGE-M3 dense,mean_nDCG@5,0.7618345097399376,920,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,test,BM25,mean_nDCG@5,0.4295878097672513,920,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,test,BGE-M3 + BM25 RRF-60,mean_nDCG@5,0.6562523775683199,920,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,test,BGE reranker v2-m3,mean_nDCG@5,0.7969353640204592,920,candidate-conditional; not corpus-wide Recall
+NoMIRACL Chinese fixed judged candidates,test,BGE reranker v2-m3 evidence gate,false_accept_rate,0.04509090909090909,1375,threshold selected on dev with FAR <= 5%; fixed-candidate gate
+NoMIRACL Chinese fixed judged candidates,test,BGE reranker v2-m3 evidence gate,false_rejection_rate,0.7010869565217391,920,threshold selected on dev with FAR <= 5%; fixed-candidate gate
+NoMIRACL Chinese fixed judged candidates,test,BGE reranker v2-m3 evidence gate,reranker_max_score_auc,0.8006537549407114,2295,threshold selected on dev with FAR <= 5%; fixed-candidate gate

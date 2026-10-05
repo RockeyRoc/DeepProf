@@ -1,0 +1,727 @@
+{
+  "schema_version": "deepprof-fulltext-report-data-v1",
+  "batch_id": "m3-fulltext-rag-20261004-v4",
+  "batch_status": "completed",
+  "formal_observed_cells": 480,
+  "formal_planned_cells": 480,
+  "formal_eligible_cells": 480,
+  "configuration_eligible": true,
+  "matrix_complete": true,
+  "ocr_coverage": {
+    "expected_pages": 347,
+    "recognized_pages": 347,
+    "missing_pages": [],
+    "duplicate_pages": [],
+    "ai_visually_reviewed_pages": 347,
+    "index_eligible_pages": 313,
+    "printed_pages_confirmed": 319,
+    "corrected_pages": 3,
+    "supplemental_ai_focus_reviewed_pages": 347,
+    "supplemental_corrected_pages": 4,
+    "unresolved_focus_pages": [
+      79,
+      101,
+      102,
+      147,
+      200,
+      214,
+      220,
+      313
+    ]
+  },
+  "ocr_sha256": "21d8ca58901be9b68eeddba793d505fe19309e6b8b260c9969568090cd9166b3",
+  "budget": {
+    "cumulative_requests": 857,
+    "new_requests": 530,
+    "unresolved_requests": 0,
+    "new_ceiling": 560,
+    "cumulative_ceiling": 887,
+    "batch_requests": 369,
+    "additional_ceiling": 399,
+    "phase_requests": {
+      "preflight": 4,
+      "formal": 331,
+      "annotation": 34
+    },
+    "phase_ceilings": {
+      "preflight": 4,
+      "formal": 360,
+      "annotation": 35
+    }
+  },
+  "conditions_by_split": {
+    "retrieval-on_constraint-on": {
+      "historical": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 28,
+        "requests": 28,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 1,
+          "denominator": 6,
+          "rate": 0.16666666666666666
+        },
+        "false_reject_no_generation": {
+          "numerator": 7,
+          "denominator": 34,
+          "rate": 0.20588235294117646
+        },
+        "developer_action_match": {
+          "numerator": 32,
+          "denominator": 40,
+          "rate": 0.8
+        }
+      },
+      "development": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 38,
+        "requests": 38,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 6,
+          "denominator": 8,
+          "rate": 0.75
+        },
+        "false_reject_no_generation": {
+          "numerator": 0,
+          "denominator": 32,
+          "rate": 0.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      },
+      "sealed_test": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 39,
+        "requests": 39,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 8,
+          "denominator": 9,
+          "rate": 0.8888888888888888
+        },
+        "false_reject_no_generation": {
+          "numerator": 0,
+          "denominator": 31,
+          "rate": 0.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      }
+    },
+    "retrieval-on_constraint-off": {
+      "historical": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 33,
+        "requests": 33,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 6,
+          "denominator": 6,
+          "rate": 1.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 7,
+          "denominator": 34,
+          "rate": 0.20588235294117646
+        },
+        "developer_action_match": {
+          "numerator": 32,
+          "denominator": 40,
+          "rate": 0.8
+        }
+      },
+      "development": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 40,
+        "requests": 40,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 8,
+          "denominator": 8,
+          "rate": 1.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 0,
+          "denominator": 32,
+          "rate": 0.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      },
+      "sealed_test": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 40,
+        "requests": 40,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 9,
+          "denominator": 9,
+          "rate": 1.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 0,
+          "denominator": 31,
+          "rate": 0.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      }
+    },
+    "retrieval-off_constraint-on": {
+      "historical": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 0,
+        "requests": 0,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 0,
+          "denominator": 6,
+          "rate": 0.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 34,
+          "denominator": 34,
+          "rate": 1.0
+        },
+        "developer_action_match": {
+          "numerator": 5,
+          "denominator": 40,
+          "rate": 0.125
+        }
+      },
+      "development": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 0,
+        "requests": 0,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 0,
+          "denominator": 8,
+          "rate": 0.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 32,
+          "denominator": 32,
+          "rate": 1.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      },
+      "sealed_test": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 0,
+        "requests": 0,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 0,
+          "denominator": 9,
+          "rate": 0.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 31,
+          "denominator": 31,
+          "rate": 1.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      }
+    },
+    "retrieval-off_constraint-off": {
+      "historical": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 33,
+        "requests": 33,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 6,
+          "denominator": 6,
+          "rate": 1.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 7,
+          "denominator": 34,
+          "rate": 0.20588235294117646
+        },
+        "developer_action_match": {
+          "numerator": 32,
+          "denominator": 40,
+          "rate": 0.8
+        }
+      },
+      "development": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 40,
+        "requests": 40,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 8,
+          "denominator": 8,
+          "rate": 1.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 0,
+          "denominator": 32,
+          "rate": 0.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      },
+      "sealed_test": {
+        "observed": 40,
+        "planned": 40,
+        "valid": 40,
+        "generated": 40,
+        "requests": 40,
+        "failed": 0,
+        "excluded_configuration": 0,
+        "unknown_answerability": 0,
+        "false_accept_generation": {
+          "numerator": 9,
+          "denominator": 9,
+          "rate": 1.0
+        },
+        "false_reject_no_generation": {
+          "numerator": 0,
+          "denominator": 31,
+          "rate": 0.0
+        },
+        "developer_action_match": {
+          "numerator": 0,
+          "denominator": 0,
+          "rate": null
+        }
+      }
+    }
+  },
+  "retrieval_by_pool_and_split": {
+    "historical": {
+      "historical": {
+        "queries": 40,
+        "fully_judged_queries": 40,
+        "candidate_rows": 3920,
+        "unknown_candidate_rows": 0,
+        "methods": {
+          "hash_dense": {
+            "recall_at_20": 0.5625,
+            "ndcg_at_5": 0.2778387434604977,
+            "scored_queries": 8
+          },
+          "bm25": {
+            "recall_at_20": 0.625,
+            "ndcg_at_5": 0.2684376026927127,
+            "scored_queries": 8
+          },
+          "rrf": {
+            "recall_at_20": 0.625,
+            "ndcg_at_5": 0.2799782715844175,
+            "scored_queries": 8
+          }
+        },
+        "recall_denominator": "relevant passages in each fully judged candidate pool; conditional, not corpus-wide"
+      }
+    },
+    "fulltext": {
+      "historical": {
+        "queries": 40,
+        "fully_judged_queries": 38,
+        "candidate_rows": 3222,
+        "unknown_candidate_rows": 2,
+        "methods": {
+          "hash_dense": {
+            "recall_at_20": 0.7962962962962963,
+            "ndcg_at_5": 0.46749014629778923,
+            "scored_queries": 18
+          },
+          "bm25": {
+            "recall_at_20": 0.9166666666666666,
+            "ndcg_at_5": 0.6921114500543778,
+            "scored_queries": 18
+          },
+          "rrf": {
+            "recall_at_20": 0.925925925925926,
+            "ndcg_at_5": 0.6437746754504171,
+            "scored_queries": 18
+          }
+        },
+        "recall_denominator": "relevant passages in each fully judged candidate pool; conditional, not corpus-wide"
+      },
+      "development": {
+        "queries": 40,
+        "fully_judged_queries": 37,
+        "candidate_rows": 3273,
+        "unknown_candidate_rows": 3,
+        "methods": {
+          "hash_dense": {
+            "recall_at_20": 0.8173611111111111,
+            "ndcg_at_5": 0.4295710857555161,
+            "scored_queries": 24
+          },
+          "bm25": {
+            "recall_at_20": 0.9541666666666666,
+            "ndcg_at_5": 0.7366926499692513,
+            "scored_queries": 24
+          },
+          "rrf": {
+            "recall_at_20": 0.9395833333333333,
+            "ndcg_at_5": 0.7437572775726206,
+            "scored_queries": 24
+          }
+        },
+        "recall_denominator": "relevant passages in each fully judged candidate pool; conditional, not corpus-wide"
+      },
+      "sealed_test": {
+        "queries": 40,
+        "fully_judged_queries": 36,
+        "candidate_rows": 3295,
+        "unknown_candidate_rows": 4,
+        "methods": {
+          "hash_dense": {
+            "recall_at_20": 0.7941176470588235,
+            "ndcg_at_5": 0.44770572257406843,
+            "scored_queries": 17
+          },
+          "bm25": {
+            "recall_at_20": 0.8137254901960784,
+            "ndcg_at_5": 0.5301046926541249,
+            "scored_queries": 17
+          },
+          "rrf": {
+            "recall_at_20": 0.9705882352941176,
+            "ndcg_at_5": 0.5612383722254363,
+            "scored_queries": 17
+          }
+        },
+        "recall_denominator": "relevant passages in each fully judged candidate pool; conditional, not corpus-wide"
+      }
+    }
+  },
+  "citation_by_pool_condition_split": {
+    "historical/historical/historical": {
+      "records": 276,
+      "pairs": 119,
+      "source_location_rate": {
+        "numerator": 119,
+        "denominator": 119,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 94,
+        "denominator": 119,
+        "rate": 0.7899159663865546
+      },
+      "claim_evidence_coverage": {
+        "numerator": 97,
+        "denominator": 261,
+        "rate": 0.3716475095785441
+      },
+      "single_label_counts": {
+        "部分支持": 16,
+        "完整支持": 94,
+        "无支持": 9
+      },
+      "claims_without_citation": 156,
+      "unknown_pairs": 0
+    },
+    "fulltext/retrieval-on_constraint-on/historical": {
+      "records": 103,
+      "pairs": 21,
+      "source_location_rate": {
+        "numerator": 21,
+        "denominator": 21,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 15,
+        "denominator": 21,
+        "rate": 0.7142857142857143
+      },
+      "claim_evidence_coverage": {
+        "numerator": 16,
+        "denominator": 100,
+        "rate": 0.16
+      },
+      "single_label_counts": {
+        "完整支持": 15,
+        "部分支持": 6
+      },
+      "claims_without_citation": 82,
+      "unknown_pairs": 0
+    },
+    "fulltext/retrieval-on_constraint-on/development": {
+      "records": 152,
+      "pairs": 32,
+      "source_location_rate": {
+        "numerator": 32,
+        "denominator": 32,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 20,
+        "denominator": 32,
+        "rate": 0.625
+      },
+      "claim_evidence_coverage": {
+        "numerator": 23,
+        "denominator": 149,
+        "rate": 0.15436241610738255
+      },
+      "single_label_counts": {
+        "完整支持": 20,
+        "部分支持": 11,
+        "矛盾": 1
+      },
+      "claims_without_citation": 120,
+      "unknown_pairs": 0
+    },
+    "fulltext/retrieval-on_constraint-on/sealed_test": {
+      "records": 78,
+      "pairs": 28,
+      "source_location_rate": {
+        "numerator": 28,
+        "denominator": 28,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 22,
+        "denominator": 28,
+        "rate": 0.7857142857142857
+      },
+      "claim_evidence_coverage": {
+        "numerator": 22,
+        "denominator": 74,
+        "rate": 0.2972972972972973
+      },
+      "single_label_counts": {
+        "完整支持": 22,
+        "无法判定": 1,
+        "部分支持": 4,
+        "无支持": 1
+      },
+      "claims_without_citation": 49,
+      "unknown_pairs": 1
+    },
+    "fulltext/retrieval-on_constraint-off/historical": {
+      "records": 188,
+      "pairs": 19,
+      "source_location_rate": {
+        "numerator": 19,
+        "denominator": 19,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 17,
+        "denominator": 19,
+        "rate": 0.8947368421052632
+      },
+      "claim_evidence_coverage": {
+        "numerator": 17,
+        "denominator": 188,
+        "rate": 0.09042553191489362
+      },
+      "single_label_counts": {
+        "完整支持": 17,
+        "部分支持": 1,
+        "无法判定": 1
+      },
+      "claims_without_citation": 169,
+      "unknown_pairs": 1
+    },
+    "fulltext/retrieval-on_constraint-off/development": {
+      "records": 220,
+      "pairs": 5,
+      "source_location_rate": {
+        "numerator": 5,
+        "denominator": 5,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 2,
+        "denominator": 5,
+        "rate": 0.4
+      },
+      "claim_evidence_coverage": {
+        "numerator": 2,
+        "denominator": 220,
+        "rate": 0.00909090909090909
+      },
+      "single_label_counts": {
+        "完整支持": 2,
+        "部分支持": 3
+      },
+      "claims_without_citation": 215,
+      "unknown_pairs": 0
+    },
+    "fulltext/retrieval-on_constraint-off/sealed_test": {
+      "records": 117,
+      "pairs": 10,
+      "source_location_rate": {
+        "numerator": 10,
+        "denominator": 10,
+        "rate": 1.0
+      },
+      "single_support": {
+        "numerator": 5,
+        "denominator": 10,
+        "rate": 0.5
+      },
+      "claim_evidence_coverage": {
+        "numerator": 5,
+        "denominator": 117,
+        "rate": 0.042735042735042736
+      },
+      "single_label_counts": {
+        "完整支持": 5,
+        "部分支持": 3,
+        "无法判定": 2
+      },
+      "claims_without_citation": 107,
+      "unknown_pairs": 2
+    },
+    "fulltext/retrieval-off_constraint-off/historical": {
+      "records": 165,
+      "pairs": 0,
+      "source_location_rate": {
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null
+      },
+      "single_support": {
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null
+      },
+      "claim_evidence_coverage": {
+        "numerator": 0,
+        "denominator": 165,
+        "rate": 0.0
+      },
+      "single_label_counts": {},
+      "claims_without_citation": 165,
+      "unknown_pairs": 0
+    },
+    "fulltext/retrieval-off_constraint-off/development": {
+      "records": 187,
+      "pairs": 0,
+      "source_location_rate": {
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null
+      },
+      "single_support": {
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null
+      },
+      "claim_evidence_coverage": {
+        "numerator": 0,
+        "denominator": 187,
+        "rate": 0.0
+      },
+      "single_label_counts": {},
+      "claims_without_citation": 187,
+      "unknown_pairs": 0
+    },
+    "fulltext/retrieval-off_constraint-off/sealed_test": {
+      "records": 109,
+      "pairs": 0,
+      "source_location_rate": {
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null
+      },
+      "single_support": {
+        "numerator": 0,
+        "denominator": 0,
+        "rate": null
+      },
+      "claim_evidence_coverage": {
+        "numerator": 0,
+        "denominator": 109,
+        "rate": 0.0
+      },
+      "single_label_counts": {},
+      "claims_without_citation": 109,
+      "unknown_pairs": 0
+    }
+  },
+  "annotation_counts": {
+    "retrieval": 13710,
+    "citation": 1595,
+    "questions": 120
+  },
+  "answerability_counts": {
+    "answerable": 97,
+    "insufficient_evidence": 23
+  },
+  "retrieval_protocol_exceptions": 9,
+  "human_agreement": "not_computed; no genuine personnel reviews received",
+  "acceptance_definition": "generation on insufficient-evidence questions; not answer correctness",
+  "raw_prompts_in_report": false,
+  "cleanup": "gateway_tree_and_port_verified_closed"
+}

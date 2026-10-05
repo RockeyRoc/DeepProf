@@ -41,6 +41,9 @@ class RAGSkill:
         """入参：query / concept / top_k / course_id；出参：status + evidence 列表。"""
         query = str(input.get("query") or input.get("concept") or "").strip()
         concept = str(input.get("concept") or "")
+        options = ctx.get("m3_evidence_options") or {}
+        if ctx.get("experiment_run") and options.get("retrieval_enabled") is False:
+            return self._insufficient("本实验条件关闭教材检索", retrieval_disabled=True)
         if not query:
             return self._insufficient("检索问题为空，无法检索")
 

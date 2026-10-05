@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any, Callable, Protocol
 
 from config.settings import Settings
@@ -77,23 +79,129 @@ class ProviderRegistry:
         )
         self._profiles: dict[str, ProviderProfile] = {}
         self._providers: dict[str, Provider] = {}
+        self._retired_providers: list[Provider] = []
         self._roles: RoleMap = {}
         self._fallbacks: dict[str, list[str]] = {}
         self._health: dict[str, dict[str, Any]] = {}
+        self._model_option_cache: dict[tuple[str, str], tuple[float, dict[str, Any]]] = {}
+        self._model_option_locks: dict[tuple[str, str], asyncio.Lock] = {}
+        self._model_catalog_cache: dict[str, tuple[float, list[str]]] = {}
+        self._model_catalog_locks: dict[str, asyncio.Lock] = {}
+        self.metrics: dict[str, int] = {"catalog_requests": 0, "catalog_cache_hits": 0,
+                                        "model_option_requests": 0, "model_option_cache_hits": 0}
+        self._model_option_semaphore = asyncio.Semaphore(4)
 
     # ---- 注册 ----
 
     def add(self, profile: ProviderProfile, provider: Provider | None = None) -> ProviderProfile:
+        self.invalidate_model_options(profile.profile_id)
+        previous = self._providers.get(profile.profile_id)
+        current = provider or self._factory(profile, self._secrets)
+        if previous is not None and previous is not current:
+            self._retired_providers.append(previous)
         self._profiles[profile.profile_id] = profile
-        self._providers[profile.profile_id] = provider or self._factory(profile, self._secrets)
+        self._providers[profile.profile_id] = current
         return profile
 
     def remove(self, profile_id: str) -> None:
+        self.invalidate_model_options(profile_id)
         self._profiles.pop(profile_id, None)
         self._providers.pop(profile_id, None)
         self._health.pop(profile_id, None)
         self._fallbacks.pop(profile_id, None)
         self._roles = {role: binding for role, binding in self._roles.items() if binding[0] != profile_id}
+
+    def invalidate_model_options(self, profile_id: str | None = None) -> None:
+        if profile_id is None:
+            self._model_option_cache.clear()
+            self._model_option_locks.clear()
+            self._model_catalog_cache.clear()
+            self._model_catalog_locks.clear()
+            return
+        for key in [key for key in self._model_option_cache if key[0] == profile_id]:
+            self._model_option_cache.pop(key, None)
+        for key in [key for key in self._model_option_locks if key[0] == profile_id]:
+            self._model_option_locks.pop(key, None)
+        self._model_catalog_cache.pop(profile_id, None)
+        self._model_catalog_locks.pop(profile_id, None)
+
+    async def list_model_catalog(self, profile_id: str, *, refresh: bool = False,
+                                 ttl_seconds: float = 600.0) -> dict[str, Any]:
+        """Share one provider model-directory request and retain stale data on failure."""
+        self.metrics["catalog_requests"] += 1
+        cached = self._model_catalog_cache.get(profile_id)
+        if cached and not refresh and time.monotonic() - cached[0] < ttl_seconds:
+            self.metrics["catalog_cache_hits"] += 1
+            return {"models": list(cached[1]), "status": "cached"}
+        lock = self._model_catalog_locks.setdefault(profile_id, asyncio.Lock())
+        async with lock:
+            cached = self._model_catalog_cache.get(profile_id)
+            if cached and not refresh and time.monotonic() - cached[0] < ttl_seconds:
+                self.metrics["catalog_cache_hits"] += 1
+                return {"models": list(cached[1]), "status": "cached"}
+            provider = self.get(profile_id)
+            try:
+                async with self._model_option_semaphore:
+                    models = await provider.list_models()
+                result = list(dict.fromkeys(str(item).strip() for item in models if str(item).strip()))
+                if not result:
+                    raise ProviderError("模型服务未返回模型目录", kind="model_catalog_empty")
+                self._model_catalog_cache[profile_id] = (time.monotonic(), result)
+                return {"models": list(result), "status": "verified"}
+            except Exception as exc:
+                if cached:
+                    return {"models": list(cached[1]), "status": "stale",
+                            "error": str(exc)[:240]}
+                raise
+
+    async def describe_model_options(self, profile_id: str, model: str, *, refresh: bool = False,
+                                     ttl_seconds: float = 600.0) -> dict[str, Any]:
+        self.metrics["model_option_requests"] += 1
+        key = (profile_id, model)
+        cached = self._model_option_cache.get(key)
+        if cached and not refresh and time.monotonic() - cached[0] < ttl_seconds:
+            self.metrics["model_option_cache_hits"] += 1
+            return dict(cached[1])
+        lock = self._model_option_locks.setdefault(key, asyncio.Lock())
+        async with lock:
+            cached = self._model_option_cache.get(key)
+            if cached and not refresh and time.monotonic() - cached[0] < ttl_seconds:
+                self.metrics["model_option_cache_hits"] += 1
+                return dict(cached[1])
+            adapter = self.get(profile_id)
+            describe = getattr(adapter, "describe_model", None)
+            if not callable(describe):
+                return {}
+            try:
+                async with self._model_option_semaphore:
+                    options = await describe(model)
+                if isinstance(options, dict) and options:
+                    result = dict(options)
+                    result["verification_status"] = "verified"
+                    self._model_option_cache[key] = (time.monotonic(), result)
+                    return dict(result)
+                return {}
+            except Exception as exc:
+                if cached:
+                    return {**cached[1], "verification_status": "stale",
+                            "verification_error": str(exc)[:240]}
+                raise
+
+    async def remove_and_close(self, profile_id: str) -> None:
+        provider = self._providers.get(profile_id)
+        self.remove(profile_id)
+        close = getattr(provider, "aclose", None)
+        if callable(close):
+            await close()
+
+    async def aclose(self) -> None:
+        providers = list({id(provider): provider for provider in
+                          [*self._providers.values(), *self._retired_providers]}.values())
+        for provider in providers:
+            close = getattr(provider, "aclose", None)
+            if callable(close):
+                await close()
+        self._retired_providers.clear()
 
     def unset_role(self, role: str) -> None:
         self._roles.pop(role, None)
@@ -185,6 +293,27 @@ class ProviderRegistry:
             candidates.append((provider, profile_id, model or profile.default_model))
         return candidates
 
+    def resolve_chain_for_profile(
+        self, profile_id: str, requested_model: str | None = None
+    ) -> list[tuple[Provider, str, str]]:
+        """Resolve an explicitly selected profile and only its configured fallbacks."""
+        primary = self.profile(profile_id)
+        if not primary.enabled:
+            raise ValueError(f"provider profile disabled: {profile_id!r}")
+        chain = [profile_id] + self._fallbacks.get(profile_id, [])
+        candidates: list[tuple[Provider, str, str]] = []
+        seen: set[str] = set()
+        for index, candidate_id in enumerate(chain):
+            if candidate_id in seen:
+                continue
+            seen.add(candidate_id)
+            candidate = self._profiles.get(candidate_id)
+            if candidate is None or not candidate.enabled:
+                continue
+            model = requested_model if index == 0 else candidate.default_model
+            candidates.append((self.get(candidate_id), candidate_id, model or candidate.default_model))
+        return candidates
+
     async def generate(
         self, role: str, request: dict[str, Any], ctx: dict[str, Any]
     ) -> dict[str, Any]:
@@ -229,8 +358,9 @@ class ProviderRegistry:
         )
         self._health[profile_id] = result
         if result.get("capabilities") and result["status"] == "ok":
-            # 探测成功的能力合并进 Profile 声明（保守：只升不降）
-            merged = normalize_capabilities(self._profiles[profile_id].capabilities)
+            # Non-streaming probe cannot turn an undeclared capability into false.
+            # Merge only positive observations while preserving explicit values.
+            merged = dict(self._profiles[profile_id].capabilities)
             merged.update({k: v for k, v in result["capabilities"].items() if v})
             self._profiles[profile_id].capabilities = merged
         return result

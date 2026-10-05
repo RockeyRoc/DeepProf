@@ -7,14 +7,17 @@ import shutil
 from pathlib import Path
 from typing import Any, Callable
 
-from library.chunking import chunk_pages
-from library.embeddings import Embedder, HashingEmbedder
+from library.chunking import (chunk_pages, chunk_pages_structured, chunking_version,
+                              structured_chunking_version)
+from library.concept_queries import expand_concept_query
+from library.embeddings import Embedder, HashingEmbedder, retrieval_index_profile
 from library.errors import LibraryError
 from library.evidence_relevance import supports_claim_specific_evidence
+from library.hybrid_retrieval import hybrid_rank, retrieval_config_id
 from library.models import ImportResult, ResourceRecord
 from library.parsers import parse_bytes
 from runtime.core.events import new_id, utc_now
-from runtime.storage.resource_store import SqliteResourceStore
+from runtime.storage.resource_store import RetrievalIndexProfileMismatch, SqliteResourceStore
 
 
 class ResourceLibrary:
@@ -26,20 +29,30 @@ class ResourceLibrary:
         *,
         library_root: str | Path,
         embedder: Embedder | None = None,
+        reranker: Any | None = None,
         chunk_size: int = 800,
         chunk_overlap: int = 120,
+        chunking_strategy: str = "char",
         max_import_bytes: int = 50_000_000,
         path_allowed: Callable[[str | Path], bool] | None = None,
+        default_retrieval_strategy: str = "dense",
     ) -> None:
         self.store = store
         self.library_root = Path(library_root)
         self.files_root = self.library_root / "files"
         self.files_root.mkdir(parents=True, exist_ok=True)
         self.embedder = embedder or HashingEmbedder()
+        self.reranker = reranker
         self.chunk_size = chunk_size
         self.chunk_overlap = chunk_overlap
+        if chunking_strategy not in {"char", "paragraph_code"}:
+            raise ValueError("unsupported_chunking_strategy")
+        self.chunking_strategy = chunking_strategy
         self.max_import_bytes = max_import_bytes
         self.path_allowed = path_allowed
+        if default_retrieval_strategy not in {"dense", "hybrid_rrf"}:
+            raise ValueError("unsupported_retrieval_strategy")
+        self.default_retrieval_strategy = default_retrieval_strategy
 
     def import_path(
         self,
@@ -93,22 +106,50 @@ class ResourceLibrary:
         tags: list[str] | None = None,
         owner_id: str = "local",
         min_score: float = 0.10,
+        concept_ids: list[str] | None = None,
+        retrieval_strategy: str | None = None,
     ) -> dict[str, Any]:
         query = str(query or "").strip()
+        retrieval_strategy = retrieval_strategy or self.default_retrieval_strategy
         if not query:
             return {"status": "insufficient_evidence", "evidence": [], "missing": ["query"]}
-        query_vector = self.embedder.embed([query])[0]
-        raw_hits = self.store.search(
-            query_vector,
-            score=self.embedder.similarity if hasattr(self.embedder, "similarity") else _dot,
-            top_k=top_k,
-            course_id=course_id or None,
-            resource_type=resource_type or None,
-            status=status or "active",
-            tags=tags or [],
-            owner_id=owner_id or "local",
-            min_score=min_score,
-        )
+        concept_ids = list(dict.fromkeys(str(value).strip() for value in (concept_ids or []) if str(value).strip()))
+        expanded_query, concept_terms = expand_concept_query(query, course_id, concept_ids)
+        query_vector = self.embedder.embed([expanded_query])[0]
+        if retrieval_strategy not in {"dense", "hybrid_rrf"}:
+            return {"status": "unsupported_retrieval_strategy", "evidence": [],
+                    "query": query, "missing": ["retrieval_strategy"]}
+        profile = self._retrieval_profile()
+        config_id = retrieval_config_id(profile, strategy=retrieval_strategy, top_k=top_k,
+            candidate_k=50 if retrieval_strategy == "hybrid_rrf" else top_k,
+            dense_min_score=min_score)
+        try:
+            dense_hits = self.store.search(
+                query_vector,
+                score=self.embedder.similarity if hasattr(self.embedder, "similarity") else _dot,
+                top_k=50 if retrieval_strategy == "hybrid_rrf" else top_k,
+                course_id=course_id or None,
+                resource_type=resource_type or None,
+                status=status or "active",
+                tags=tags or [],
+                owner_id=owner_id or "local",
+                min_score=min_score,
+                retrieval_profile=profile,
+            )
+            if retrieval_strategy == "hybrid_rrf":
+                lexical_hits = self.store.search_bm25(
+                    expanded_query, top_k=50, course_id=course_id or None,
+                    resource_type=resource_type or None, status=status or "active",
+                    tags=tags or [], owner_id=owner_id or "local")
+                raw_hits = hybrid_rank(query, dense_hits, lexical_hits, reranker=self.reranker,
+                                       candidate_k=50, final_k=top_k)
+            else:
+                raw_hits = dense_hits
+        except RetrievalIndexProfileMismatch as exc:
+            return {"status": "index_configuration_mismatch", "evidence": [],
+                    "query": query, "concept_ids": concept_ids, "query_expansion": concept_terms,
+                    "missing": ["compatible_versioned_index"], "warnings": [str(exc)],
+                    "retrieval_config_id": config_id, "index_profile_id": profile["config_id"]}
         evidence = [
             {
                 "document_id": hit["document_id"],
@@ -119,6 +160,11 @@ class ResourceLibrary:
                 "source": hit["source"],
                 "text": hit["text"],
                 "score": round(float(hit["score"]), 6),
+                "retrieval_stage_scores": (dict(hit.get("retrieval_stage_scores") or {}) or
+                                           {"embedding_similarity": round(float(hit["score"]), 6)}),
+                "retrieval_config_id": config_id,
+                "index_profile_id": profile["config_id"],
+                "retrieval_strategy": retrieval_strategy,
                 "section": hit["section"],
             }
             for hit in raw_hits
@@ -129,15 +175,27 @@ class ResourceLibrary:
                 "status": "insufficient_evidence",
                 "evidence": [],
                 "missing": ["claim_specific_source_support"],
+                "query": query,
+                "concept_ids": concept_ids,
+                "query_expansion": concept_terms,
+                "retrieval_config_id": config_id,
+                "index_profile_id": profile["config_id"],
             }
         if not evidence:
             return {
                 "status": "insufficient_evidence",
                 "evidence": [],
                 "query": query,
+                "concept_ids": concept_ids,
+                "query_expansion": concept_terms,
                 "missing": ["matching_active_resource"],
+                "retrieval_config_id": config_id,
+                "index_profile_id": profile["config_id"],
             }
-        return {"status": "ok", "evidence": evidence, "query": query, "count": len(evidence)}
+        return {"status": "ok", "evidence": evidence, "query": query, "concept_ids": concept_ids,
+                "query_expansion": concept_terms, "retrieval_config_id": config_id,
+                "index_profile_id": profile["config_id"],
+                "count": len(evidence)}
 
     def list_resources(self, **filters: Any) -> list[dict[str, Any]]:
         filters["owner_id"] = filters.get("owner_id") or "local"
@@ -274,7 +332,8 @@ class ResourceLibrary:
             created_at=now,
             updated_at=now,
         )
-        chunks = chunk_pages(
+        chunker = chunk_pages_structured if self.chunking_strategy == "paragraph_code" else chunk_pages
+        chunks = chunker(
             parsed.pages,
             resource_id=resource_id,
             document_id=document_id,
@@ -319,7 +378,11 @@ class ResourceLibrary:
                     "source_url": source_url,
                     "actor_id": actor_id,
                     "status": "success",
-                    "parameters": {"filename": Path(filename).name, "embedder": getattr(self.embedder, "name", "unknown")},
+                    "parameters": {"filename": Path(filename).name,
+                        "embedder": getattr(self.embedder, "name", "unknown"),
+                        "retrieval_profile": self._retrieval_profile(),
+                        "chunk_size": self.chunk_size, "chunk_overlap": self.chunk_overlap,
+                        "chunking_strategy": self.chunking_strategy},
                 },
             )
         except Exception:
@@ -339,6 +402,17 @@ class ResourceLibrary:
             }
         )
         return ImportResult(resource=record, chunk_count=len(chunk_rows), events=events, warnings=warnings)
+
+    def _retrieval_profile(self) -> dict[str, str | int]:
+        reranker_version = "none"
+        if self.reranker is not None:
+            reranker_version = f"{self.reranker.name}@{self.reranker.model_version}"
+        chunk_profile = (structured_chunking_version(self.chunk_size, self.chunk_overlap)
+                         if self.chunking_strategy == "paragraph_code" else
+                         chunking_version(self.chunk_size, self.chunk_overlap))
+        return retrieval_index_profile(self.embedder,
+            chunking_version=chunk_profile,
+            reranker_version=reranker_version)
 
 
 def _record(data: dict[str, Any]) -> ResourceRecord:

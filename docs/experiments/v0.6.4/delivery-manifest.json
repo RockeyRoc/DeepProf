@@ -1,0 +1,293 @@
+{
+  "schema_version": "deepprof-public-delivery-v1",
+  "release_version": "0.6.4",
+  "source_batch": "m3-fulltext-rag-20261004-v4",
+  "original_local_delivery_manifest_sha256": "814f556a66d140fdabb869fcb33bed2153f4603219b3ef42d16daa08e5a386b8",
+  "human_review_status": "pending genuine personnel review",
+  "files": {
+    "data/citation-rates.csv": {
+      "bytes": 507,
+      "sha256": "f8704c469b42a8cf9ee621579a036bdbef1e3d5d3b6b88d55934eaca3117040e"
+    },
+    "data/citation-summary-reconciliation.json": {
+      "bytes": 2341,
+      "sha256": "97a1ade470d82591c476c0838a2d00938c45effcb2df4c0226cb2970e0bc7b76"
+    },
+    "data/course-rag-offline-summary.json": {
+      "bytes": 2171,
+      "sha256": "a8a3f06f6c11bba63530ac7a61ed9ce5e9d847175a4883292b87e781e3824ab1"
+    },
+    "data/coverage.csv": {
+      "bytes": 1499,
+      "sha256": "06de2f1b7476670af0398821a371f9d55359d17cb7442aa43db7b9d14c80158d"
+    },
+    "data/figure-data-manifest.json": {
+      "bytes": 351,
+      "sha256": "05a2ff74d4d8159e39d70b6a078e3eb5995569e77a6b42655377adc8930f44c4"
+    },
+    "data/fulltext-ablation-decisions.csv": {
+      "bytes": 69594,
+      "sha256": "f7f3275928639b9cfc0bfe6348db074fc1d1ba7040a49a6d8947ea85c0ea64b6"
+    },
+    "data/fulltext-ablation-figure-contract.json": {
+      "bytes": 91035,
+      "sha256": "43ccef6b1ae36564293cdad8a1c9be252b594db856d6d810f37b7066cfd3273d"
+    },
+    "data/fulltext-ablation-rates.csv": {
+      "bytes": 2089,
+      "sha256": "47409463c8e7bf5beaef7baf61b1e9267a7cca93e1d394fd49ac470d1b777ddc"
+    },
+    "data/fulltext-ablation-transitions.csv": {
+      "bytes": 3028,
+      "sha256": "93d5b20f56070fdb962d9d41253d3054c55ca83aabc91d500152379d969cb55a"
+    },
+    "data/fulltext-citation.csv": {
+      "bytes": 1822,
+      "sha256": "a35ef521fc0064a7d5db9a93fec973ec6f0e0bb3f3e557286072ca9957dd3f3d"
+    },
+    "data/fulltext-figure-contract.json": {
+      "bytes": 1246,
+      "sha256": "3ed2230b25a51f29d365637d2a9059d44023ba71947c9059efe67ebf632d3455"
+    },
+    "data/fulltext-matrix.csv": {
+      "bytes": 1519,
+      "sha256": "1f3e267af1e9349ecf7d15405e22c58b519c3cd0968122903a761ddfc34129fb"
+    },
+    "data/fulltext-rag-summary.json": {
+      "bytes": 19509,
+      "sha256": "b951de983ebc1e3c6b0e1d738963650ab28a5be75e62819362296807f0d913fd"
+    },
+    "data/fulltext-retrieval.csv": {
+      "bytes": 1410,
+      "sha256": "3967c3449e88ef837f6dc18168125d54eba110ab625ccf29094f219cff304985"
+    },
+    "data/item-em-convergence.csv": {
+      "bytes": 354,
+      "sha256": "4374fa755ed028716d0d7d5830429798a736b7d34811f30b081e9ca449d96404"
+    },
+    "data/nested-bkt-methods.csv": {
+      "bytes": 2919,
+      "sha256": "c9ed8d7aa0adb703d22fd99f100b7f92d34f98eadea2fe5cade507787ac8cc95"
+    },
+    "data/nomiracl-evaluation-status.json": {
+      "bytes": 463,
+      "sha256": "98440939e76206cca8c2f3ef3b653482fe8c3bf4945ee7aeb8285a6b25f5ea27"
+    },
+    "data/nomiracl-figure-contract.json": {
+      "bytes": 1253,
+      "sha256": "79923c123c68eecec0a5cb377be099a7607267407d4d38f3fb2408f66783eaf6"
+    },
+    "data/nomiracl-gate-metrics.csv": {
+      "bytes": 141,
+      "sha256": "17b85b0ef01ec59cb054ca25642fc4f1c53dadffef66844284212dc7be02906f"
+    },
+    "data/nomiracl-ranking-metrics.csv": {
+      "bytes": 587,
+      "sha256": "9189fea315a65447a49288bb76b4658699237330302c913c7b2b61731c9e0b0f"
+    },
+    "data/nomiracl-zh-candidate-ranks.csv": {
+      "bytes": 11599516,
+      "sha256": "e869b92667ae1a15558254f1938bf8a49ef95e7bebd73da8f53d4883e462269a"
+    },
+    "data/nomiracl-zh-evaluation.json": {
+      "bytes": 5950,
+      "sha256": "3e278caa972e546dd8724b39aa0b04f84d8c79bab8fa73161a1f177438a5d484"
+    },
+    "data/nomiracl-zh-per-query.csv": {
+      "bytes": 297217,
+      "sha256": "c8943c82fd6deda460c0987c0eb47a0f2091e5b55ab4d1261d95ae886dedd28d"
+    },
+    "data/public-bkt-strata.csv": {
+      "bytes": 17345,
+      "sha256": "3263916a513d0f8986b5d2b2155fcd8529e3afdc928dca5aa9950929122983e3"
+    },
+    "data/rag-latency-per-query.csv": {
+      "bytes": 9513,
+      "sha256": "d17b11b827f90748b8995f979e03c77a73f1ab5dab33eb0588f7efb10485ebd1"
+    },
+    "data/rag-latency-summary.csv": {
+      "bytes": 1301,
+      "sha256": "4dda2e6b74983880c7feefa5ac293b1d9fefa0f62f1e24b84ab3890e97367836"
+    },
+    "data/rag-retrieval-metrics.csv": {
+      "bytes": 1742,
+      "sha256": "ae6ba86fd2402f46d633f80b07dffe5d3b873e30b8056b90d8cea65a09e01ac6"
+    },
+    "data/report-figure-order.json": {
+      "bytes": 1042,
+      "sha256": "f7bac32cb6699aa67f10b1eadeccc75854d6f82ff9baa1555569efb33bd11a82"
+    },
+    "figures/figure-01-data-coverage.pdf": {
+      "bytes": 59322,
+      "sha256": "a76c57219dfb7f9ff62dedef29347030e94ce22bf733c5ad8a95d8f821839af0"
+    },
+    "figures/figure-01-data-coverage.png": {
+      "bytes": 964452,
+      "sha256": "ecadbbe0a91b1ee57ed24d6c416d33924c6ff3b570491ef42d81d3bfeabe08cd"
+    },
+    "figures/figure-01-data-coverage.svg": {
+      "bytes": 15178,
+      "sha256": "461fc73a4ec27c6c074e6903688630ff8e1e26417a8a5354fd1a60fd57ac5fc0"
+    },
+    "figures/figure-02-bkt-stratified-differences.pdf": {
+      "bytes": 52707,
+      "sha256": "008d009b6e1ed8da5a71dcee1f7c14df8a0d0e0b239322f33a9b8dba68f3508f"
+    },
+    "figures/figure-02-bkt-stratified-differences.png": {
+      "bytes": 531434,
+      "sha256": "28df3291e06e752886480009023abdc3d20c432abb8d68251ccb795dee47d5e8"
+    },
+    "figures/figure-02-bkt-stratified-differences.svg": {
+      "bytes": 39753,
+      "sha256": "f9fa5def0d8f6631647c58560d02480837ff0e674db9e5d2e58c29b1d38341c9"
+    },
+    "figures/figure-03-calibration-and-convergence.pdf": {
+      "bytes": 55232,
+      "sha256": "d527566e5179210bb49b989044c7a0e1deea6ba967c75a5555960c73989709ae"
+    },
+    "figures/figure-03-calibration-and-convergence.png": {
+      "bytes": 443433,
+      "sha256": "f623a82514ddc6c3059f22233cec0d4baf306aea929bf4f976f8f6940fd481b3"
+    },
+    "figures/figure-03-calibration-and-convergence.svg": {
+      "bytes": 21115,
+      "sha256": "92c8d2a477a63b05a2f80d0c7e2126637fb836011f566d1fdf9195e97c3870f9"
+    },
+    "figures/figure-06-citation-rate-definitions.pdf": {
+      "bytes": 39055,
+      "sha256": "970ccdec398410759c6c689949f9b4e6b61fc1128a6ad239f0cea9286cffa96b"
+    },
+    "figures/figure-06-citation-rate-definitions.png": {
+      "bytes": 245339,
+      "sha256": "911dedae13c536492cf64f3cdf1f575b78738bb9489403b80796c51c45e16e35"
+    },
+    "figures/figure-06-citation-rate-definitions.svg": {
+      "bytes": 6347,
+      "sha256": "41da5f86b8d0b16ecf4d80b3743da3a77317a96f6e08888721aaff95e567b78c"
+    },
+    "figures/figure-07-fulltext-matrix.pdf": {
+      "bytes": 37162,
+      "sha256": "4f830aeef4f5f7e57bd907f0de6d4f65961f79dda7e81ac666460151e4221b78"
+    },
+    "figures/figure-07-fulltext-matrix.png": {
+      "bytes": 325411,
+      "sha256": "9bbe572008cca68b464393714f65c63500eeea21a6331bf0466293472c5807c4"
+    },
+    "figures/figure-07-fulltext-matrix.svg": {
+      "bytes": 15240,
+      "sha256": "1c4baef794a0a2cb241d148714b1fab31940d34ac8cab530c5d95caf55e7e393"
+    },
+    "figures/figure-08-fulltext-retrieval.pdf": {
+      "bytes": 39113,
+      "sha256": "a4b6dd56fe48d6ce456b1039a1e858c49fc388303429075338ec9d5a93784a9b"
+    },
+    "figures/figure-08-fulltext-retrieval.png": {
+      "bytes": 255260,
+      "sha256": "d99a76e1229ea3f2001ba9dfda269e751a9a4585e71f0910ad6c6cbea5decf75"
+    },
+    "figures/figure-08-fulltext-retrieval.svg": {
+      "bytes": 9721,
+      "sha256": "6fd1b474d67452e45789443148f99c68fb4e5b1d2d4037d9c6bd4f5348942fe0"
+    },
+    "figures/figure-09-fulltext-citation.pdf": {
+      "bytes": 39083,
+      "sha256": "20e5a5a6f2ea429c0bbfee4ca6f6f3639e98328a17418e63b1a1aeaef0eaa42d"
+    },
+    "figures/figure-09-fulltext-citation.png": {
+      "bytes": 310242,
+      "sha256": "3df4abc1d5540f32df17abbb135656c06ccc49f3e6b60952df64587043e89d47"
+    },
+    "figures/figure-09-fulltext-citation.svg": {
+      "bytes": 11410,
+      "sha256": "9f4ec90b060a9d80dc1cad2aac2b7df2952e50880d89f08944a2b961f1a1567b"
+    },
+    "figures/figure-10-fulltext-ablation-decisions.pdf": {
+      "bytes": 38933,
+      "sha256": "854c4f319a8ac4519ac7728d13e466a056ea72faea9c41b396bf49c26be620d7"
+    },
+    "figures/figure-10-fulltext-ablation-decisions.png": {
+      "bytes": 355648,
+      "sha256": "378d8d5d3178caece577be7de5582937e63edaafc2441699327959400acf3f49"
+    },
+    "figures/figure-10-fulltext-ablation-decisions.svg": {
+      "bytes": 11634,
+      "sha256": "f2b15f8d7e1ffec75bbce784082c0caa00705428f03b61fbcfecee0487048eed"
+    },
+    "figures/figure-11-fulltext-ablation-paired.pdf": {
+      "bytes": 40913,
+      "sha256": "afe26afecfb925ba18e6848e9a069a320a56f5921d0d4bc112498d797d7c39a6"
+    },
+    "figures/figure-11-fulltext-ablation-paired.png": {
+      "bytes": 385057,
+      "sha256": "314eccfe7ce4bd5e75dfdcb9cbbc179ab01c5fb9b4976c318e0e82662e8f553d"
+    },
+    "figures/figure-11-fulltext-ablation-paired.svg": {
+      "bytes": 20790,
+      "sha256": "3eace15d7ba77e115f62b0d55b2c333379ee97fc97754f7851ed5811c037675e"
+    },
+    "figures/figure-12-nomiracl-ranking.pdf": {
+      "bytes": 42678,
+      "sha256": "0f3552f7114a319aff4ae856344060261572897c70e7e02a20b69459e5fe86cd"
+    },
+    "figures/figure-12-nomiracl-ranking.png": {
+      "bytes": 288468,
+      "sha256": "c7d86009db201f0635dd224d3ccaaf99680de078107c9357724e5bba8d445879"
+    },
+    "figures/figure-12-nomiracl-ranking.svg": {
+      "bytes": 8664,
+      "sha256": "1e1007c2bbf4c15725c09e6df67e806af2326e7484cdde9e740dd0dc2025b775"
+    },
+    "figures/figure-13-nomiracl-gate.pdf": {
+      "bytes": 40476,
+      "sha256": "d7e2eece24f65e4e82636464d348bccc326bc8fe5a8312a307196a6f45b95792"
+    },
+    "figures/figure-13-nomiracl-gate.png": {
+      "bytes": 235165,
+      "sha256": "e38fd0ea13d6b6b25273363b75609d1cd3846227694853b9f4b58ef79bd047c1"
+    },
+    "figures/figure-13-nomiracl-gate.svg": {
+      "bytes": 5926,
+      "sha256": "c9918e3f7e149e25d3a8933a2c0272ad6601660abfc003859e7043a117a56260"
+    },
+    "figures/make_figures.R": {
+      "bytes": 9755,
+      "sha256": "9b124de39235e442f19236ac5a40097f28909dbc5a788ab93828ef43cd39d5b2"
+    },
+    "figures/make_fulltext_ablation_figures.R": {
+      "bytes": 5185,
+      "sha256": "aaaa9c7580cfff937f2cd2779ba5bfb7abf406e90b58c6b3fde9b6ee10982958"
+    },
+    "figures/make_fulltext_figures.R": {
+      "bytes": 5867,
+      "sha256": "2f18803a44b569e582b458a3c131dbc6efb428a7a9b61834dfcf48f17f7d200e"
+    },
+    "figures/make_nomiracl_figures.R": {
+      "bytes": 4078,
+      "sha256": "ac27e0eedc2d73ea64be182c3a04908d6984e977ef88828ff708a39458c1ebe3"
+    },
+    "M3-BKT-RAG-改进实验报告.md": {
+      "bytes": 32856,
+      "sha256": "2987f555cd4a90ad374562553ce76b639a87a409cfefe943ee557cebc346063d"
+    },
+    "M3-BKT-RAG-改进实验报告.pdf": {
+      "bytes": 4828523,
+      "sha256": "60533a5d1a26e7e54da1a08167f7ed443203fdb4d0061a5d9b8f9affadddba8a"
+    },
+    "NoMIRACL-复现说明.md": {
+      "bytes": 2297,
+      "sha256": "7a427df57ef453eac0137565c2b9bf61688a391accdf9e698b1ca49fca8c4f45"
+    },
+    "README.md": {
+      "bytes": 1628,
+      "sha256": "1b4a58204ff7041b62485369b1c36de56b7faffca86a94568a3287235cc68853"
+    },
+    "tools/model-snapshots.json": {
+      "bytes": 5057,
+      "sha256": "fa9687c7c7fa2cab52731ecdfb4d5498d42c30c1eb3704bb03d4386a95e2a818"
+    },
+    "tools/rag-requirements.lock": {
+      "bytes": 1274,
+      "sha256": "c71a6cdfcc62e10d033c61304b4a2d7df47445cac6247c2a1d27eeacf094e832"
+    }
+  }
+}

@@ -1,0 +1,111 @@
+<?xml version='1.0' encoding='UTF-8' ?>
+<svg xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink' width='538.58pt' height='538.58pt' viewBox='0 0 538.58 538.58'>
+<g class='svglite'>
+<defs>
+  <style type='text/css'><![CDATA[
+    .svglite line, .svglite polyline, .svglite polygon, .svglite path, .svglite rect, .svglite circle {
+      fill: none;
+      stroke: #000000;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      stroke-miterlimit: 10.00;
+    }
+    .svglite text {
+      white-space: pre;
+    }
+    .svglite g.glyphgroup path {
+      fill: inherit;
+      stroke: none;
+    }
+  ]]></style>
+</defs>
+<rect width='100%' height='100%' style='stroke: none; fill: #FFFFFF;'/>
+<defs>
+  <clipPath id='cpMC4wMHw1MzguNTh8MC4wMHw1MzguNTg='>
+    <rect x='0.00' y='0.00' width='538.58' height='538.58' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpMC4wMHw1MzguNTh8MC4wMHw1MzguNTg=)'>
+<rect x='0.00' y='0.00000000000011' width='538.58' height='538.58' style='stroke-width: 1.02; stroke: none; fill: #FFFFFF;' />
+</g>
+<defs>
+  <clipPath id='cpNy45N3w1MjguNjJ8NDMuNDJ8NTMwLjYx'>
+    <rect x='7.97' y='43.42' width='520.65' height='487.19' />
+  </clipPath>
+</defs>
+<g clip-path='url(#cpNy45N3w1MjguNjJ8NDMuNDJ8NTMwLjYx)'>
+<rect x='262.03' y='60.93' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #287D8E;' />
+<rect x='262.03' y='87.88' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #287D8E;' />
+<rect x='262.03' y='114.83' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #4C78A8;' />
+<rect x='262.03' y='141.77' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #4C78A8;' />
+<rect x='262.03' y='168.72' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #8E6C9E;' />
+<rect x='262.03' y='195.67' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #8E6C9E;' />
+<rect x='262.03' y='222.61' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #D18F31;' />
+<rect x='262.03' y='249.56' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #D18F31;' />
+<rect x='262.03' y='276.51' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #8295A5;' />
+<rect x='262.03' y='303.45' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #8295A5;' />
+<rect x='262.03' y='330.40' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #287D8E;' />
+<rect x='262.03' y='357.35' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #4C78A8;' />
+<rect x='262.03' y='384.29' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #8A98A6;' />
+<rect x='262.03' y='411.24' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #8295A5;' />
+<rect x='262.03' y='438.19' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #287D8E;' />
+<rect x='262.03' y='465.13' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #287D8E;' />
+<rect x='262.03' y='492.08' width='12.53' height='21.02' style='stroke-width: 0.41; stroke: none; stroke-linecap: butt; stroke-linejoin: miter; fill: #287D8E;' />
+<text x='259.94' y='68.53' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='106.02px' lengthAdjust='spacingAndGlyphs'>构造集（编程诊断）  ·  序列</text>
+<text x='259.94' y='80.82' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='59.34px' lengthAdjust='spacingAndGlyphs'>构造集  ·  n=40</text>
+<text x='259.94' y='95.47' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='106.02px' lengthAdjust='spacingAndGlyphs'>构造集（编程诊断）  ·  作答</text>
+<text x='259.94' y='107.76' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='64.34px' lengthAdjust='spacingAndGlyphs'>构造集  ·  n=120</text>
+<text x='259.94' y='122.42' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='180.14px' lengthAdjust='spacingAndGlyphs'>ASSISTments 2009–2010（数学）  ·  训练学生</text>
+<text x='259.94' y='134.71' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='99.78px' lengthAdjust='spacingAndGlyphs'>development  ·  n=3,202</text>
+<text x='259.94' y='149.37' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='180.14px' lengthAdjust='spacingAndGlyphs'>ASSISTments 2009–2010（数学）  ·  训练作答</text>
+<text x='259.94' y='161.66' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='109.78px' lengthAdjust='spacingAndGlyphs'>development  ·  n=184,631</text>
+<text x='259.94' y='176.31' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='180.14px' lengthAdjust='spacingAndGlyphs'>ASSISTments 2009–2010（数学）  ·  测试学生</text>
+<text x='259.94' y='188.60' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='84.36px' lengthAdjust='spacingAndGlyphs'>locked_test  ·  n=801</text>
+<text x='259.94' y='203.26' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='180.14px' lengthAdjust='spacingAndGlyphs'>ASSISTments 2009–2010（数学）  ·  测试作答</text>
+<text x='259.94' y='215.55' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='96.41px' lengthAdjust='spacingAndGlyphs'>locked_test  ·  n=51,429</text>
+<text x='259.94' y='230.21' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='159.94px' lengthAdjust='spacingAndGlyphs'>Algebra I 2005–2006 KDD  ·  官方步骤数</text>
+<text x='259.94' y='242.50' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='176.81px' lengthAdjust='spacingAndGlyphs'>registered download required  ·  n=813,661</text>
+<text x='259.94' y='257.15' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='159.94px' lengthAdjust='spacingAndGlyphs'>Algebra I 2006–2007 KDD  ·  官方步骤数</text>
+<text x='259.94' y='269.44' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='183.86px' lengthAdjust='spacingAndGlyphs'>registered download required  ·  n=2,289,726</text>
+<text x='259.94' y='284.10' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='86.20px' lengthAdjust='spacingAndGlyphs'>课程 RAG 旧题  ·  问题</text>
+<text x='259.94' y='296.39' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='95.11px' lengthAdjust='spacingAndGlyphs'>old benchmark  ·  n=40</text>
+<text x='259.94' y='311.05' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='86.20px' lengthAdjust='spacingAndGlyphs'>课程 RAG 新题  ·  问题</text>
+<text x='259.94' y='323.34' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='139.03px' lengthAdjust='spacingAndGlyphs'>development+sealed_test  ·  n=80</text>
+<text x='259.94' y='337.99' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='110.59px' lengthAdjust='spacingAndGlyphs'>NoMIRACL 中文  ·  测试查询</text>
+<text x='259.94' y='350.28' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='161.25px' lengthAdjust='spacingAndGlyphs'>official test; fixed candidates  ·  n=2,295</text>
+<text x='259.94' y='364.94' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='127.66px' lengthAdjust='spacingAndGlyphs'>NoMIRACL 中文  ·  匹配候选文档</text>
+<text x='259.94' y='377.23' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='193.64px' lengthAdjust='spacingAndGlyphs'>official dev/test; judged candidates  ·  n=31,826</text>
+<text x='259.94' y='391.89' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='115.30px' lengthAdjust='spacingAndGlyphs'>MIRACL 中文全库  ·  语料检索</text>
+<text x='259.94' y='404.18' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='83.20px' lengthAdjust='spacingAndGlyphs'>full corpus  ·  n=N/A</text>
+<text x='259.94' y='418.83' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='74.77px' lengthAdjust='spacingAndGlyphs'>教材 OCR  ·  PDF页</text>
+<text x='259.94' y='431.12' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='90.39px' lengthAdjust='spacingAndGlyphs'>full textbook  ·  n=347</text>
+<text x='259.94' y='445.78' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='103.27px' lengthAdjust='spacingAndGlyphs'>全文 RAG 四条件  ·  有效格</text>
+<text x='259.94' y='458.07' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='145.80px' lengthAdjust='spacingAndGlyphs'>120 queries x 4 conditions  ·  n=480</text>
+<text x='259.94' y='472.72' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='110.59px' lengthAdjust='spacingAndGlyphs'>NoMIRACL 中文  ·  开发查询</text>
+<text x='259.94' y='485.02' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='172.20px' lengthAdjust='spacingAndGlyphs'>official dev; threshold selection  ·  n=1,475</text>
+<text x='259.94' y='499.67' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='110.59px' lengthAdjust='spacingAndGlyphs'>NoMIRACL 中文  ·  候选配对</text>
+<text x='259.94' y='511.96' text-anchor='end' style='font-size: 8.54px;fill: #23384D; font-family: "Microsoft YaHei";' textLength='147.12px' lengthAdjust='spacingAndGlyphs'>complete dev/test pairs  ·  n=37,599</text>
+<text x='273.86' y='74.45' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='33.11px' lengthAdjust='spacingAndGlyphs'>available</text>
+<text x='273.86' y='101.40' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='33.11px' lengthAdjust='spacingAndGlyphs'>available</text>
+<text x='273.86' y='128.35' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='79.11px' lengthAdjust='spacingAndGlyphs'>historical public data</text>
+<text x='273.86' y='155.29' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='79.11px' lengthAdjust='spacingAndGlyphs'>historical public data</text>
+<text x='273.86' y='182.24' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='79.72px' lengthAdjust='spacingAndGlyphs'>historical test viewed</text>
+<text x='273.86' y='209.19' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='79.72px' lengthAdjust='spacingAndGlyphs'>historical test viewed</text>
+<text x='273.86' y='236.13' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='100.89px' lengthAdjust='spacingAndGlyphs'>pending full master access</text>
+<text x='273.86' y='263.08' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='100.89px' lengthAdjust='spacingAndGlyphs'>pending full master access</text>
+<text x='273.86' y='290.03' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='117.23px' lengthAdjust='spacingAndGlyphs'>ai reviewed personnel pending</text>
+<text x='273.86' y='316.97' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='117.23px' lengthAdjust='spacingAndGlyphs'>ai reviewed personnel pending</text>
+<text x='273.86' y='343.92' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='137.83px' lengthAdjust='spacingAndGlyphs'>candidate conditional eval complete</text>
+<text x='273.86' y='370.86' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='138.33px' lengthAdjust='spacingAndGlyphs'>candidate qrel missingness reported</text>
+<text x='273.86' y='397.81' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='28.14px' lengthAdjust='spacingAndGlyphs'>not run</text>
+<text x='273.86' y='424.76' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='117.23px' lengthAdjust='spacingAndGlyphs'>ai reviewed personnel pending</text>
+<text x='273.86' y='451.70' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='33.11px' lengthAdjust='spacingAndGlyphs'>available</text>
+<text x='273.86' y='478.65' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='137.83px' lengthAdjust='spacingAndGlyphs'>candidate conditional eval complete</text>
+<text x='273.86' y='505.60' style='font-size: 7.97px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='137.83px' lengthAdjust='spacingAndGlyphs'>candidate conditional eval complete</text>
+</g>
+<g clip-path='url(#cpMC4wMHw1MzguNTh8MC4wMHw1MzguNTg=)'>
+<text x='7.97' y='33.16' style='font-size: 9.00px;fill: #52677A; font-family: "Microsoft YaHei";' textLength='261.00px' lengthAdjust='spacingAndGlyphs'>数量对应不同单位，按清单逐项标示；颜色表示证据或访问状态。</text>
+<text x='7.97' y='17.81' style='font-size: 13.00px; font-weight: bold;fill: #19324D; font-family: "Microsoft YaHei";' textLength='117.00px' lengthAdjust='spacingAndGlyphs'>数据覆盖与证据状态</text>
+</g>
+</g>
+</svg>

@@ -1,11 +1,16 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildTree, transcriptText } from "../src/session_runner.js";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { buildTree, transcriptText, turnFailureError } from "../src/session_runner.js";
+import { errorMessage, jsonError, usageStatus } from "../src/output.js";
 import { EventClient } from "../../../packages/client_sdk/event_client.js";
 import { CommandBus } from "../../../packages/client_sdk/command_bus.js";
 import { SessionClient } from "../../../packages/client_sdk/session_client.js";
 import { isLoopbackUrl } from "../../../packages/client_sdk/node/gateway_discovery.js";
 import { newSessionOptions } from "../src/session_options.js";
+import { DpapiSecretStore, loadRuntimeSecrets, secretEnvironmentName } from "../../../packages/client_sdk/node/dpapi_secret_store.js";
 
 test("buildTree groups forked sessions and transcript is deterministic", () => {
   const roots = buildTree([
@@ -77,4 +82,52 @@ test("CLI new-session defaults are chat and B-group study regardless of remember
 test("web clients can label Gateway commands with the web surface", () => {
   const web = new CommandBus("http://127.0.0.1", "web", "web");
   assert.equal(web.create("session.new", { session_mode: "chat" }).surface, "web");
+});
+
+test("unknown model pricing is shown as N/A rather than a fabricated zero", () => {
+  assert.match(usageStatus(null, null, { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 }),
+    /unknown\/unknown · 16 tokens · cost N\/A/);
+});
+
+test("CLI turn failures preserve provider codes and details in JSON", () => {
+  const error = turnFailureError({
+    code: "provider_error",
+    message: "model request failed",
+    details: { kind: "timeout", retryable: true, profile_id: "ollama" },
+  });
+  assert.equal((error as Error & { code?: string }).code, "provider_error");
+  assert.deepEqual((error as Error & { details?: Record<string, unknown> }).details,
+    { kind: "timeout", retryable: true, profile_id: "ollama" });
+  assert.equal(errorMessage(error), "model request failed (timeout)");
+
+  const originalWrite = process.stdout.write;
+  let output = "";
+  process.stdout.write = ((chunk: string | Uint8Array) => {
+    output += typeof chunk === "string" ? chunk : Buffer.from(chunk).toString("utf8");
+    return true;
+  }) as typeof process.stdout.write;
+  try { jsonError("ask", error); }
+  finally { process.stdout.write = originalWrite; }
+  assert.deepEqual(JSON.parse(output), { ok: false, command: "ask", session_id: null,
+    error: { code: "provider_error", message: "model request failed",
+      details: { kind: "timeout", retryable: true, profile_id: "ollama" } } });
+});
+
+test("Windows current-user credentials survive restart and restore into the Runtime environment", { skip: process.platform !== "win32" }, () => {
+  const previousHome = process.env.DEEPPROF_HOME;
+  const home = mkdtempSync(join(tmpdir(), "DeepProf 凭据 恢复 "));
+  const ref = "dpapi-smoke-profile";
+  const value = "not-a-real-provider-credential";
+  try {
+    process.env.DEEPPROF_HOME = home;
+    const credentialFile = join(home, "credentials", "dpapi.json");
+    new DpapiSecretStore(credentialFile).set(ref, value);
+    assert.equal(new DpapiSecretStore(credentialFile).get(ref), value);
+    writeFileSync(join(home, "providers.json"), JSON.stringify({ profiles: [{ api_key_ref: ref }] }));
+    assert.equal(loadRuntimeSecrets()[secretEnvironmentName(ref)], value);
+  } finally {
+    if (previousHome === undefined) delete process.env.DEEPPROF_HOME;
+    else process.env.DEEPPROF_HOME = previousHome;
+    rmSync(home, { recursive: true, force: true });
+  }
 });

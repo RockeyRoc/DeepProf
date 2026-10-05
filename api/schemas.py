@@ -105,7 +105,15 @@ class SessionSummary(BaseModel):
     provider_profile: str = ""
     model: str = ""
     thinking_enabled: bool = False
+    thinking_mode: Literal["default", "on", "off"] = "off"
     reasoning_mode: str = "unknown"
+    thinking_level: str = ""
+    thinking_budget: int | None = None
+    web_search_mode: str = "auto"
+    research_status: dict[str, Any] | None = None
+    active_turn_status: str = ""
+    active_turn_trace_id: str = ""
+    active_turn_sequence: int = 0
 
 
 class SessionMessageView(BaseModel):

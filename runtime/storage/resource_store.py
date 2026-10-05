@@ -7,6 +7,8 @@ product-level ``library`` package.  The library service owns domain conversion.
 from __future__ import annotations
 
 import json
+import math
+import re
 import sqlite3
 import threading
 from collections.abc import Callable, Iterable
@@ -15,6 +17,24 @@ from typing import Any
 
 from runtime.core.events import new_id, utc_now
 from runtime.storage.migrations import connect
+
+
+class RetrievalIndexProfileMismatch(RuntimeError):
+    """A query was about to compare vectors from an incompatible index profile."""
+
+
+def _bm25_terms(text: str) -> list[str]:
+    normalized = str(text or "").lower()
+    terms = re.findall(r"[a-z0-9_]+|[\u4e00-\u9fff]+", normalized)
+    output: list[str] = []
+    for term in terms:
+        if re.fullmatch(r"[\u4e00-\u9fff]+", term):
+            output.extend(term[index:index + 2] for index in range(max(1, len(term) - 1)))
+            if len(term) == 1:
+                output.append(term)
+        else:
+            output.append(term)
+    return output
 
 
 class SqliteResourceStore:
@@ -99,6 +119,7 @@ class SqliteResourceStore:
         tags: Iterable[str] = (),
         owner_id: str = "local",
         min_score: float = 0.10,
+        retrieval_profile: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         # Draft and archived resources are never eligible textbook evidence.
         # Keep the status argument explicit for callers while preserving that
@@ -118,18 +139,47 @@ class SqliteResourceStore:
             clauses.append("r.type = ?")
             params.append(resource_type)
         rows = self._conn.execute(
-            "SELECT c.*, r.title, r.source_url, r.course_id, r.tags, r.visibility, r.owner_id "
+            "SELECT c.*, r.title, r.source_url, r.course_id, r.tags, r.visibility, r.owner_id, "
+            "(SELECT lo.parameters FROM library_operations lo WHERE lo.resource_id=c.resource_id "
+            "AND lo.action='index' AND lo.status='success' ORDER BY lo.created_at DESC LIMIT 1) AS index_parameters "
             "FROM library_chunks c JOIN library_resources r ON r.resource_id = c.resource_id "
             f"WHERE {' AND '.join(clauses)} ORDER BY c.resource_id, c.ordinal",
             params,
         ).fetchall()
         required_tags = {str(tag) for tag in tags if str(tag)}
         hits: list[dict[str, Any]] = []
+        mismatched_profiles: set[str] = set()
+        saw_compatible_profile = False
         for row in rows:
             row_tags = set(json.loads(row["tags"] or "[]"))
             if required_tags and not required_tags.issubset(row_tags):
                 continue
             vector = [float(value) for value in json.loads(row["vector"] or "[]")]
+            if retrieval_profile:
+                try:
+                    indexed_parameters = json.loads(row["index_parameters"] or "{}")
+                except (TypeError, json.JSONDecodeError):
+                    indexed_parameters = {}
+                stored_profile = indexed_parameters.get("retrieval_profile") if isinstance(indexed_parameters, dict) else None
+                if isinstance(stored_profile, dict):
+                    stored_id = str(stored_profile.get("config_id") or "")
+                else:
+                    # Rows written before the profile field existed are known to
+                    # use the project's default 384-dim hashing encoder only.
+                    is_legacy_default = (
+                        retrieval_profile.get("embedding_model") == "hashing-char-token-v1"
+                        and retrieval_profile.get("embedding_dimension") == 384
+                        and retrieval_profile.get("chunking_version") == "page-char-overlap-v1:size=800:overlap=120"
+                        and retrieval_profile.get("reranker_version") == "none"
+                        and len(vector) == 384
+                    )
+                    stored_id = str(retrieval_profile.get("config_id") or "") if is_legacy_default else "legacy-unversioned"
+                if stored_id != str(retrieval_profile.get("config_id") or ""):
+                    mismatched_profiles.add(stored_id or "missing-profile")
+                    continue
+                if len(vector) != int(retrieval_profile.get("embedding_dimension") or 0):
+                    raise RetrievalIndexProfileMismatch("retrieval_index_dimension_mismatch")
+                saw_compatible_profile = True
             similarity = float(score(query_vector, vector))
             if similarity < min_score:
                 continue
@@ -150,6 +200,76 @@ class SqliteResourceStore:
                 }
             )
         hits.sort(key=lambda item: (-item["score"], item["resource_id"], item["ordinal"]))
+        if retrieval_profile and mismatched_profiles and not saw_compatible_profile:
+            raise RetrievalIndexProfileMismatch("retrieval_index_profile_mismatch:" + ",".join(sorted(mismatched_profiles)))
+        return hits[: max(1, min(int(top_k), 50))]
+
+    def search_bm25(
+        self,
+        query: str,
+        *,
+        top_k: int = 50,
+        course_id: str | None = None,
+        resource_type: str | None = None,
+        status: str = "active",
+        tags: Iterable[str] = (),
+        owner_id: str = "local",
+        k1: float = 1.2,
+        b: float = 0.75,
+    ) -> list[dict[str, Any]]:
+        """Offline BM25 over eligible frozen chunks; no vector score threshold applies."""
+        if status != "active" or not _bm25_terms(query):
+            return []
+        clauses = ["r.status = ?", "(r.visibility = 'public' OR r.owner_id = ?)", "c.reliable = 1"]
+        params: list[Any] = [status, owner_id]
+        if course_id:
+            clauses.append("r.course_id = ?")
+            params.append(course_id)
+        if resource_type:
+            clauses.append("r.type = ?")
+            params.append(resource_type)
+        rows = self._conn.execute(
+            "SELECT c.*, r.title, r.source_url, r.course_id, r.tags, r.visibility, r.owner_id "
+            "FROM library_chunks c JOIN library_resources r ON r.resource_id = c.resource_id "
+            f"WHERE {' AND '.join(clauses)} ORDER BY c.resource_id, c.ordinal", params).fetchall()
+        required_tags = {str(tag) for tag in tags if str(tag)}
+        documents: list[tuple[sqlite3.Row, dict[str, int], int]] = []
+        document_frequency: dict[str, int] = {}
+        for row in rows:
+            row_tags = set(json.loads(row["tags"] or "[]"))
+            if required_tags and not required_tags.issubset(row_tags):
+                continue
+            counts: dict[str, int] = {}
+            for term in _bm25_terms(row["text"]):
+                counts[term] = counts.get(term, 0) + 1
+            documents.append((row, counts, sum(counts.values())))
+            for term in counts:
+                document_frequency[term] = document_frequency.get(term, 0) + 1
+        if not documents:
+            return []
+        query_terms = set(_bm25_terms(query))
+        average_length = sum(length for _, _, length in documents) / len(documents) or 1.0
+        hits: list[dict[str, Any]] = []
+        for row, counts, length in documents:
+            score_value = 0.0
+            for term in query_terms:
+                frequency = counts.get(term, 0)
+                if not frequency:
+                    continue
+                df = document_frequency.get(term, 0)
+                inverse = math.log(1.0 + (len(documents) - df + 0.5) / (df + 0.5))
+                denominator = frequency + k1 * (1.0 - b + b * length / average_length)
+                score_value += inverse * frequency * (k1 + 1.0) / denominator
+            if score_value <= 0:
+                continue
+            hits.append({"document_id": row["document_id"], "chunk_id": row["chunk_id"],
+                "resource_id": row["resource_id"], "course_id": row["course_id"],
+                "page": int(row["page"]), "printed_page": row["printed_page"],
+                "chapter": row["chapter"] or row["section"] or "", "ordinal": int(row["ordinal"]),
+                "section": row["section"], "text": row["text"],
+                "source": row["source_url"] or row["title"], "score": score_value,
+                "retrieval_stage_scores": {"bm25": score_value}})
+        hits.sort(key=lambda item: (-item["score"], item["resource_id"], item["ordinal"]))
         return hits[: max(1, min(int(top_k), 50))]
 
     def ingest(
@@ -165,6 +285,11 @@ class SqliteResourceStore:
         with self._lock:
             try:
                 self._conn.execute("BEGIN")
+                index_parameters = {"chunks": len(chunks), "media_type": media_type}
+                if isinstance(operation.get("parameters"), dict):
+                    for key in ("retrieval_profile", "chunk_size", "chunk_overlap", "chunking_strategy"):
+                        if key in operation["parameters"]:
+                            index_parameters[key] = operation["parameters"][key]
                 self._conn.execute(
                     "INSERT INTO library_resources "
                     "(resource_id, document_id, course_id, type, title, tags, source_type, source_url, "
@@ -222,10 +347,7 @@ class SqliteResourceStore:
                         operation.get("actor_id", "local"),
                         "success",
                         "",
-                        json.dumps(
-                            {"chunks": len(chunks), "media_type": media_type},
-                            ensure_ascii=False,
-                        ),
+                        json.dumps(index_parameters, ensure_ascii=False),
                         resource["hash"],
                         utc_now(),
                     ),

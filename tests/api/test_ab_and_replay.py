@@ -11,6 +11,7 @@ from api.replay import _safe_event
 from config.settings import Settings
 from graph.education.bindings import ACTION_BINDINGS
 from graph.education.policies import GENERATE_TEMPERATURE
+from runtime.core.errors import ProviderError
 from runtime.testing import make_service
 from skills import register_default_skills
 from tools.retrieval import build_search_textbook_tool
@@ -104,7 +105,9 @@ def test_ab_paths_and_replay_are_separate_read_only_and_redacted(tmp_path: Path)
         assert a_session.metadata["experiment"]["group"] == "A"
         assert b_session.metadata["experiment"]["group"] == "B"
         assert a_session.metadata["experiment"]["model"] == b_session.metadata["experiment"]["model"] == "fake-model"
-        assert a_session.metadata["experiment"]["sampling"] == {"temperature": GENERATE_TEMPERATURE}
+        assert a_session.metadata["experiment"]["sampling"] == {
+            "temperature": GENERATE_TEMPERATURE, "thinking_enabled": False,
+            "require_explicit_thinking_mode": False}
         assert [item["temperature"] for item in service.test_model_requests] == [GENERATE_TEMPERATURE, GENERATE_TEMPERATURE]
 
         assert any(e["type"] == "teaching.decision" and e["payload"]["group"] == "A" for e in a_events)
@@ -142,6 +145,27 @@ def test_replay_exposes_only_allowlisted_failure_metadata_and_numeric_usage():
     }
     assert "secret provider response" not in json.dumps(safe)
     assert "sk-sensitive" not in json.dumps(safe)
+
+
+def test_replay_exposes_only_structured_transport_diagnostics_and_no_policy_text():
+    failure = _safe_event({"type": "model.failed", "sequence": 4, "trace_id": "t",
+        "payload": {"error": {"code": "provider_error", "message": "private body",
+            "details": {"kind": "connection_failed", "http_status": 503,
+                "cause_types": ["ConnectError", "private response text", "OSError"],
+                "os_errno": 10061, "body": "secret body"}}}})
+    assert failure["payload"]["error"]["details"] == {
+        "http_status": 503, "cause_types": ["ConnectError", "OSError"], "os_errno": 10061}
+    assert "private" not in json.dumps(failure)
+    assert "secret" not in json.dumps(failure)
+
+    decision = _safe_event({"type": "pedagogy.decision", "sequence": 5, "trace_id": "t",
+        "payload": {"action": "teach", "generation_skipped": True,
+            "capability_status": "insufficient_evidence", "question_source": "policy_template",
+            "student_text": "must not be exposed"}})
+    assert decision["payload"]["generation_skipped"] is True
+    assert decision["payload"]["capability_status"] == "insufficient_evidence"
+    assert decision["payload"]["question_source"] == "policy_template"
+    assert "student_text" not in json.dumps(decision)
 
 
 def test_quiz_scoring_is_idempotent_answer_private_and_current_question_only(tmp_path: Path, monkeypatch):
@@ -373,6 +397,32 @@ def test_chat_session_uses_normal_chat_without_teaching_or_library(tmp_path: Pat
         assert transcript[-1]["metadata"]["turn_mode"] == "chat"
         replay = client.get(f"/replay/sessions/{session_id}").json()
         assert replay["session"]["session_mode"] == "chat" and replay["session"]["experiment_group"] == ""
+
+
+def test_chat_failure_keeps_provider_error_details(tmp_path: Path):
+    settings = Settings(
+        sqlite_path=str(tmp_path / "sessions.sqlite"),
+        library_dir=str(tmp_path / "library"),
+        sandbox_allowlist=[str(tmp_path)],
+    )
+    original = ProviderError("API key rejected", kind="auth_failed", status_code=401,
+                             details={"provider": "fixture"}).to_dict()
+    service = make_service(settings=settings, script=[ProviderError(
+        "API key rejected", kind="auth_failed", status_code=401, details={"provider": "fixture"},
+    )])
+    app = create_app(service=service)
+
+    with TestClient(app) as client:
+        session_id = client.post("/commands", json={"command_id": "structured-failure-new",
+            "type": "session.new", "payload": {"session_mode": "chat"}}).json()["session_id"]
+        accepted = client.post("/commands", json={"command_id": "structured-failure-send",
+            "type": "message.send", "session_id": session_id,
+            "payload": {"content": "hello", "requested_action": "chat"}}).json()
+        events = _wait_turn(service, session_id, accepted["trace_id"])
+
+    failed = next(event for event in events if event["type"] == "agent.failed"
+                  and event["trace_id"] == accepted["trace_id"])
+    assert failed["payload"]["error"] == original
 
 
 def test_chat_session_requires_a_study_session_for_explicit_study(tmp_path: Path):
