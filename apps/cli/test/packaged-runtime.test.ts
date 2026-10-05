@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { environmentPythonPath, environmentRequirementsHash, findSystemPython, preparePythonEnvironment,
   pythonEnvironmentPath, pythonInstallStatePath, resolveRuntimePaths } from "../src/packaged_runtime.js";
 
@@ -63,7 +63,7 @@ test("interrupted dependency installation can be retried without recreating the 
       commands.push(args.join(" "));
       if (args[0] === "-m" && args[1] === "venv") {
         const executable = environmentPythonPath(args[2]);
-        mkdirSync(join(args[2], "Scripts"), { recursive: true });
+        mkdirSync(dirname(executable), { recursive: true });
         writeFileSync(executable, "fake interpreter");
         return { status: 0 };
       }
