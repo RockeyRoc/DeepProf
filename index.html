@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DeepProf — 让每一条教学建议都有出处</title>
-<meta name="description" content="DeepProf 是一套本机优先的自适应教学原型：把课程材料的可定位证据、合格作答事实、教学策略与 BKT 学情估计连到同一条可回放的教学链路上。">
+<meta name="description" content="DeepProf v0.6.4：本机聊天与教学工作台，支持文档和图片上传。公开 480 格全文 RAG 消融与 NoMIRACL 中文评测，明确 AI 标注和待完成人员复核。">
 <meta name="theme-color" content="#03102B">
 <link rel="icon" href="media/logo-512.png" type="image/png">
 <link rel="apple-touch-icon" href="media/logo-512.png">
 
 <meta property="og:type" content="website">
 <meta property="og:title" content="DeepProf — 让每一条教学建议都有出处">
-<meta property="og:description" content="本机优先的自适应教学原型。证据可查、决策可审、失败可追。M1–M3 工程实验证据与不利结果一并公开。">
+<meta property="og:description" content="DeepProf v0.6.4 本机聊天与教学工作台。480 格全文 RAG 消融、NoMIRACL 中文评测与历史不利结果一并公开；人员独立复核待完成。">
 <meta property="og:image" content="media/og-card.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -351,23 +351,23 @@ pre .str{color:#8FD3A8}
   <dl class="ledger-in">
       <div>
         <dt><span class="zh">版本</span><span class="en">Version</span></dt>
-        <dd>v0.6.2</dd>
+        <dd>v0.6.4</dd>
       </div>
       <div>
         <dt><span class="zh">发布</span><span class="en">Released</span></dt>
-        <dd>2026-09-24</dd>
+        <dd>2026-10-05</dd>
       </div>
       <div>
-        <dt><span class="zh">main 分支 CI</span><span class="en">main branch CI</span></dt>
-        <dd>487d4ca</dd>
+        <dt><span class="zh">发布标签提交</span><span class="en">Release tag commit</span></dt>
+        <dd>8034d18</dd>
       </div>
       <div>
-        <dt><span class="zh">M3 离线矩阵</span><span class="en">M3 offline matrix</span></dt>
-        <dd>400 / 400 <span class="zh">格</span><span class="en">cells</span></dd>
+        <dt><span class="zh">最新全文 RAG 消融</span><span class="en">Latest full-text RAG ablation</span></dt>
+        <dd>480 / 480 <span class="zh">格</span><span class="en">cells</span></dd>
       </div>
       <div>
-        <dt><span class="zh">BKT 构造预测</span><span class="en">BKT on constructed history</span></dt>
-        <dd class="flag">AUC 0.296</dd>
+        <dt><span class="zh">NoMIRACL 中文</span><span class="en">NoMIRACL Chinese</span></dt>
+        <dd>AUC 0.8007</dd>
       </div>
   </dl>
   </div>
@@ -440,8 +440,8 @@ pre .str{color:#8FD3A8}
         <span class="en">Decisions and records stay local; the model call is yours to configure</span>
       </h2>
       <p class="lede" style="max-width:var(--measure)">
-        <span class="zh">CLI 只与本机 Gateway 通信，Gateway 只监听环回地址；会话、事件与课程索引都落在用户数据目录。教学策略图读到的是<strong>带版本的证据与状态</strong>，返回结构化决策，Runtime 再按显式绑定去调用课程检索或模型，并写下审计事件。</span>
-        <span class="en">The CLI talks only to a local Gateway, which listens on loopback only; sessions, events and the course index live in the user data directory. The policy graph receives <strong>versioned evidence and state</strong> and returns a structured decision, and the Runtime then calls course retrieval or the model through explicit bindings and writes audit events.</span>
+        <span class="zh">CLI 与浏览器工作台只与本机 Gateway 通信，Gateway 只监听环回地址；会话、事件与课程索引都落在用户数据目录。教学策略图读到的是<strong>带版本的证据与状态</strong>，返回结构化决策，Runtime 再按显式绑定去调用课程检索或模型，并写下审计事件。</span>
+        <span class="en">The CLI and browser workspace talk only to a local Gateway, which listens on loopback only; sessions, events and the course index live in the user data directory. The policy graph receives <strong>versioned evidence and state</strong> and returns a structured decision, and the Runtime then calls course retrieval or the model through explicit bindings and writes audit events.</span>
       </p>
 
       <div class="callout">
@@ -451,6 +451,16 @@ pre .str{color:#8FD3A8}
           <span class="en">The model call itself is not local: once you configure a remote provider, retrieved textbook fragments and prompts are sent to that provider. The reproducible offline batches instead use a local fake provider, with no network calls and no cost; the experiment report records that precondition separately for the live pilot.</span>
         </p>
       </div>
+
+
+      <h3><span class="zh">v0.6.4 浏览器工作台</span><span class="en">The v0.6.4 browser workspace</span></h3>
+      <p><span class="zh">支持常规聊天与非实验教学会话、文档与图片上传、模型和推理配置、流式回复与取消、会话分支及来源记录。联网搜索与深度研究由 Provider 能力和显式设置决定；常规聊天不进入实验统计，也不更新 BKT。研究脚本与生产教学参数分别管理。</span>
+         <span class="en">Use ordinary chat or non-experiment study sessions, upload documents and images, configure models and reasoning, stream or cancel replies, fork sessions and inspect sources. Search and deep research depend on provider capabilities and explicit settings. Ordinary chat is excluded from experiments and BKT updates; research candidates are managed separately from production teaching parameters.</span></p>
+      <figure class="plate">
+        <img src="media/web-workspace-v0.6.4.png" loading="lazy" alt="DeepProf v0.6.4 local browser workspace with an offline demonstration conversation">
+        <figcaption><span class="tag"><span class="zh">工作台实拍</span><span class="en">Workspace screenshot</span></span>
+          <span class="src"><span class="zh">窄屏实际视图 · Fake Provider 离线演示 · 未调用外部模型</span><span class="en">Actual narrow viewport · offline Fake Provider · no external model call</span></span></figcaption>
+      </figure>
 
       <figure class="plate">
         <img data-zh="media/fig-architecture-zh.png" data-en="media/fig-architecture-en.png"
@@ -572,6 +582,26 @@ pre .str{color:#8FD3A8}
         <span class="zh">完成的与没完成的，一并列出</span>
         <span class="en">What completed and what did not, listed together</span>
       </h2>
+
+      <h3><span class="zh">最新批次：480 格全文 RAG 消融</span><span class="en">Latest batch: 480-cell full-text RAG ablation</span></h3>
+      <p><span class="zh"><code>m3-fulltext-rag-20261004-v4</code>：120 个问题 × 四种检索/约束条件，480 格均有效；索引覆盖 347 页 OCR、629 个文本块。13,710 条检索标注、1,595 条引用标注和 120 条问题可回答性标注来自 AI，<strong>人员独立复核仍待完成</strong>。完整运行并不代表引用正确或教学有效；关检索并开启约束时的零生成是规则行为。</span>
+         <span class="en"><code>m3-fulltext-rag-20261004-v4</code>: 120 questions × four retrieval/constraint conditions, all 480 cells valid; the index covers 347 OCR pages and 629 chunks. The 13,710 retrieval, 1,595 citation and 120 answerability labels are AI-generated; <strong>independent personnel review is pending</strong>. Completion does not establish citation correctness or teaching effectiveness. Zero generation with retrieval off and constraints on is rule-driven behavior.</span></p>
+      <figure class="plate"><img src="media/fulltext-ablation-v0.6.4.png" loading="lazy" alt="Latest full-text RAG ablation by condition and split">
+        <figcaption><span class="tag"><span class="zh">全文消融 · 2026-10-04 v4</span><span class="en">Full-text ablation · 2026-10-04 v4</span></span>
+          <span class="src"><span class="zh">误接受/误拒绝的分母及零生成规则见报告</span><span class="en">See report for FAR/FRR denominators and zero-generation rules</span></span></figcaption></figure>
+      <h3><span class="zh">NoMIRACL 中文：固定候选评测</span><span class="en">NoMIRACL Chinese: fixed-candidate evaluation</span></h3>
+      <p><span class="zh">3,770 个查询、37,599 个评分对。测试集误接受率 FAR 4.51%（62/1,375）、误拒绝率 FRR 70.11%（645/920）、AUC 0.8007。候选排序和证据接受门控是本批次的评测范围，不能推断全语料召回或生成答案正确率。</span>
+         <span class="en">3,770 queries and 37,599 scored pairs. Test FAR is 4.51% (62/1,375), FRR 70.11% (645/920), and AUC 0.8007. This measures candidate ranking and evidence acceptance, with no claim about whole-corpus recall or generated-answer correctness.</span></p>
+      <figure class="plate"><img src="media/nomiracl-v0.6.4.png" loading="lazy" alt="NoMIRACL Chinese ranking and evidence gate evaluation">
+        <figcaption><span class="tag">NoMIRACL · <span class="zh">中文固定候选</span><span class="en">Chinese fixed candidates</span></span>
+          <span class="src"><span class="zh">高误拒绝率与排序结果同时公开</span><span class="en">High false rejection is published alongside ranking metrics</span></span></figcaption></figure>
+      <p><span class="zh">ASSISTments 学生分组嵌套 OOF 对照研究中的题目难度候选达到 AUC 0.7324、log loss 0.5593，但 ECE 并未全面改善。它们仍是探索参数，未替换生产默认值，也不构成学习效果证据。</span>
+         <span class="en">An exploratory item-difficulty candidate in student-grouped nested OOF on ASSISTments reached AUC 0.7324 and log loss 0.5593, with ECE not consistently improved. The research candidates do not replace production defaults and establish no learning gain.</span></p>
+      <p><a href="https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/M3-BKT-RAG-report.pdf"><span class="zh">最新报告 PDF</span><span class="en">Latest report PDF</span></a> ·
+         <a href="https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/DEEPPROF-v0.6.4-evidence.zip"><span class="zh">公开证据 ZIP</span><span class="en">Public evidence ZIP</span></a> ·
+         <a href="https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/DEEPPROF-v0.6.4-SHA256SUMS.txt">SHA-256</a></p>
+      <h3><span class="zh">早期 M1–M3 工程批次（2026-09-23～24）</span><span class="en">Earlier M1–M3 engineering batches (23–24 September 2026)</span></h3>
+
       <p class="lede" style="max-width:var(--measure)">
         <span class="zh">M1 与 M3 的每一次运行都留下了 run ID、分子分母与失败原因；M2 走的是冻结离线验收集，记为固定的 82 项定向测试，没有 run ID。M1 与 M3 的分母是<strong>计划格数</strong>，失败与未触发的格子照原样保留在图上；M2 的分子分母是测试项数，单位不是格。</span>
         <span class="en">Every M1 and M3 run left behind a run ID, a numerator and denominator, and the reason for each failure; M2 uses a frozen offline acceptance set recorded as 82 fixed focused checks, with no run ID. M1 and M3 denominators are <strong>planned cell counts</strong>, and failed or unrequested cells stay visible in the figure; M2 counts test items, not cells.</span>
@@ -616,8 +646,8 @@ pre .str{color:#8FD3A8}
 
       <h3><span class="zh">保留不利结果</span><span class="en">Adverse results retained</span></h3>
       <p>
-        <span class="zh">BKT 用四参数二元知识状态模型，按“观测后验，再学习转移”的顺序计算。当前开发初值 <code>P(L₀)=0.20</code>、<code>P(T)=0.10</code>、<code>P(G)=0.20</code>、<code>P(S)=0.10</code> <strong>没有用学生数据拟合或校准过</strong>。它在构造历史上的预测表现因此低于随机，我们把这个数字原样留在页面上。</span>
-        <span class="en">BKT uses a four-parameter binary knowledge model, computed as posterior-after-observation and then learning transition. Its current development values <code>P(L₀)=0.20</code>, <code>P(T)=0.10</code>, <code>P(G)=0.20</code>, <code>P(S)=0.10</code> were <strong>never fitted or calibrated on student data</strong>. Prediction on constructed history is therefore worse than chance, and that number stays on this page as measured.</span>
+        <span class="zh">BKT 用四参数二元知识状态模型，按“观测后验，再学习转移”的顺序计算。当前开发初值 <code>P(L₀)=0.20</code>、<code>P(T)=0.10</code>、<code>P(G)=0.20</code>、<code>P(S)=0.10</code> <strong>没有用学生数据拟合或校准过</strong>。它在早期构造历史批次上的预测表现低于随机，我们把这个数字原样留在页面上。</span>
+        <span class="en">BKT uses a four-parameter binary knowledge model, computed as posterior-after-observation and then learning transition. Its current development values <code>P(L₀)=0.20</code>, <code>P(T)=0.10</code>, <code>P(G)=0.20</code>, <code>P(S)=0.10</code> were <strong>never fitted or calibrated on student data</strong>. Prediction on the earlier constructed-history batch is worse than chance, and that number stays on this page as measured.</span>
       </p>
 
       <figure class="plate">
@@ -675,6 +705,7 @@ pre .str{color:#8FD3A8}
             <td><span class="zh">Python 回归 318/318、M2 定向 82/82、CLI 7/7，类型检查通过；与冻结的 M2 记录是两次独立运行</span>
                 <span class="en">318 of 318 Python regression, 82 of 82 focused M2, 7 of 7 CLI, typecheck passed; a separate run from the frozen M2 record</span></td>
           </tr>
+          <tr><td>v0.6.4</td><td class="m">2026-10-05</td><td><span class="zh">Python 570 项、CLI 12 项、M2 85 项、M3 400 格通过；三平台安装、版本、doctor 与 Gateway 验证通过。M2 项包含于相关 Python 测试中，不相加。</span><span class="en">570 Python tests, 12 CLI tests, 85 M2 checks and 400 M3 cells passed, with install/version/doctor/Gateway verified on three platforms. M2 checks overlap Python tests and are not additive.</span></td></tr>
         </tbody>
       </table>
     </div>
@@ -703,20 +734,21 @@ pre .str{color:#8FD3A8}
       <div class="term">
         <pre><code><span class="c"># <span class="zh">免克隆安装并启动</span><span class="en">install and run, without cloning</span></span>
 <span class="k">npx</span> --yes \
-  --package=<span class="str">https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz</span> \
+  --package=<span class="str">https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz</span> \
   <span class="k">deepprof</span>
 
 <span class="c"># <span class="zh">配置一个 OpenAI 兼容的 Provider</span><span class="en">configure an OpenAI-compatible provider</span></span>
 <span class="k">/login</span>
 
-<span class="c"># <span class="zh">检查环境</span><span class="en">check the environment</span></span>
-<span class="k">deepprof doctor</span>
+<span class="c"># <span class="zh">检查环境（免全局安装）</span><span class="en">check the environment, without a global install</span></span>
+<span class="k">npx</span> --yes --package=<span class="str">https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz</span> <span class="k">deepprof doctor</span>
 
 <span class="c"># <span class="zh">可选：扫描件 OCR 支持</span><span class="en">optional: scanned-page OCR support</span></span>
-<span class="k">deepprof setup --ocr</span></code></pre>
-        <button type="button" class="copy" data-copy="npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.2/deepprof-cli-0.6.2.tgz deepprof"><span class="zh">复制命令</span><span class="en">Copy command</span></button>
+<span class="k">npx</span> --yes --package=<span class="str">https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz</span> <span class="k">deepprof setup --ocr</span></code></pre>
+        <button type="button" class="copy" data-copy="npx --yes --package=https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/deepprof-cli-0.6.4.tgz deepprof"><span class="zh">复制命令</span><span class="en">Copy command</span></button>
       </div>
 
+      <p><span class="zh">同一安装命令末尾的 <code>deepprof</code> 后追加 <code>web</code> 可打开浏览器工作台；追加 <code>doctor</code> 检查环境，<code>--version</code> 查看版本，<code>check-update</code> 检查稳定版。升级时将包地址替换为新 Release 的版本；现有会话与本地配置继续保存在用户数据目录。</span><span class="en">Append <code>web</code> after <code>deepprof</code> in the installation command to open the browser workspace; use <code>doctor</code> for diagnostics, <code>--version</code> for the version, or <code>check-update</code> for stable-release checks. Upgrade by using the newer Release package URL; sessions and settings stay in the user data directory.</span></p>
       <ol class="steps">
         <li>
           <div>
@@ -774,12 +806,12 @@ pre .str{color:#8FD3A8}
 
       <ul class="bounds">
         <li>
-          <strong><span class="zh">全部批次没有真人参与者</span><span class="en">No human participants in any batch</span></strong>
-          <span class="zh">M1–M3 的所有批次都使用构造开发案例与合成 Attempt，没有招募、同意、教师批准或机构审批，也没有真实学生的学习数据。这不是待补充的细节，而是这些结果的适用边界。</span>
-          <span class="en">Every M1–M3 batch uses constructed development cases and synthetic attempts. There was no recruitment, consent, teacher approval or institutional review, and no real student learning data. This is not a detail waiting to be filled in; it bounds what the results apply to.</span>
+          <strong><span class="zh">早期工程批次没有真人参与者</span><span class="en">No human participants in earlier engineering batches</span></strong>
+          <span class="zh">早期 M1–M3 工程批次使用构造开发案例与合成 Attempt，未招募真人，也没有真实学生的学习数据。后续 ASSISTments 研究使用公开历史学生数据，未开展新招募；这些不同的数据来源分别限定了结论的适用范围。</span>
+          <span class="en">The earlier M1–M3 engineering batches use constructed cases and synthetic attempts, with no recruited participants or real student learning data. Later ASSISTments research uses public historical student data, with no new recruitment. These distinct data sources bound the conclusions separately.</span>
         </li>
         <li>
-          <strong><span class="zh">教师审核与 BKT 校准仍未完成</span><span class="en">Teacher review and BKT calibration remain open</span></strong>
+          <strong><span class="zh">AI 标注复核与生产 BKT 校准仍未完成</span><span class="en">AI-label review and production BKT calibration remain open</span></strong>
           <span class="zh">题库、教材页码与教学策略需要教师独立审核；BKT 参数需要审核后的作答数据来拟合。在校准完成之前，个体成绩与产品测量只用于本机开发与教师监督下的教学。</span>
           <span class="en">The question bank, textbook page locators and teaching policy still need independent teacher review; the BKT parameters need reviewed response data to fit. Until calibration is done, individual scores and product measurements are for local development and teacher-supervised use only.</span>
         </li>
@@ -789,9 +821,9 @@ pre .str{color:#8FD3A8}
           <span class="en">M2 pass rates and M3 per-cell completion show the system executed as intended; they say nothing about whether students learn better. The internal trial and feature walkthrough the team ran afterwards are engineering self-checks and equally do not constitute evidence of learning effect.</span>
         </li>
         <li>
-          <strong><span class="zh">真实模型接入仍受截断制约</span><span class="en">Live model use is still constrained by truncation</span></strong>
-          <span class="zh">真实试点批次里 29 次请求中有 26 次因为输出长度上限被截断。这不是可以忽略的噪声：它直接限制了策略图在真实模型上的可用范围，也是下一步要处理的问题。</span>
-          <span class="en">In the live pilot, 26 of 29 requests were truncated by the output-length limit. This is not ignorable noise: it directly limits where the policy graph is usable against a real model, and it is the next thing to address.</span>
+          <strong><span class="zh">早期真实模型试点存在截断</span><span class="en">Truncation in the earlier live-model pilot</span></strong>
+          <span class="zh">真实试点批次里 29 次请求中有 26 次因为输出长度上限被截断。这些失败记录保留在对应批次中；最新 480 格批次单独报告，不能把早期试点的限制直接推广到所有 Provider。</span>
+          <span class="en">In the live pilot, 26 of 29 requests were truncated by the output-length limit. Those failures remain recorded under that batch. The latest 480-cell batch is reported separately, and the earlier pilot does not establish a limit for every provider.</span>
         </li>
       </ul>
 
@@ -822,11 +854,12 @@ pre .str{color:#8FD3A8}
         <span class="zh">引用本项目的工程状态时，请带上版本、发布日期与提交，避免指向一个移动中的 <code>main</code>。</span>
         <span class="en">When citing this project's engineering state, include the version, release date and commit rather than pointing at a moving <code>main</code>.</span>
       </p>
-      <pre><code>DeepProf v0.6.2 · <span class="zh">发布于</span><span class="en">released</span> 2026-09-24
-main <span class="zh">分支 CI 通过提交</span><span class="en">branch CI passed at commit</span> 487d4ca
-<span class="c"><span class="zh">（487d4ca 是 main 的 CI 通过提交，不是 release tag 指向的提交）</span><span class="en">(487d4ca is the main branch commit CI passed at, not the commit the release tag points to)</span></span>
+      <pre><code>DeepProf v0.6.4 · <span class="zh">发布于</span><span class="en">released</span> 2026-10-05
+<span class="zh">发布标签提交</span><span class="en">Release tag commit</span> 8034d186adb1e8674124351857d89ac206ac6409
 https://github.com/RockeyRoc/DeepProf
 
+<span class="c"># <span class="zh">最新全文 RAG 批次</span><span class="en">Latest full-text RAG batch</span></span>
+m3-fulltext-rag-20261004-v4
 <span class="c"># <span class="zh">M3 离线批次</span><span class="en">M3 offline batch</span></span>
 m3-offline-20260924-final6
 <span class="c"># <span class="zh">M1 A/B 批次</span><span class="en">M1 A/B batch</span></span>
@@ -861,7 +894,7 @@ run_20260923T235151Z_ed03930c</code></pre>
       <h4><span class="zh">项目</span><span class="en">Project</span></h4>
       <ul>
         <li><a href="https://github.com/RockeyRoc/DeepProf">GitHub <span class="zh">仓库</span><span class="en">repository</span></a></li>
-        <li><a href="https://github.com/RockeyRoc/DeepProf/releases">Releases</a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/releases/tag/v0.6.4">Release v0.6.4</a></li>
         <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/DESIGNv0.6.2.md">DESIGN v0.6.2</a></li>
         <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/apps/cli/README.md">CLI <span class="zh">使用说明</span><span class="en">guide</span></a></li>
       </ul>
@@ -869,6 +902,8 @@ run_20260923T235151Z_ed03930c</code></pre>
     <div>
       <h4><span class="zh">证据</span><span class="en">Evidence</span></h4>
       <ul>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/M3-BKT-RAG-report.pdf"><span class="zh">最新 BKT/RAG 报告</span><span class="en">Latest BKT/RAG report</span></a></li>
+        <li><a href="https://github.com/RockeyRoc/DeepProf/releases/download/v0.6.4/DEEPPROF-v0.6.4-evidence.zip"><span class="zh">v0.6.4 公开证据</span><span class="en">v0.6.4 public evidence</span></a></li>
         <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/experiments/M1-M3-%E5%AE%9E%E9%AA%8C%E6%8A%A5%E5%91%8A.md"><span class="zh">M1–M3 实验报告</span><span class="en">M1–M3 experiment report</span></a></li>
         <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/M2-offline-acceptance.md">M2 <span class="zh">离线验收</span><span class="en">offline acceptance</span></a></li>
         <li><a href="https://github.com/RockeyRoc/DeepProf/blob/main/docs/experiments/%E5%9B%BE%E8%A1%A8%E5%BA%93.md"><span class="zh">图表库</span><span class="en">Figure catalogue</span></a></li>
@@ -878,7 +913,7 @@ run_20260923T235151Z_ed03930c</code></pre>
   </div>
   <div class="foot-bot">
     <span>DeepProf · 2026 · <span class="zh">代码公开可访问，未附开源许可证</span><span class="en">Code publicly accessible; no open-source licence attached</span></span>
-    <span>v0.6.2 · 2026-09-24</span>
+    <span>v0.6.4 · 2026-10-05</span>
   </div>
 </footer>
 
@@ -904,8 +939,8 @@ run_20260923T235151Z_ed03930c</code></pre>
     });
     var md = document.querySelector('meta[name="description"]');
     if (md) md.setAttribute('content', lang === 'zh'
-      ? 'DeepProf 是一套本机优先的自适应教学原型：把课程材料的可定位证据、合格作答事实、教学策略与 BKT 学情估计连到同一条可回放的教学链路上。'
-      : 'DeepProf is a local-first adaptive teaching prototype that links locatable course evidence, reliable answer facts, teaching policy and a BKT mastery estimate onto one replayable teaching chain.');
+      ? 'DeepProf v0.6.4：本机聊天与教学工作台，支持文档和图片上传。公开 480 格全文 RAG 消融与 NoMIRACL 中文评测，明确 AI 标注和待完成人员复核。'
+      : 'DeepProf v0.6.4: a local chat and study workspace with document and image uploads. Public 480-cell full-text RAG and NoMIRACL Chinese evidence, with AI labels and personnel review pending.');
     document.title = lang === 'zh'
       ? 'DeepProf — 让每一条教学建议都有出处'
       : 'DeepProf — every teaching suggestion, traceable to its source';
