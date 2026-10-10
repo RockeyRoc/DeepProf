@@ -1,5 +1,5 @@
 # Direct runtime dependencies tested with Python 3.12.14 on 2026-09-24.
-fastapi==0.141.1
+fastapi==0.142.2
 uvicorn==0.53.0
 httpx==0.28.1
 pydantic==2.13.5
