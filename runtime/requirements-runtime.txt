@@ -1,6 +1,6 @@
 # Direct runtime dependencies tested with Python 3.12.14 on 2026-09-24.
 fastapi==0.141.1
-uvicorn==0.53.0
+uvicorn==0.54.0
 httpx==0.28.1
 pydantic==2.13.5
 python-dotenv==1.2.3
